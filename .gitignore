@@ -1,0 +1,69 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/key.properties
+*.apk
+*.aab
+*.ipa
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+
+# Database & Storage
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+hive/
+
+# Large model files
+*.gguf
+*.onnx
+*.tflite
+*.pt
+*.pth
+models/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+.test_coverage.dart
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.config.dart

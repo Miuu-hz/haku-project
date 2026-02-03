@@ -1,0 +1,39 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  
+  errors:
+    # Disable exhaustiveness errors due to Flutter 3.38.9 SDK bug
+    exhaustive_cases: ignore
+    invalid_case_patterns: ignore
+
+linter:
+  rules:
+    # 🎯 กฎสำคัญสำหรับ Project นี้
+    prefer_single_quotes: true
+    prefer_const_constructors: true
+    prefer_const_literals_to_create_immutables: true
+    avoid_print: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    avoid_unnecessary_containers: true
+    use_key_in_widget_constructors: true
+    
+    # 📋 กฎเพิ่มเติม
+    always_declare_return_types: true
+    cancel_subscriptions: true
+    close_sinks: true
+    prefer_collection_literals: true
+    prefer_expression_function_bodies: true
+    prefer_if_null_operators: true
+    prefer_null_aware_operators: true
+    prefer_relative_imports: true
+    unnecessary_await_in_return: true

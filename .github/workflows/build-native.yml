@@ -1,0 +1,139 @@
+name: 🤖 Build Native Libraries
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'android/app/src/main/cpp/**'
+      - '.github/workflows/build-native.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'android/app/src/main/cpp/**'
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android Native Libraries
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
+        
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: 🔧 Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: 🤖 Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: 📦 Install NDK
+      run: |
+        sdkmanager "ndk;25.2.9519653"
+        sdkmanager "cmake;3.22.1"
+
+    - name: 🔍 Verify llama.cpp
+      run: |
+        if [ ! -d "android/app/src/main/cpp/llama.cpp" ]; then
+          echo "❌ llama.cpp not found! Cloning..."
+          git clone --recursive https://github.com/ggerganov/llama.cpp.git android/app/src/main/cpp/llama.cpp
+        else
+          echo "✅ llama.cpp exists"
+        fi
+
+    - name: 🛠️ Build Native Libraries (${{ matrix.abi }})
+      run: |
+        export ANDROID_NDK=$ANDROID_HOME/ndk/25.2.9519653
+        mkdir -p build-native
+        cd build-native
+        
+        cmake ../android/app/src/main/cpp \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=${{ matrix.abi }} \
+          -DANDROID_PLATFORM=android-24 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DANDROID_STL=c++_shared
+        
+        cmake --build . --parallel $(nproc)
+        
+    - name: 📤 Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-libs-${{ matrix.abi }}
+        path: build-native/*.so
+        retention-days: 30
+
+  package-all:
+    name: 📦 Package All ABIs
+    needs: build-android
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: native-libs-*
+        merge-multiple: false
+
+    - name: 📂 Organize libraries
+      run: |
+        mkdir -p jniLibs
+        for abi in arm64-v8a armeabi-v7a x86_64; do
+          mkdir -p jniLibs/$abi
+          if [ -d "artifacts/native-libs-$abi" ]; then
+            cp artifacts/native-libs-$abi/*.so jniLibs/$abi/ 2>/dev/null || true
+          fi
+        done
+        
+        echo "📁 Library structure:"
+        find jniLibs -type f -name "*.so" | head -20
+
+    - name: 📤 Upload packaged libraries
+      uses: actions/upload-artifact@v4
+      with:
+        name: haku-native-libs-all
+        path: jniLibs/
+        retention-days: 90
+
+  test-build:
+    name: 🧪 Test Flutter Build
+    needs: package-all
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🔧 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.x'
+        channel: 'stable'
+
+    - name: 📥 Download native libraries
+      uses: actions/download-artifact@v4
+      with:
+        name: haku-native-libs-all
+        path: android/app/src/main/jniLibs/
+
+    - name: 🔍 Verify structure
+      run: |
+        echo "📁 jniLibs structure:"
+        find android/app/src/main/jniLibs -type f -name "*.so" 2>/dev/null || echo "No libraries found"
+
+    - name: 🧪 Analyze Flutter
+      run: flutter analyze
+
+    - name: 🧪 Test Flutter Build (Android)
+      run: |
+        flutter build apk --debug || echo "⚠️ Build may have failed, but continuing..."

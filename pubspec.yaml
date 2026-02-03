@@ -1,0 +1,68 @@
+name: haku
+description: "Haku (箱) - AI Personal Life Logger แบบ Privacy-First ทำงานบนอุปกรณ์"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # 🗄️ ฐานข้อมูล
+  sqflite: ^2.3.0                    # SQLite สำหรับ Flutter
+  sqflite_common_ffi: ^2.3.0         # FFI support สำหรับ SQLCipher ในอนาคต
+  path: ^1.8.3                       # จัดการ path
+  path_provider: ^2.1.1              # หา directory สำหรับเก็บข้อมูล
+  
+  # 📍 ตำแหน่งที่ตั้ง (ประหยัดแบต)
+  geolocator: ^10.1.0                # ขอพิกัด GPS
+  geocoding: ^2.1.1                  # แปลงพิกัดเป็นชื่อสถานที่
+  
+  # 🎨 UI & State Management
+  flutter_riverpod: ^2.4.9           # State Management ( lightweight )
+  intl: ^0.18.1                      # จัดการวันที่/เวลา
+  google_fonts: ^6.1.0               # ฟอนต์สวยๆ
+  flutter_slidable: ^3.0.1           # ปัดซ้าย/ขวาใน List
+  
+  # 📤 Export/Import
+  share_plus: ^7.2.1                 # แชร์ไฟล์ออกไป
+  file_picker: ^8.0.0                # เลือกไฟล์สำหรับ Import
+  
+  # 🔒 Security & Biometric
+  flutter_secure_storage: ^9.0.0     # เก็บ encryption key
+  encrypt: ^5.0.1                    # Encryption utilities
+  local_auth: ^2.2.0                 # Face ID / Fingerprint
+  local_auth_android: ^1.0.34
+  local_auth_ios: ^1.1.6
+  
+  # 🗄️ SQLCipher (Encrypted SQLite)
+  sqflite_sqlcipher: ^3.1.0+1        # SQLite + Encryption
+  
+  # 🎙️ อัดเสียง (เตรียมไว้ Phase 2)
+  # record: ^5.0.4                   # อัดเสียง
+  # speech_to_text: ^6.5.1           # แปลงเสียงเป็นข้อความ
+  
+  # 🖼️ รูปภาพ (เตรียมไว้ Phase 2)
+  # image_picker: ^1.0.7             # เลือกรูปจากกล้อง/แกลเลอรี
+  # image: ^4.1.3                    # ประมวลผลรูปภาพ
+  
+  # 💾 Preferences
+  shared_preferences: ^2.2.2        # บันทึกการตั้งค่า
+
+  # 📱 Widgets (Android)
+  home_widget: ^0.5.0                # สื่อสารกับ Home Screen Widgets
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    # โมเดล LLM อยู่ใน folder models/ ที่ root (ไม่ใช่ assets/)
+    # แอพจะอ่านจาก models/ แล้ว copy ไปยัง app storage

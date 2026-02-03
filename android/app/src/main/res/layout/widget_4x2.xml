@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🎌 Haku Widget 4x2 - แสดงคำถามสำเร็จรูปแบบลัด -->
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background"
+    android:padding="12dp">
+
+    <!-- Header: Logo + ปุ่มลัด -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        
+        <!-- Logo Haku -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="箱 Haku"
+            android:textColor="#9B7CB6"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+        
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+        
+        <!-- ปุ่มเขียนใหม่ -->
+        <ImageButton
+            android:id="@+id/btn_new_entry"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/widget_button_circle"
+            android:src="@drawable/ic_edit"
+            android:contentDescription="เขียนบันทึก"/>
+        
+        <View
+            android:layout_width="8dp"
+            android:layout_height="0dp"/>
+        
+        <!-- ปุ่มแชท -->
+        <ImageButton
+            android:id="@+id/btn_chat"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/widget_button_circle"
+            android:src="@drawable/ic_chat"
+            android:contentDescription="คุยกับ Haku"/>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#2A2A3E"
+        android:layout_marginVertical="8dp"/>
+
+    <!-- คำถามสำเร็จรูป 2 แถว -->
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:columnCount="3"
+        android:rowCount="2">
+
+        <Button
+            android:id="@+id/btn_q1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="🍜 กินอะไร?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+
+        <Button
+            android:id="@+id/btn_q2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="😊 เป็นยังไง?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+
+        <Button
+            android:id="@+id/btn_q3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="📍 ไปไหน?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+
+        <Button
+            android:id="@+id/btn_q4"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="🎵 อารมณ์?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+
+        <Button
+            android:id="@+id/btn_q5"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="📅 เมื่อวาน?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+
+        <Button
+            android:id="@+id/btn_q6"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_question_button"
+            android:text="💤 นอนดี?"
+            android:textSize="11sp"
+            android:textColor="#FFFFFF"/>
+    </GridLayout>
+
+    <!-- Footer: สถานะ AI -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🟢 AI พร้อมใช้งาน · Offline"
+        android:textSize="10sp"
+        android:textColor="#4CAF50"
+        android:gravity="center"
+        android:layout_marginTop="4dp"/>
+
+</LinearLayout>

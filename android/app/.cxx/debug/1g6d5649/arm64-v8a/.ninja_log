@@ -1,0 +1,1255 @@
+# ninja log v5
+641	758	0	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/CMakeFiles/cmake.verify_globs	47e62435ee9f53ac
+26	426	7916738282300000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-mkdir	b44ba29a32faf92
+26	426	7916738282300000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-mkdir	b44ba29a32faf92
+427	549	7916738283500000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-download	a816de196f228b5a
+427	549	7916738283500000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-download	a816de196f228b5a
+551	676	7916738284700000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-update	7d2b8c820d614bce
+551	676	7916738284700000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-update	7d2b8c820d614bce
+678	805	7916738286000000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-patch	17948ef5a72b6a33
+678	805	7916738286000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-patch	17948ef5a72b6a33
+52	995	7916738279600000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o	46cdece12d0a2df9
+115	1181	7916738280400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/quants.c.o	370db7f55d472c53
+998	1410	7916738290000000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/hbm.cpp.o	3008501005a8aa1e
+33	1454	7916738278800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o	8f23c968854ca17b
+73	1580	7916738279900000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-quants.c.o	3c4e95a308f32859
+89	1693	7916738280400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.c.o	48899f2cf78a202b
+59	3772	7916738279600000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o	84242fd323f8ce7e
+39	4400	7916738279100000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o	9e286a4d1a1a768d
+123	4510	7916738280600000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/mmq.cpp.o	ab0c168764be2a93
+46	4752	7916738279400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o	4708bb0e1aa75c0b
+105	4764	7916738280600000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.cpp.o	f22fdc3fa38c74fc
+1182	5051	7916738292500000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/traits.cpp.o	dacd18ddf7721c0c
+1411	5063	7916738293100000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/amx.cpp.o	f059064245e70517
+98	5067	7916738280400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/repack.cpp.o	e9a8522ce68d7897
+1455	5184	7916738293500000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/vec.cpp.o	e8e3f0b7255d91d5
+66	5283	7916738279900000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o	bb6f9f5734ce0d2e
+1581	5415	7916738294800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/binary-ops.cpp.o	e8afe17b2741b085
+4512	5609	7916738323900000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/quants.c.o	ecbce93ef18ecf2f
+1694	5749	7916738296500000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/unary-ops.cpp.o	a3e2f957c0a8b85a
+81	5998	7916738280400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/gguf.cpp.o	289fb46734d7227f
+805	6009	7916738338000000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-configure	c02b3a03bbfbbbd3
+805	6009	7916738338000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-configure	c02b3a03bbfbbbd3
+4400	6481	7916738323000000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/llamafile/sgemm.cpp.o	f7a675dffd2a439
+4752	6742	7916738326700000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/repack.cpp.o	fe43835d1e7b7661
+3776	7018	7916738317600000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ops.cpp.o	ae41b5c1d3d3c40a
+5999	8241	7916738360000000	bin/libggml-base.so	88e92800783833a6
+8241	11243	7916738390100000	bin/libggml-cpu.so	38a2babd9aeaa6be
+6009	12626	0	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-build	1e2cbe85822360d8
+6009	12626	0	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-build	1e2cbe85822360d8
+12627	12758	7916738405600000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-install	abd1878a10c1ca2a
+12627	12758	7916738405600000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-install	abd1878a10c1ca2a
+12758	12833	7916738406300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/vulkan-shaders-gen-complete	1c93e3d2c0f040e2
+12758	12833	7916738406300000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-done	1c93e3d2c0f040e2
+12758	12833	7916738406300000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/vulkan-shaders-gen-complete	1c93e3d2c0f040e2
+12758	12833	7916738406300000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-done	1c93e3d2c0f040e2
+12854	12985	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/ggml-vulkan-shaders.hpp	4433203e96e0d475
+12854	12985	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ggml-vulkan-shaders.hpp	4433203e96e0d475
+12847	13777	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/argmax.comp.cpp	d6bc7d4941d25e00
+12847	13777	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argmax.comp.cpp	d6bc7d4941d25e00
+12949	13804	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/argsort_large.comp.cpp	b9016ed9c1ba6ea4
+12949	13804	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argsort_large.comp.cpp	b9016ed9c1ba6ea4
+12840	13855	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/abs.comp.cpp	4866c3d604d3f489
+12840	13855	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/abs.comp.cpp	4866c3d604d3f489
+12834	13917	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/repeat_back.comp.cpp	4b522cbe3bc2f3fd
+12834	13917	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/repeat_back.comp.cpp	4b522cbe3bc2f3fd
+12901	13982	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/add_id.comp.cpp	f40e35d7f5772c44
+12901	13982	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add_id.comp.cpp	f40e35d7f5772c44
+12920	14015	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/arange.comp.cpp	83c52b1cca0564b4
+12920	14015	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/arange.comp.cpp	83c52b1cca0564b4
+12958	14025	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/ceil.comp.cpp	4d71ec486f031d81
+12958	14025	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ceil.comp.cpp	4d71ec486f031d81
+12910	14062	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/add1.comp.cpp	7102b9d40c436546
+12910	14062	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add1.comp.cpp	7102b9d40c436546
+12929	14115	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/acc.comp.cpp	dc524db425660892
+12929	14115	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/acc.comp.cpp	dc524db425660892
+12976	14219	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/argsort.comp.cpp	2204809bc9680a03
+12976	14219	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argsort.comp.cpp	2204809bc9680a03
+12939	14419	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/concat.comp.cpp	4fdc8ef82cc12f99
+12939	14419	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/concat.comp.cpp	4fdc8ef82cc12f99
+12967	14511	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/clamp.comp.cpp	b0a19c16b8504898
+12967	14511	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/clamp.comp.cpp	b0a19c16b8504898
+12985	14549	7916738420000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_from_quant.comp.cpp	60bc66b2cbacd955
+12985	14549	7916738420000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_from_quant.comp.cpp	60bc66b2cbacd955
+13777	15082	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_transpose.comp.cpp	8d1c06567b5e86f
+13777	15082	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_transpose.comp.cpp	8d1c06567b5e86f
+13983	15252	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/cos.comp.cpp	d91d867aadbc3526
+13983	15252	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cos.comp.cpp	d91d867aadbc3526
+13804	15271	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/copy.comp.cpp	8e37b03de3d27562
+13804	15271	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy.comp.cpp	8e37b03de3d27562
+14419	15404	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/opt_step_adamw.comp.cpp	3e14bf75ba5c60bd
+14419	15404	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/opt_step_adamw.comp.cpp	3e14bf75ba5c60bd
+13855	15413	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/conv2d_dw.comp.cpp	8b273003924f0508
+13855	15413	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv2d_dw.comp.cpp	8b273003924f0508
+12862	15423	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/add.comp.cpp	b367136238a3c97f
+12862	15423	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add.comp.cpp	b367136238a3c97f
+14025	15442	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/conv_transpose_1d.comp.cpp	56d39eb5abde880c
+14025	15442	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv_transpose_1d.comp.cpp	56d39eb5abde880c
+14511	15585	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/opt_step_sgd.comp.cpp	3d1369370ef403ba
+14511	15585	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/opt_step_sgd.comp.cpp	3d1369370ef403ba
+14015	15723	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/contig_copy.comp.cpp	17675c9c89280adf
+14015	15723	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/contig_copy.comp.cpp	17675c9c89280adf
+14115	15838	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/count_equal.comp.cpp	69eac3618fffb0c5
+14115	15838	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/count_equal.comp.cpp	69eac3618fffb0c5
+14219	16067	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/reglu.comp.cpp	2fcc1a78f7e0831b
+14219	16067	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/reglu.comp.cpp	2fcc1a78f7e0831b
+14062	16090	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/conv2d_mm.comp.cpp	d6cbf7339a1319f3
+14062	16090	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv2d_mm.comp.cpp	d6cbf7339a1319f3
+15082	16137	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/pad.comp.cpp	2e72d3684fd93e41
+15082	16137	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/pad.comp.cpp	2e72d3684fd93e41
+14550	16155	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/pool2d.comp.cpp	21b68f64f6031520
+14550	16155	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/pool2d.comp.cpp	21b68f64f6031520
+15271	16237	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/norm.comp.cpp	cd6db33c542f8245
+15271	16237	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/norm.comp.cpp	cd6db33c542f8245
+15404	16246	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/relu.comp.cpp	84ad1017103f62dd
+15404	16246	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/relu.comp.cpp	84ad1017103f62dd
+15442	16257	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_s.comp.cpp	5bed13b38b0d5554
+15442	16257	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_s.comp.cpp	5bed13b38b0d5554
+15414	16274	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/repeat.comp.cpp	20c8a9832cca279f
+15414	16274	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/repeat.comp.cpp	20c8a9832cca279f
+15252	16284	7916738440000000	llama.cpp_build/ggml/src/ggml-vulkan/quantize_q8_1.comp.cpp	c9128f7e08d8b548
+15252	16284	7916738440000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/quantize_q8_1.comp.cpp	c9128f7e08d8b548
+15585	16443	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xs.comp.cpp	d82baa4c1886cb60
+15585	16443	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xs.comp.cpp	d82baa4c1886cb60
+15724	16454	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum.comp.cpp	88ae7bb16693044
+15724	16454	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum.comp.cpp	88ae7bb16693044
+16091	16553	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass1.comp.cpp	56878314bf56e838
+16091	16553	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass1.comp.cpp	56878314bf56e838
+16137	16562	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/count_experts.comp.cpp	d7ee995242012f78
+16137	16562	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/count_experts.comp.cpp	d7ee995242012f78
+16155	16583	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass2.comp.cpp	dd8ac04a2b7da580
+16155	16583	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass2.comp.cpp	dd8ac04a2b7da580
+16068	16608	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_f32.comp.cpp	ba0d9ddb8649222d
+16068	16608	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_f32.comp.cpp	ba0d9ddb8649222d
+16237	16619	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q2_k.comp.cpp	8c93ad665f883f24
+16237	16619	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q2_k.comp.cpp	8c93ad665f883f24
+15423	16628	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_m.comp.cpp	63afb26cf5346f23
+15423	16628	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_m.comp.cpp	63afb26cf5346f23
+16257	16655	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_mxfp4.comp.cpp	c08dced646dd3b90
+16257	16655	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_mxfp4.comp.cpp	c08dced646dd3b90
+16248	16669	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_s.comp.cpp	a17bf1d984801c77
+16248	16669	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_s.comp.cpp	a17bf1d984801c77
+16275	16680	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_xs.comp.cpp	4402faa8f43aae79
+16275	16680	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_xs.comp.cpp	4402faa8f43aae79
+16284	16736	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q3_k.comp.cpp	c460fba4346ac3f5
+16284	16736	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q3_k.comp.cpp	c460fba4346ac3f5
+16454	17236	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_nl.comp.cpp	aea19daeb0bf4563
+16454	17236	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_nl.comp.cpp	aea19daeb0bf4563
+16443	17268	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_0.comp.cpp	63ba3c2ec7ccb009
+16443	17268	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_0.comp.cpp	63ba3c2ec7ccb009
+16562	17278	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xxs.comp.cpp	2ef809ca41a41a01
+16562	17278	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xxs.comp.cpp	2ef809ca41a41a01
+13918	17296	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_to_quant.comp.cpp	e90f0c14b28d62e2
+13918	17296	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_to_quant.comp.cpp	e90f0c14b28d62e2
+15839	17315	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_s.comp.cpp	b810d64a48d0c0c5
+15839	17315	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_s.comp.cpp	b810d64a48d0c0c5
+16583	17325	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_k.comp.cpp	e63c45914479bb76
+16583	17325	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_k.comp.cpp	e63c45914479bb76
+16553	17334	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_xxs.comp.cpp	dd091c0ac2b957eb
+16553	17334	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_xxs.comp.cpp	dd091c0ac2b957eb
+16628	17343	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/diag_mask_inf.comp.cpp	d6df490c94bacaaf
+16628	17343	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/diag_mask_inf.comp.cpp	d6df490c94bacaaf
+16655	17353	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_0.comp.cpp	1b1cb2e26b4b27bb
+16655	17353	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_0.comp.cpp	1b1cb2e26b4b27bb
+16619	17362	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_k.comp.cpp	d96a89a9a11a339b
+16619	17362	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_k.comp.cpp	d96a89a9a11a339b
+16670	17372	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/diag.comp.cpp	a3078ac8b2b6f8b6
+16670	17372	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/diag.comp.cpp	a3078ac8b2b6f8b6
+16680	17417	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_1.comp.cpp	60d5c73bd642e655
+16680	17417	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_1.comp.cpp	60d5c73bd642e655
+17362	17677	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm1.comp.cpp	fd2e808da84e9dcc
+17362	17677	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm1.comp.cpp	fd2e808da84e9dcc
+17236	17969	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_1.comp.cpp	4706365a97bd1a78
+17236	17969	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_1.comp.cpp	4706365a97bd1a78
+17296	17979	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/exp.comp.cpp	e5764d1e6be934d7
+17296	17979	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/exp.comp.cpp	e5764d1e6be934d7
+17353	18010	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm2.comp.cpp	2ac9dbf6ed875444
+17353	18010	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm2.comp.cpp	2ac9dbf6ed875444
+16736	18020	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q6_k.comp.cpp	d5d40d4609dc5af7
+16736	18020	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q6_k.comp.cpp	d5d40d4609dc5af7
+17279	18088	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_split_k_reduce.comp.cpp	1c39f1412fa573cd
+17279	18088	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_split_k_reduce.comp.cpp	1c39f1412fa573cd
+16609	18097	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/div.comp.cpp	5d0f9a6901689787
+16609	18097	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/div.comp.cpp	5d0f9a6901689787
+17315	18111	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/fill.comp.cpp	6ce2dd3931bdcfeb
+17315	18111	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/fill.comp.cpp	6ce2dd3931bdcfeb
+17344	18167	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu_erf.comp.cpp	bad8595216c32264
+17344	18167	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu_erf.comp.cpp	bad8595216c32264
+17325	18177	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/floor.comp.cpp	4aa08f3cb6aade8
+17325	18177	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/floor.comp.cpp	4aa08f3cb6aade8
+17268	18186	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q8_0.comp.cpp	c57da28c5c326d2c
+17268	18186	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q8_0.comp.cpp	c57da28c5c326d2c
+17418	18585	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu.comp.cpp	abaee12aaa2f1642
+17418	18585	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu.comp.cpp	abaee12aaa2f1642
+17677	18595	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/hardswish.comp.cpp	a9ced9f17b656d8b
+17677	18595	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/hardswish.comp.cpp	a9ced9f17b656d8b
+17372	18604	7916738460000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu.comp.cpp	b0e923f12a760782
+17372	18604	7916738460000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu.comp.cpp	b0e923f12a760782
+18010	19019	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/group_norm.comp.cpp	523fc1a34b737e4b
+18010	19019	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/group_norm.comp.cpp	523fc1a34b737e4b
+17969	19185	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu_quick.comp.cpp	ec330c3818c059a4
+17969	19185	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu_quick.comp.cpp	ec330c3818c059a4
+17984	19281	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/hardsigmoid.comp.cpp	3f0b31191237a2e2
+17984	19281	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/hardsigmoid.comp.cpp	3f0b31191237a2e2
+18097	19303	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu_quick.comp.cpp	e50027acf0c0e99
+18097	19303	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu_quick.comp.cpp	e50027acf0c0e99
+18020	19671	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu_erf.comp.cpp	10f4088edf192c42
+18020	19671	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu_erf.comp.cpp	10f4088edf192c42
+18177	19693	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/log.comp.cpp	ab71dfbab865b764
+18177	19693	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/log.comp.cpp	ab71dfbab865b764
+19019	20024	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/leaky_relu.comp.cpp	410f4ca61005b94c
+19019	20024	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/leaky_relu.comp.cpp	410f4ca61005b94c
+18088	20154	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/get_rows.comp.cpp	226fa8de13df9eba
+18088	20154	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/get_rows.comp.cpp	226fa8de13df9eba
+17335	20626	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn.comp.cpp	81f79e85ce0d5da5
+17335	20626	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn.comp.cpp	81f79e85ce0d5da5
+18595	21515	7916738480000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_split_k_reduce.comp.cpp	8ed248e8f80999b4
+18595	21515	7916738480000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_split_k_reduce.comp.cpp	8ed248e8f80999b4
+19281	21757	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/l2_norm.comp.cpp	5e3ef51da7ac4219
+19281	21757	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/l2_norm.comp.cpp	5e3ef51da7ac4219
+18604	21794	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/im2col.comp.cpp	ca138eeefb65c9a1
+18604	21794	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/im2col.comp.cpp	ca138eeefb65c9a1
+18585	22095	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/im2col_3d.comp.cpp	effd60477077f064
+18585	22095	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/im2col_3d.comp.cpp	effd60477077f064
+18186	22195	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/mul.comp.cpp	f60aa0b13e465194
+18186	22195	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul.comp.cpp	f60aa0b13e465194
+18167	22261	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_m.comp.cpp	54a50a634eaf2395
+18167	22261	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_m.comp.cpp	54a50a634eaf2395
+19693	22741	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xs.comp.cpp	56ca7c01ecb42b0d
+19693	22741	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xs.comp.cpp	56ca7c01ecb42b0d
+19671	22750	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_s.comp.cpp	ac18253819e7f378
+19671	22750	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_s.comp.cpp	ac18253819e7f378
+20024	22899	7916738500000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xxs.comp.cpp	e52239e31fc114d2
+20024	22899	7916738500000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xxs.comp.cpp	e52239e31fc114d2
+19304	22911	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_s.comp.cpp	3174ed46387d5641
+19304	22911	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_s.comp.cpp	3174ed46387d5641
+22095	22971	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mmq.comp.cpp	ad27ee2ca387b33
+22095	22971	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mmq.comp.cpp	ad27ee2ca387b33
+18111	23165	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/get_rows_quant.comp.cpp	24215aae3756b6b2
+18111	23165	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/get_rows_quant.comp.cpp	24215aae3756b6b2
+21515	23686	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_p021.comp.cpp	dd73b06da9fdb102
+21515	23686	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_p021.comp.cpp	dd73b06da9fdb102
+20626	24110	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_nc.comp.cpp	cab92f01e3e49b37
+20626	24110	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_nc.comp.cpp	cab92f01e3e49b37
+22261	24241	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mm_cm2.comp.cpp	81c1d1eaf349c7bf
+22261	24241	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mm_cm2.comp.cpp	81c1d1eaf349c7bf
+20157	25087	7916738520000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_xxs.comp.cpp	ce9f8e7d50d7c923
+20157	25087	7916738520000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_xxs.comp.cpp	ce9f8e7d50d7c923
+22195	25776	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q6_k.comp.cpp	eeaeda93f9a38da
+22195	25776	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q6_k.comp.cpp	eeaeda93f9a38da
+23686	25942	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/neg.comp.cpp	6a830edc420ed7e3
+23686	25942	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/neg.comp.cpp	6a830edc420ed7e3
+22900	26140	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q4_k.comp.cpp	71685a54dc896862
+22900	26140	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q4_k.comp.cpp	71685a54dc896862
+24241	26150	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_back.comp.cpp	8af920dfba427e71
+24241	26150	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_back.comp.cpp	8af920dfba427e71
+22911	26179	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vecq.comp.cpp	3e53e5c136b4bf65
+22911	26179	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vecq.comp.cpp	3e53e5c136b4bf65
+22741	26358	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/multi_add.comp.cpp	d412b30e6c2fd80a
+22741	26358	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/multi_add.comp.cpp	d412b30e6c2fd80a
+21757	26620	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_s.comp.cpp	4545f2a81bed021c
+21757	26620	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_s.comp.cpp	4545f2a81bed021c
+21794	26850	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q2_k.comp.cpp	b019d2ffa0045cc
+21794	26850	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q2_k.comp.cpp	b019d2ffa0045cc
+23165	27123	7916738540000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q5_k.comp.cpp	2a9dd8b92f4ac21e
+23165	27123	7916738540000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q5_k.comp.cpp	2a9dd8b92f4ac21e
+26150	27388	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_norm.comp.cpp	a88d03e6dcbb2f58
+26150	27388	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_norm.comp.cpp	a88d03e6dcbb2f58
+24113	27559	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_multi.comp.cpp	51a8dc7671102c4e
+24113	27559	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_multi.comp.cpp	51a8dc7671102c4e
+26140	27804	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/roll.comp.cpp	f58609a00e47b65f
+26140	27804	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/roll.comp.cpp	f58609a00e47b65f
+25087	27843	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm.comp.cpp	959986d4e02fa7b9
+25087	27843	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm.comp.cpp	959986d4e02fa7b9
+22972	27945	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q3_k.comp.cpp	31853d5e4ac1c139
+22972	27945	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q3_k.comp.cpp	31853d5e4ac1c139
+26358	28000	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/round.comp.cpp	4223f3bc1b4a68e9
+26358	28000	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/round.comp.cpp	4223f3bc1b4a68e9
+26179	28149	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_vision.comp.cpp	5d0c06a97e4f8349
+26179	28149	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_vision.comp.cpp	5d0c06a97e4f8349
+25776	28159	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_partials.comp.cpp	dd964955cf5bd6c
+25776	28159	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_partials.comp.cpp	dd964955cf5bd6c
+25942	28352	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_neox.comp.cpp	2b55c156d6e5f11d
+25942	28352	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_neox.comp.cpp	2b55c156d6e5f11d
+26620	28408	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large1.comp.cpp	deb2ad7209b44cb7
+26620	28408	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large1.comp.cpp	deb2ad7209b44cb7
+27559	28661	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/sin.comp.cpp	88e32bef58d6ff4f
+27559	28661	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sin.comp.cpp	88e32bef58d6ff4f
+27129	28700	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/scale.comp.cpp	5df9bc2f8d507994
+27129	28700	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/scale.comp.cpp	5df9bc2f8d507994
+28159	28859	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/ssm_conv.comp.cpp	50218edcc1021d6d
+28159	28859	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ssm_conv.comp.cpp	50218edcc1021d6d
+26850	28875	7916738560000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large2.comp.cpp	f7185e9c6cabd2a3
+26850	28875	7916738560000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large2.comp.cpp	f7185e9c6cabd2a3
+28001	28917	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/silu_back.comp.cpp	aef3246648e36b51
+28001	28917	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/silu_back.comp.cpp	aef3246648e36b51
+27843	29030	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/silu.comp.cpp	69e8e858423e4852
+27843	29030	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/silu.comp.cpp	69e8e858423e4852
+27945	29183	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/sigmoid.comp.cpp	cd23a9ebe0eae954
+27945	29183	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sigmoid.comp.cpp	cd23a9ebe0eae954
+28149	29233	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/sqrt.comp.cpp	cfefa593481dbad2
+28149	29233	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sqrt.comp.cpp	cfefa593481dbad2
+27805	29354	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_back.comp.cpp	5afb4b67ce95ae88
+27805	29354	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_back.comp.cpp	5afb4b67ce95ae88
+28875	29506	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large3.comp.cpp	30f2a47d34243a33
+28875	29506	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large3.comp.cpp	30f2a47d34243a33
+28408	29585	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/softplus.comp.cpp	fac95cb626ce1aef
+28408	29585	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/softplus.comp.cpp	fac95cb626ce1aef
+28661	29594	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/solve_tri.comp.cpp	14cd0a833244358f
+28661	29594	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/solve_tri.comp.cpp	14cd0a833244358f
+27388	29607	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max.comp.cpp	5913f02c832c57c4
+27388	29607	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max.comp.cpp	5913f02c832c57c4
+28917	29881	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/square.comp.cpp	e170d41a4a458bb3
+28917	29881	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/square.comp.cpp	e170d41a4a458bb3
+28352	30042	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/ssm_scan.comp.cpp	e2b8598930f6d4b2
+28352	30042	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ssm_scan.comp.cpp	e2b8598930f6d4b2
+28701	30309	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/step.comp.cpp	49b871ebe71f0857
+28701	30309	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/step.comp.cpp	49b871ebe71f0857
+29030	30411	7916738580000000	llama.cpp_build/ggml/src/ggml-vulkan/tri.comp.cpp	c137ac60404b68a7
+29030	30411	7916738580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/tri.comp.cpp	c137ac60404b68a7
+29233	30609	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/swiglu_oai.comp.cpp	85297fbbfa33568b
+29233	30609	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/swiglu_oai.comp.cpp	85297fbbfa33568b
+29507	30771	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/timestep_embedding.comp.cpp	c696176598d07b9b
+29507	30771	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/timestep_embedding.comp.cpp	c696176598d07b9b
+29585	30788	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/tanh.comp.cpp	c0e56f03faec9d3
+29585	30788	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/tanh.comp.cpp	c0e56f03faec9d3
+29183	30874	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/swiglu.comp.cpp	c3c1aad22a37edb6
+29183	30874	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/swiglu.comp.cpp	c3c1aad22a37edb6
+29594	30893	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_moe.comp.cpp	1af3d477ec7fbcca
+29594	30893	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_moe.comp.cpp	1af3d477ec7fbcca
+19185	30929	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec.comp.cpp	68c005b2edfa6cd4
+19185	30929	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec.comp.cpp	68c005b2edfa6cd4
+28860	31047	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/sub.comp.cpp	5e8c7ab9af813860
+28860	31047	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sub.comp.cpp	5e8c7ab9af813860
+29354	31068	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/sum_rows.comp.cpp	50b3eb66dc1f968f
+29354	31068	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sum_rows.comp.cpp	50b3eb66dc1f968f
+29881	31143	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_nary_search.comp.cpp	fe942c71e88a46b6
+29881	31143	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_nary_search.comp.cpp	fe942c71e88a46b6
+30309	31187	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/xielu.comp.cpp	2417262f0848376a
+30309	31187	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/xielu.comp.cpp	2417262f0848376a
+29607	31190	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_argsort.comp.cpp	bd8c93b29733413a
+29607	31190	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_argsort.comp.cpp	bd8c93b29733413a
+30042	31249	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/wkv6.comp.cpp	fa5b4e19d68985a
+30042	31249	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/wkv6.comp.cpp	fa5b4e19d68985a
+30414	31368	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/trunc.comp.cpp	cabb143112f090e2
+30414	31368	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/trunc.comp.cpp	cabb143112f090e2
+30610	31548	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/wkv7.comp.cpp	df52445bf0f19137
+30610	31548	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/wkv7.comp.cpp	df52445bf0f19137
+30771	31549	7916738600000000	llama.cpp_build/ggml/src/ggml-vulkan/upscale.comp.cpp	429f99e93538bdb6
+30771	31549	7916738600000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/upscale.comp.cpp	429f99e93538bdb6
+22751	56471	7916738860000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mm.comp.cpp	1cb994a49eeab2e4
+22751	56471	7916738860000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mm.comp.cpp	1cb994a49eeab2e4
+56476	56703	7916738843300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_split_k_reduce.comp.cpp.o	998bded063dc2abb
+56482	56740	7916738843400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/leaky_relu.comp.cpp.o	f254693feb2edd72
+56488	56769	7916738843600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/l2_norm.comp.cpp.o	bfd5b05a92413c7e
+56494	56848	7916738843800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/log.comp.cpp.o	89244d84328a6386
+56471	56876	7916738843100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul.comp.cpp.o	5b735fa297a4fc2e
+56531	56894	7916738844300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu_quick.comp.cpp.o	31c37ad84e6754c1
+56555	56908	7916738844600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu.comp.cpp.o	1b2d097141fe580f
+56547	56921	7916738844500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu_quick.comp.cpp.o	18be9c074b2ba46
+56564	56954	7916738844700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu_erf.comp.cpp.o	12a77542fa55460e
+56706	56965	7916738846400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/group_norm.comp.cpp.o	d44422628239c292
+56539	56978	7916738844500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu_erf.comp.cpp.o	6f16ece2863c446b
+56742	57024	7916738846600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/hardsigmoid.comp.cpp.o	ad6358b9da1ad608
+56771	57100	7916738846600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/get_rows.comp.cpp.o	1be04ed7f372b6ad
+56878	57173	7916738847700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/im2col.comp.cpp.o	e10e34568a09e824
+56895	57186	7916738848200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/hardswish.comp.cpp.o	8aff8cae07c4f537
+56909	57238	7916738848000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/im2col_3d.comp.cpp.o	c881fa0320b8e9e5
+57026	57266	7916738849200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_nc.comp.cpp.o	33c2a4343a14031
+57174	57386	7916738850600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_p021.comp.cpp.o	ac60706c44e166bc
+56515	57746	7916738844100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq1_s.comp.cpp.o	df4facb31cdf8f93
+57101	57755	7916738850000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q5_k.comp.cpp.o	d14d395c3b0153bc
+57239	57866	7916738851100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q4_k.comp.cpp.o	bd346fdcc5b6377d
+56921	57876	7916738848600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq3_s.comp.cpp.o	e5eca3e4cca9e53b
+57746	57906	7916738856400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mm_cm2.comp.cpp.o	da55c9aea38b0f7a
+56966	57916	7916738848800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_xxs.comp.cpp.o	839b812744c99370
+56979	57927	7916738848900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq3_xxs.comp.cpp.o	d5304835a51f896f
+57755	57955	7916738856800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vecq.comp.cpp.o	be57cb0018724154
+56523	58054	7916738844300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq1_m.comp.cpp.o	6a8324feeefb5bc7
+57876	58087	7916738857700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/neg.comp.cpp.o	dac4d7222666132
+57907	58100	7916738857700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mmq.comp.cpp.o	657c3b3810ad0b39
+56500	58113	7916738843900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_s.comp.cpp.o	a3f7450faeb8a25a
+57917	58177	7916738858400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/norm.comp.cpp.o	3bd1df7a06721df9
+57956	58199	7916738858800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/opt_step_adamw.comp.cpp.o	9f31b1aec45b0587
+57927	58220	7916738858500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/multi_add.comp.cpp.o	d00cbbcd924abf53
+58055	58232	7916738859300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/pad.comp.cpp.o	2b7d90efcc978d20
+56955	58262	7916738848500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_xs.comp.cpp.o	7d94544fd1d2af4d
+58102	58276	7916738859700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/opt_step_sgd.comp.cpp.o	a7987329a27429b1
+58089	58288	7916738859700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_back.comp.cpp.o	dbb6077370daddb1
+57186	58314	7916738850600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q3_k.comp.cpp.o	f77d732c9d885c75
+57266	58335	7916738851400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q2_k.comp.cpp.o	7801263708e470a2
+56849	58391	7916738847600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/get_rows_quant.comp.cpp.o	7bc5ff12b4ad3e32
+58200	58451	7916738860900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/roll.comp.cpp.o	81a0489cdf98525e
+58221	58472	7916738861100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm_partials.comp.cpp.o	d7ea93ab2d383608
+58178	58505	7916738860600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_neox.comp.cpp.o	efd0ecf150183392
+58113	58520	7916738860200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_multi.comp.cpp.o	700f8e4ac9e48ee3
+58289	58564	7916738861900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/round.comp.cpp.o	4fe7e714e14f767e
+58233	58577	7916738861200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_vision.comp.cpp.o	3a5d09bb7a25ff73
+58314	58589	7916738862100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/scale.comp.cpp.o	942bbe5cb253c4d5
+58277	58603	7916738861900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sigmoid.comp.cpp.o	ee4bcdf234959e28
+58336	58616	7916738862400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/silu.comp.cpp.o	74df744e5efda922
+58393	58653	7916738862900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/silu_back.comp.cpp.o	97ee0f5ce247a9f0
+58263	58669	7916738861600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_norm.comp.cpp.o	295bf72e189ed6ad
+57866	58682	7916738857400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q6_k.comp.cpp.o	317f3879493cfe86
+58473	58747	7916738863800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sin.comp.cpp.o	25ec9a97210427f0
+58506	58778	7916738863900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/repeat.comp.cpp.o	4afc573e7e151c94
+58521	58815	7916738864100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/quantize_q8_1.comp.cpp.o	53aacc04455b1d9f
+58578	58876	7916738864900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/pool2d.comp.cpp.o	715862ad6b11e67a
+58565	58890	7916738864800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/reglu.comp.cpp.o	7927e88bc2eee676
+58590	58904	7916738865100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/relu.comp.cpp.o	ab80b14aae8857fd
+58605	58921	7916738865200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm_back.comp.cpp.o	e76a68a090f01bdb
+58655	58963	7916738865600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/repeat_back.comp.cpp.o	6e589e878d93c2e7
+58670	58983	7916738865800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large3.comp.cpp.o	64af2321aec9fbce
+58683	59005	7916738866000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large1.comp.cpp.o	beb362c04023b69b
+58780	59067	7916738867000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/softplus.comp.cpp.o	46cf14752cf8875d
+58452	59080	7916738863600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max.comp.cpp.o	adb32a010a99a53d
+58748	59097	7916738866600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large2.comp.cpp.o	c39c5119777fbf51
+58817	59112	7916738867200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/square.comp.cpp.o	c8123e916ff2014
+58877	59162	7916738867800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_conv.comp.cpp.o	5eca4d9eba75353f
+58617	59191	7916738865300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm.comp.cpp.o	1e2788c6ba410a30
+58906	59207	7916738868100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/solve_tri.comp.cpp.o	a008115e1a08f0bf
+58891	59221	7916738868000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_scan.comp.cpp.o	c473bd07c8d3ec42
+58922	59234	7916738868300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sqrt.comp.cpp.o	36649800de6acb93
+58965	59251	7916738868600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/step.comp.cpp.o	ab65f4cb032d06a
+59006	59314	7916738869100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sum_rows.comp.cpp.o	442126b71aeec9f6
+59069	59393	7916738869900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu.comp.cpp.o	bd4aea4b58261cb7
+59082	59415	7916738870100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_moe.comp.cpp.o	68ed424c41b2d294
+59113	59429	7916738870300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tanh.comp.cpp.o	1e5d8fb9a5148e4
+59099	59443	7916738870100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_argsort.comp.cpp.o	b02e9af41dd91fbc
+58985	59486	7916738868900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sub.comp.cpp.o	5244b986b6ca754a
+59193	59501	7916738871000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/timestep_embedding.comp.cpp.o	53492c938bbd1705
+59165	59513	7916738870800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu_oai.comp.cpp.o	1caf030871e7606b
+59208	59533	7916738871200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_nary_search.comp.cpp.o	79c91c333bd303af
+59252	59558	7916738871600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/trunc.comp.cpp.o	8fb307811fa7a187
+59236	59573	7916738871400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/upscale.comp.cpp.o	31794e088f9ec68b
+59222	59588	7916738871300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tri.comp.cpp.o	de67e10373ce076e
+59315	59664	7916738872200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv6.comp.cpp.o	1217957bdf83eebc
+59417	59714	7916738873300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/xielu.comp.cpp.o	d724dd82367ad4e5
+59396	59747	7916738873200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv7.comp.cpp.o	b8cb20db445d9004
+59430	62110	7916738873400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-mmap.cpp.o	8f0477c52ba578d5
+62110	62454	7916738901400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-cparams.cpp.o	5214aed668de1671
+56507	62510	7916738844100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec.comp.cpp.o	61202da17bd2c62b
+59666	63021	7916738875800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-chat.cpp.o	fdb93130e22d7e0c
+59534	63190	7916738874500000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-arch.cpp.o	fcff59bc118c5c18
+59749	63484	7916738876600000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-batch.cpp.o	dcdc4028dc73fbce
+59502	63843	7916738874200000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-recurrent.cpp.o	1e844cd0740f4cf9
+59574	63886	7916738874900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama.cpp.o	a43701e0b31ee67d
+59560	64007	7916738874800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-adapter.cpp.o	b9fb3c0c2d57e227
+59514	64086	7916738874300000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-hybrid-iswa.cpp.o	2bd429c0a734e95
+62511	64099	7916738904400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-io.cpp.o	b5f07eb1368a7af4
+59489	64205	7916738873900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-hybrid.cpp.o	2e7ccb65a6b2e1b8
+59444	64300	7916738873500000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model-loader.cpp.o	3d22981fabde8e3
+59715	64692	7916738876300000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-graph.cpp.o	16b790241c5cef0c
+64693	64871	7916738925600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/abs.comp.cpp.o	d0d3b1a5775f7f6
+64302	65063	7916738921900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add.comp.cpp.o	a3762339c58bcbdf
+64872	65096	7916738927700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/acc.comp.cpp.o	3f6816a5eb48d8f8
+65096	65278	7916738929800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/arange.comp.cpp.o	f2d3a74febb80784
+65064	65322	7916738929500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add1.comp.cpp.o	967b0298af566b8
+59590	65384	7916738875000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-grammar.cpp.o	e187d6c0d2661b1a
+63191	65474	7916738910900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-impl.cpp.o	555de834e4c377cd
+65278	65506	7916738931700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add_id.comp.cpp.o	57ba144c281461eb
+65322	65566	7916738932400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argsort.comp.cpp.o	b218c47767a76941
+65384	65578	7916738932800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ceil.comp.cpp.o	69d94c0a16cda086
+65474	65663	7916738933500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argmax.comp.cpp.o	a51ccbfa6423aaae
+65507	65709	7916738933800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argsort_large.comp.cpp.o	27557e3201d082bf
+63844	65744	7916738918000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-hparams.cpp.o	5a628369a222b2d3
+65579	65888	7916738934600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/contig_copy.comp.cpp.o	60e6dff993433ae4
+65710	65924	7916738936200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/clamp.comp.cpp.o	b585a128ead2ee43
+65664	66018	7916738935400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/concat.comp.cpp.o	f2c5283a4a3e1a48
+65745	66029	7916738936400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv2d_dw.comp.cpp.o	871505aa73ec5783
+65888	66043	7916738937600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv_transpose_1d.comp.cpp.o	d592d21af0470645
+65924	66109	7916738938200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_f32.comp.cpp.o	87d2f9945ef41de8
+66019	66154	7916738938800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum_multipass1.comp.cpp.o	e651abba2f426784
+65568	66178	7916738934700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv2d_mm.comp.cpp.o	484607d658467792
+66044	66224	7916738939100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum.comp.cpp.o	4e852ef7e28b7c33
+63886	66250	7916738917400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory.cpp.o	5d1e18cbcb91f72a
+66030	66265	7916738939400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/count_experts.comp.cpp.o	3dddbff20a2c2d43
+66109	66289	7916738939800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum_multipass2.comp.cpp.o	3ca312213b048632
+66154	66411	7916738940300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy.comp.cpp.o	ee5e0b20e7cb44e0
+64086	66483	7916738919600000	llama.cpp_build/ggml/src/CMakeFiles/ggml.dir/ggml-backend-dl.cpp.o	fc0490301175378c
+66266	66496	7916738941500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_transpose.comp.cpp.o	6b0ba46ecd5ac0a1
+66411	66544	7916738942700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq4_xs.comp.cpp.o	96f04115647abb05
+66251	66554	7916738941700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cos.comp.cpp.o	8fcfa26945053218
+66289	66563	7916738941900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/count_equal.comp.cpp.o	796002077a4fa6fc
+66225	66574	7916738941000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_from_quant.comp.cpp.o	840cad3c4c2fce19
+66496	66642	7916738943500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq4_nl.comp.cpp.o	3d99358c2bc0c802
+66484	66740	7916738943900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_mxfp4.comp.cpp.o	488d99ba3cb805d2
+66544	66836	7916738944600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq3_xxs.comp.cpp.o	3b69f557011056fd
+66554	66900	7916738944100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq3_s.comp.cpp.o	cea30a5d1dba1781
+66574	66965	7916738944800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq1_m.comp.cpp.o	9dc59c5486f096f9
+66563	66975	7916738945100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_s.comp.cpp.o	d63c16f780ec0460
+66643	66986	7916738945300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq1_s.comp.cpp.o	8492419792505c36
+66741	67085	7916738946600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_xs.comp.cpp.o	8c50d526a18a1895
+66900	67097	7916738947900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q6_k.comp.cpp.o	ed6d507452edc5cf
+66965	67163	7916738948800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/diag_mask_inf.comp.cpp.o	82fe37eb73bf0d52
+66837	67173	7916738947300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_xxs.comp.cpp.o	347e403ea7a9e748
+64008	67215	7916738919000000	CMakeFiles/haku_llm.dir/llama_jni.cpp.o	fe015d97d2fca151
+66986	67239	7916738949100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_k.comp.cpp.o	9157ad5a176e50fd
+66976	67254	7916738949200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/diag.comp.cpp.o	966011ef2181c94f
+67086	67267	7916738949600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q8_0.comp.cpp.o	aeae5ccb6eb3f2db
+67163	67355	7916738950300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/fill.comp.cpp.o	647ce8abd8c13749
+67173	67418	7916738950800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/exp.comp.cpp.o	3267b387f6284b3c
+67255	67439	7916738951500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_cm2.comp.cpp.o	ca718acac57988ce
+67268	67463	7916738951700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_cm1.comp.cpp.o	fa5fd62bf1886616
+67241	67537	7916738951400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu.comp.cpp.o	6d5f7d848f59d922
+67357	67549	7916738952400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_split_k_reduce.comp.cpp.o	3d6839a978f79875
+67418	67590	7916738953000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/floor.comp.cpp.o	1504b24a57a18bd
+62454	67638	7916738904000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-context.cpp.o	6660215c2b9712bb
+67440	67649	7916738953200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q3_k.comp.cpp.o	de3623fe9243e07f
+67463	67660	7916738953700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_1.comp.cpp.o	a999ea89a872f76d
+67098	67671	7916738950100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/div.comp.cpp.o	4a216c604c97da6
+67538	67735	7916738954200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_0.comp.cpp.o	2b7b1830eda78e26
+64100	67777	7916738919800000	llama.cpp_build/ggml/src/CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o	6e32755a6cb44214
+67550	67803	7916738954700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q2_k.comp.cpp.o	f91b5575d0238858
+67591	67845	7916738955000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_0.comp.cpp.o	efd8c717fb25949
+67639	67872	7916738955100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_1.comp.cpp.o	9075308ff028e6d9
+67216	67907	7916738950900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn.comp.cpp.o	853a6ae7b0f56af6
+67651	67923	7916738955600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_k.comp.cpp.o	15c553095363aa51
+63021	68118	7916738909000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-kv-cache.cpp.o	8b74fad118a4d4f8
+63485	68163	7916738916200000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-kv-cache-iswa.cpp.o	317ed2af73430be1
+66178	68485	7916738940900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_to_quant.comp.cpp.o	d4bd03ea2ead3ff7
+67661	71025	7916738955800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/glm4.cpp.o	27967fa220d76a12
+67672	71037	7916738955800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/glm4-moe.cpp.o	8cd8954bd96ad8cf
+67736	71175	7916738956200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gptneox.cpp.o	4bb5de6307b6a689
+67803	71187	7916738957000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gpt2.cpp.o	3a697260b2c2cf17
+68165	71330	7916738961200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/afmoe.cpp.o	13f581c52e6da6cc
+67778	71372	7916738956700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/granite-hybrid.cpp.o	1a908641191ab783
+67909	71555	7916738958300000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model-saver.cpp.o	1cf2d63b5e308255
+68486	71586	7916738963700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/apertus.cpp.o	1152251e68d2aea5
+67924	73787	7916738958400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-quant.cpp.o	75c0f7e1279c10c
+68120	73809	7916738960200000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-vocab.cpp.o	f502434e49d9f555
+67873	73918	7916738957900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-sampling.cpp.o	45ca8e58d02133aa
+71025	74013	7916738990100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arcee.cpp.o	7218fc7922a04324
+71187	74176	7916738990900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bailingmoe.cpp.o	45594099feeca86e
+71331	74304	7916738992200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/baichuan.cpp.o	e3d5821a3a9c1fb5
+71373	74325	7916738992800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arctic.cpp.o	6fd409c6405a159c
+71556	74425	7916738994400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bailingmoe2.cpp.o	4b0db637789274c0
+71586	74443	7916738994600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arwkv7.cpp.o	407aed6d5cf32fb4
+71037	76170	7916738989900000	llama.cpp_build/src/CMakeFiles/llama.dir/unicode-data.cpp.o	55de331c4a79358d
+71176	76659	7916738990500000	llama.cpp_build/src/CMakeFiles/llama.dir/unicode.cpp.o	869805028c9e4313
+73809	76894	7916739018400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bloom.cpp.o	b7f3b5436504dc06
+74426	77188	7916739023200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/cogvlm.cpp.o	2bfec10160b2c41d
+73919	77245	7916739018700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/chameleon.cpp.o	53cdc40793bab4e4
+74013	77256	7916739019500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bert.cpp.o	bfca0fddc5adc0fd
+73787	77308	7916739019500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bitnet.cpp.o	56add6bab2d6fbe5
+74305	77355	7916739021600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dbrx.cpp.o	8f523b5c8d384878
+74177	77503	7916739020700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/chatglm.cpp.o	9a5847315d092c30
+74445	77582	7916739023500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/command-r.cpp.o	be472a1f7c5d2022
+74325	77608	7916739022200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/codeshell.cpp.o	2a4ad605b6d823f6
+67846	78212	7916738957500000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model.cpp.o	2b00fd2fc58dc884
+64206	78632	7916738920900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ggml-vulkan.cpp.o	e8732c37646f726e
+76171	79122	7916739042200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/cohere2-iswa.cpp.o	dfbbbd23ca021911
+76660	79961	7916739048700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deci.cpp.o	ad43a86504e876d5
+76895	80127	7916739049000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/ernie4-5-moe.cpp.o	92132f0018dd7b09
+77245	80370	7916739051600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dream.cpp.o	c297df8bfed16286
+77505	80510	7916739054100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/ernie4-5.cpp.o	c297119996a8e31d
+77309	80525	7916739052000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dots1.cpp.o	5b28abc1cd2eff6c
+77257	80571	7916739051800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deepseek.cpp.o	3df4764ae2eb3436
+77609	80582	7916739054900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone.cpp.o	e9c668684007ae7b
+77356	80683	7916739052700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone4.cpp.o	9957267be13653ca
+77189	80703	7916739052700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deepseek2.cpp.o	bda11f0a0daa067a
+77583	80764	7916739054700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/falcon-h1.cpp.o	50a1b5d7d8de6300
+78213	81077	7916739060800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone-moe.cpp.o	85796dbb16e06685
+78633	81241	7916739065100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma3.cpp.o	2e1dc97793ee11b9
+79123	81770	7916739070000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma2-iswa.cpp.o	c1f9549eb71d1526
+79961	82808	7916739078700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma.cpp.o	b401fefc547fbed0
+80128	82946	7916739080300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/falcon.cpp.o	faa4e56d0d145e14
+80571	83759	7916739084900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/grovemoe.cpp.o	2a3a5944b9c1278b
+80510	83787	7916739084000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma3n-iswa.cpp.o	470e02b81f2fd9f2
+80371	83828	7916739082800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma-embedding.cpp.o	eef7ba30667655e4
+80685	83875	7916739085800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/granite.cpp.o	3674d9951ac43aeb
+80583	83905	7916739085000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/hunyuan-dense.cpp.o	228fb91664079906
+80526	83984	7916739084200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/grok.cpp.o	a86a43c4a1f1c77d
+81242	84000	7916739091200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/internlm2.cpp.o	a41ff0ad34c964b9
+80704	84251	7916739086000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/hunyuan-moe.cpp.o	fc6bf9d89ce6c186
+81079	84357	7916739089500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/jamba.cpp.o	71b38086df9d4535
+80765	84440	7916739086700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/lfm2.cpp.o	4c133148963b9782
+81771	84797	7916739096500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llada-moe.cpp.o	591f771b04a028cb
+82809	85458	7916739107300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/jais.cpp.o	32be18d0ed2b0af6
+82947	85779	7916739108500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llama.cpp.o	32c108d1ba4854f2
+83875	87066	7916739117800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llada.cpp.o	91975c0196d5e1d8
+83787	87122	7916739117000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mamba.cpp.o	7fd4a7b3df029b5d
+83759	87183	7916739116800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/maincoder.cpp.o	76f748ee8c0e9894
+83828	87210	7916739117000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llama-iswa.cpp.o	bd9d7b7fd225c9a
+83986	87247	7916739118700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mimo2-iswa.cpp.o	ec6dc627830742df
+83906	87399	7916739118100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/minicpm3.cpp.o	cdd32606d2a20fc0
+84001	87489	7916739118900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/minimax-m2.cpp.o	913166968c5d12f6
+84358	87619	7916739122500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/modern-bert.cpp.o	ab059b1ee7ba13a7
+84252	87634	7916739121600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mpt.cpp.o	8394738fa5de7d6d
+84442	87752	7916739123400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/neo-bert.cpp.o	ffe6b1b34c06f91e
+84798	87862	7916739126700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/nemotron.cpp.o	a8836fb9dc8c4658
+85459	88213	7916739133300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmo.cpp.o	4a185653f2914bba
+85780	88550	7916739136700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmo2.cpp.o	3b3cef021564bc8a
+87184	90371	7916739150700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/phi2.cpp.o	746ae36fcbd03e6f
+87247	90524	7916739151200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/openai-moe-iswa.cpp.o	7cafcb5847a417d3
+87066	90535	7916739150000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/nemotron-h.cpp.o	47cda5fe0e6d5425
+87122	90548	7916739150200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmoe.cpp.o	9e991df8e47be40f
+87210	91562	7916739151200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/pangu-embedded.cpp.o	8c907e38f68bb6c
+87489	91611	7916739153700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/openelm.cpp.o	12c36290fd12a323
+87753	91625	7916739156400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo3.cpp.o	175fe08a9d28167e
+87619	91639	7916739155500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plm.cpp.o	442ad6b2147dfe33
+87400	91654	7916739153000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/orion.cpp.o	bc3003c75f447477
+87636	91670	7916739155300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/phi3.cpp.o	be194c6cac1d043d
+87863	91684	7916739157500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo.cpp.o	fa9bd0e95ac6054f
+88214	92119	7916739160800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo2.cpp.o	e3e936c001d2c48e
+88551	92229	7916739164300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2moe.cpp.o	7abbaa96852ea644
+90548	94874	7916739193800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3.cpp.o	a678575f782cebb9
+90524	94926	7916739184100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3vl.cpp.o	23a046c04279a527
+90371	94994	7916739183600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2vl.cpp.o	b1f7d39ba45dee9
+90536	95015	7916739184200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen.cpp.o	632f83e15682d933
+91641	95131	7916739195500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3moe.cpp.o	c3d9caf2e1fec5d0
+91670	95279	7916739195700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3vl-moe.cpp.o	b4c2afba33471607
+91655	95378	7916739195700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/refact.cpp.o	693ce5d24b326ff3
+91568	95391	7916739194600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2.cpp.o	8141bb84f927871c
+91612	95543	7916739195100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3next.cpp.o	ed6ba7a1b0e00840
+91686	95565	7916739195800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv7.cpp.o	3f2d676e46b41f78
+91626	95580	7916739195300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rnd1.cpp.o	fdcb636e95d71851
+92120	95628	7916739200100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6-base.cpp.o	39f4c80dacde8e08
+92231	95778	7916739201200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6qwen2.cpp.o	8be305cf4caf2f18
+94927	99066	7916739228300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6.cpp.o	eafdc6ce8addcb6c
+95280	99083	7916739231900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/seed-oss.cpp.o	7ff2637732cfb524
+94994	99119	7916739228600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/smollm3.cpp.o	e8f36d408affa291
+95015	99122	7916739229600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/stablelm.cpp.o	f173b3c38fbbde67
+94874	99265	7916739227600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv7-base.cpp.o	b823398e8ba607e6
+95131	99290	7916739230400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/starcoder.cpp.o	374e8e5c0a015fe6
+95392	99294	7916739232800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/wavtokenizer-dec.cpp.o	b4c42fbaa766e1e1
+95567	99318	7916739234700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/starcoder2.cpp.o	928f1d1703eed724
+95543	99459	7916739234500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/t5-dec.cpp.o	60af625fa642eb8f
+95379	99543	7916739232700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/smallthinker.cpp.o	22d688f03b59f51
+95629	99573	7916739235100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/t5-enc.cpp.o	435bd057e7baff38
+95582	99580	7916739234900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/xverse.cpp.o	56def47a11463d60
+95780	99736	7916739236800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/graph-context-mamba.cpp.o	545ebef9b9ff87e5
+99066	100781	7916739269700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mistral3.cpp.o	fbbba845d3ebea57
+57386	103660	7916738852700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mm.comp.cpp.o	c63230ca80f02c0
+103660	111946	7916739396000000	bin/libggml-vulkan.so	6270211599b39d2d
+111947	112436	7916739402200000	bin/libggml.so	7f5baaebc1e21e6
+112436	131929	7916739595600000	bin/libllama.so	a497d70f4d3b9a49
+131930	132194	7916739599800000	F:/Haku Project/haku/android/app/build/intermediates/cxx/debug/1g6d5649/obj/arm64-v8a/libhaku_llm.so	da19246e5451eddd
+15	87	0	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/CMakeFiles/cmake.verify_globs	47e62435ee9f53ac
+0	620	0	clean	9f6376ad6520ef2
+11	58	0	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/CMakeFiles/cmake.verify_globs	47e62435ee9f53ac
+73	390	7916744036100000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-mkdir	b44ba29a32faf92
+73	390	7916744036100000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-mkdir	b44ba29a32faf92
+392	524	7916744037400000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-download	a816de196f228b5a
+392	524	7916744037400000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-download	a816de196f228b5a
+525	666	7916744038800000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-update	7d2b8c820d614bce
+525	666	7916744038800000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-update	7d2b8c820d614bce
+669	790	7916744040000000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-patch	17948ef5a72b6a33
+669	790	7916744040000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-patch	17948ef5a72b6a33
+793	1932	7916744050400000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-configure	c02b3a03bbfbbbd3
+793	1932	7916744050400000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-configure	c02b3a03bbfbbbd3
+1932	2235	0	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-build	1e2cbe85822360d8
+1932	2235	0	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-build	1e2cbe85822360d8
+105	2721	7916744037200000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-alloc.c.o	46cdece12d0a2df9
+182	3254	7916744037200000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.c.o	48899f2cf78a202b
+2236	3358	7916744065700000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-install	abd1878a10c1ca2a
+2236	3358	7916744065700000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-install	abd1878a10c1ca2a
+83	3487	7916744037100000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o	8f23c968854ca17b
+3254	3497	7916744066000000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/hbm.cpp.o	3008501005a8aa1e
+164	3509	7916744037200000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-quants.c.o	3c4e95a308f32859
+3358	3611	7916744068300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/vulkan-shaders-gen-complete	1c93e3d2c0f040e2
+3358	3611	7916744068300000	llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-done	1c93e3d2c0f040e2
+3358	3611	7916744068300000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/vulkan-shaders-gen-complete	1c93e3d2c0f040e2
+3358	3611	7916744068300000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-stamp/vulkan-shaders-gen-done	1c93e3d2c0f040e2
+158	3825	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-threading.cpp.o	84242fd323f8ce7e
+207	4224	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/mmq.cpp.o	ab0c168764be2a93
+112	4433	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml.cpp.o	9e286a4d1a1a768d
+3487	4476	7916744068100000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/quants.c.o	370db7f55d472c53
+215	4691	7916744037700000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/amx/amx.cpp.o	f059064245e70517
+190	4900	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ggml-cpu.cpp.o	f22fdc3fa38c74fc
+142	4960	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-backend.cpp.o	4708bb0e1aa75c0b
+198	5271	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/repack.cpp.o	e9a8522ce68d7897
+149	5303	7916744037800000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/ggml-opt.cpp.o	bb6f9f5734ce0d2e
+2722	5921	7916744064400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/traits.cpp.o	dacd18ddf7721c0c
+4433	6127	7916744078400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/quants.c.o	ecbce93ef18ecf2f
+3613	6161	7916744069400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/llamafile/sgemm.cpp.o	f7a675dffd2a439
+4224	6316	7916744075400000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/vec.cpp.o	e8e3f0b7255d91d5
+4476	6578	7916744077900000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/arch/arm/repack.cpp.o	fe43835d1e7b7661
+3509	6605	7916744068300000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/binary-ops.cpp.o	e8afe17b2741b085
+3826	6852	7916744071300000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/unary-ops.cpp.o	a3e2f957c0a8b85a
+173	6867	7916744037900000	llama.cpp_build/ggml/src/CMakeFiles/ggml-base.dir/gguf.cpp.o	289fb46734d7227f
+3498	7061	7916744068200000	llama.cpp_build/ggml/src/CMakeFiles/ggml-cpu.dir/ggml-cpu/ops.cpp.o	ae41b5c1d3d3c40a
+6867	8973	7916744121700000	bin/libggml-base.so	88e92800783833a6
+9000	9260	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/ggml-vulkan-shaders.hpp	4433203e96e0d475
+9000	9260	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ggml-vulkan-shaders.hpp	4433203e96e0d475
+9010	9828	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/acc.comp.cpp	dc524db425660892
+9010	9828	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/acc.comp.cpp	dc524db425660892
+8979	9844	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/add_id.comp.cpp	f40e35d7f5772c44
+8979	9844	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add_id.comp.cpp	f40e35d7f5772c44
+8986	9910	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/add1.comp.cpp	7102b9d40c436546
+8986	9910	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add1.comp.cpp	7102b9d40c436546
+8993	9919	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/arange.comp.cpp	83c52b1cca0564b4
+8993	9919	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/arange.comp.cpp	83c52b1cca0564b4
+9027	9932	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/abs.comp.cpp	4866c3d604d3f489
+9027	9932	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/abs.comp.cpp	4866c3d604d3f489
+9065	9945	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/ceil.comp.cpp	4d71ec486f031d81
+9065	9945	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ceil.comp.cpp	4d71ec486f031d81
+9074	9967	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/clamp.comp.cpp	b0a19c16b8504898
+9074	9967	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/clamp.comp.cpp	b0a19c16b8504898
+9037	9977	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/repeat_back.comp.cpp	4b522cbe3bc2f3fd
+9037	9977	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/repeat_back.comp.cpp	4b522cbe3bc2f3fd
+9018	9997	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/argmax.comp.cpp	d6bc7d4941d25e00
+9018	9997	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argmax.comp.cpp	d6bc7d4941d25e00
+9046	10030	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/argsort.comp.cpp	2204809bc9680a03
+9046	10030	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argsort.comp.cpp	2204809bc9680a03
+9055	10059	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/argsort_large.comp.cpp	b9016ed9c1ba6ea4
+9055	10059	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/argsort_large.comp.cpp	b9016ed9c1ba6ea4
+9083	10069	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/concat.comp.cpp	4fdc8ef82cc12f99
+9083	10069	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/concat.comp.cpp	4fdc8ef82cc12f99
+9998	11181	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/count_equal.comp.cpp	69eac3618fffb0c5
+9998	11181	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/count_equal.comp.cpp	69eac3618fffb0c5
+9910	11250	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_transpose.comp.cpp	8d1c06567b5e86f
+9910	11250	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_transpose.comp.cpp	8d1c06567b5e86f
+9261	11325	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/conv2d_mm.comp.cpp	d6cbf7339a1319f3
+9261	11325	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv2d_mm.comp.cpp	d6cbf7339a1319f3
+10060	11362	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_nc.comp.cpp	cab92f01e3e49b37
+10060	11362	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_nc.comp.cpp	cab92f01e3e49b37
+9968	11508	7916744140000000	llama.cpp_build/ggml/src/ggml-vulkan/cos.comp.cpp	d91d867aadbc3526
+9968	11508	7916744140000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cos.comp.cpp	d91d867aadbc3526
+9932	11688	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/conv_transpose_1d.comp.cpp	56d39eb5abde880c
+9932	11688	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv_transpose_1d.comp.cpp	56d39eb5abde880c
+9977	12132	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/conv2d_dw.comp.cpp	8b273003924f0508
+9977	12132	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/conv2d_dw.comp.cpp	8b273003924f0508
+9920	12337	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/copy.comp.cpp	8e37b03de3d27562
+9920	12337	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy.comp.cpp	8e37b03de3d27562
+9828	12605	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_from_quant.comp.cpp	60bc66b2cbacd955
+9828	12605	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_from_quant.comp.cpp	60bc66b2cbacd955
+8973	12617	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/add.comp.cpp	b367136238a3c97f
+8973	12617	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/add.comp.cpp	b367136238a3c97f
+9945	12996	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/contig_copy.comp.cpp	17675c9c89280adf
+9945	12996	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/contig_copy.comp.cpp	17675c9c89280adf
+11688	13622	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_p021.comp.cpp	dd73b06da9fdb102
+11688	13622	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_p021.comp.cpp	dd73b06da9fdb102
+11251	13653	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_xxs.comp.cpp	ce9f8e7d50d7c923
+11251	13653	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_xxs.comp.cpp	ce9f8e7d50d7c923
+10069	13754	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q2_k.comp.cpp	b019d2ffa0045cc
+10069	13754	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q2_k.comp.cpp	b019d2ffa0045cc
+12132	13788	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mm_cm2.comp.cpp	81c1d1eaf349c7bf
+12132	13788	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mm_cm2.comp.cpp	81c1d1eaf349c7bf
+11326	13827	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q3_k.comp.cpp	31853d5e4ac1c139
+11326	13827	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q3_k.comp.cpp	31853d5e4ac1c139
+10030	13845	7916744160000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xxs.comp.cpp	e52239e31fc114d2
+10030	13845	7916744160000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xxs.comp.cpp	e52239e31fc114d2
+13622	13882	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vecq.comp.cpp	3e53e5c136b4bf65
+13622	13882	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vecq.comp.cpp	3e53e5c136b4bf65
+11508	14232	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_s.comp.cpp	ac18253819e7f378
+11508	14232	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq3_s.comp.cpp	ac18253819e7f378
+11362	14269	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_s.comp.cpp	3174ed46387d5641
+11362	14269	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_s.comp.cpp	3174ed46387d5641
+13788	14480	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mmq.comp.cpp	ad27ee2ca387b33
+13788	14480	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mmq.comp.cpp	ad27ee2ca387b33
+13882	14561	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/pad.comp.cpp	2e72d3684fd93e41
+13882	14561	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/pad.comp.cpp	2e72d3684fd93e41
+13015	14570	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q5_k.comp.cpp	2a9dd8b92f4ac21e
+13015	14570	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q5_k.comp.cpp	2a9dd8b92f4ac21e
+12605	14580	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/neg.comp.cpp	6a830edc420ed7e3
+12605	14580	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/neg.comp.cpp	6a830edc420ed7e3
+12337	14589	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/multi_add.comp.cpp	d412b30e6c2fd80a
+12337	14589	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/multi_add.comp.cpp	d412b30e6c2fd80a
+13827	14697	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/opt_step_sgd.comp.cpp	3d1369370ef403ba
+13827	14697	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/opt_step_sgd.comp.cpp	3d1369370ef403ba
+12617	14870	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q4_k.comp.cpp	71685a54dc896862
+12617	14870	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q4_k.comp.cpp	71685a54dc896862
+9844	14929	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/copy_to_quant.comp.cpp	e90f0c14b28d62e2
+9844	14929	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/copy_to_quant.comp.cpp	e90f0c14b28d62e2
+11184	14968	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xs.comp.cpp	56ca7c01ecb42b0d
+11184	14968	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq2_xs.comp.cpp	56ca7c01ecb42b0d
+14589	15150	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass2.comp.cpp	dd8ac04a2b7da580
+14589	15150	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass2.comp.cpp	dd8ac04a2b7da580
+14232	15206	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/pool2d.comp.cpp	21b68f64f6031520
+14232	15206	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/pool2d.comp.cpp	21b68f64f6031520
+13845	15287	7916744180000000	llama.cpp_build/ggml/src/ggml-vulkan/norm.comp.cpp	cd6db33c542f8245
+13845	15287	7916744180000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/norm.comp.cpp	cd6db33c542f8245
+14697	15404	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/count_experts.comp.cpp	d7ee995242012f78
+14697	15404	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/count_experts.comp.cpp	d7ee995242012f78
+14269	15487	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/quantize_q8_1.comp.cpp	c9128f7e08d8b548
+14269	15487	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/quantize_q8_1.comp.cpp	c9128f7e08d8b548
+13755	15549	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q6_k.comp.cpp	eeaeda93f9a38da
+13755	15549	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_q6_k.comp.cpp	eeaeda93f9a38da
+14480	15561	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/repeat.comp.cpp	20c8a9832cca279f
+14480	15561	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/repeat.comp.cpp	20c8a9832cca279f
+14929	15703	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xs.comp.cpp	d82baa4c1886cb60
+14929	15703	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xs.comp.cpp	d82baa4c1886cb60
+14561	15719	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/reglu.comp.cpp	2fcc1a78f7e0831b
+14561	15719	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/reglu.comp.cpp	2fcc1a78f7e0831b
+14968	15825	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum.comp.cpp	88ae7bb16693044
+14968	15825	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum.comp.cpp	88ae7bb16693044
+14580	15844	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/opt_step_adamw.comp.cpp	3e14bf75ba5c60bd
+14580	15844	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/opt_step_adamw.comp.cpp	3e14bf75ba5c60bd
+15287	15874	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass1.comp.cpp	56878314bf56e838
+15287	15874	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/cumsum_multipass1.comp.cpp	56878314bf56e838
+14870	15998	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_s.comp.cpp	b810d64a48d0c0c5
+14870	15998	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_s.comp.cpp	b810d64a48d0c0c5
+14570	16147	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/relu.comp.cpp	84ad1017103f62dd
+14570	16147	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/relu.comp.cpp	84ad1017103f62dd
+15404	16229	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_s.comp.cpp	5bed13b38b0d5554
+15404	16229	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_s.comp.cpp	5bed13b38b0d5554
+15562	16299	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q2_k.comp.cpp	8c93ad665f883f24
+15562	16299	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q2_k.comp.cpp	8c93ad665f883f24
+15488	16334	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_0.comp.cpp	63ba3c2ec7ccb009
+15488	16334	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_0.comp.cpp	63ba3c2ec7ccb009
+15845	16343	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_xxs.comp.cpp	dd091c0ac2b957eb
+15845	16343	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_xxs.comp.cpp	dd091c0ac2b957eb
+15207	16432	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_f32.comp.cpp	ba0d9ddb8649222d
+15207	16432	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_f32.comp.cpp	ba0d9ddb8649222d
+15720	16467	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q3_k.comp.cpp	c460fba4346ac3f5
+15720	16467	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q3_k.comp.cpp	c460fba4346ac3f5
+15549	16717	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xxs.comp.cpp	2ef809ca41a41a01
+15549	16717	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq2_xxs.comp.cpp	2ef809ca41a41a01
+15874	16915	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_xs.comp.cpp	4402faa8f43aae79
+15874	16915	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_xs.comp.cpp	4402faa8f43aae79
+15703	16926	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_mxfp4.comp.cpp	c08dced646dd3b90
+15703	16926	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_mxfp4.comp.cpp	c08dced646dd3b90
+16334	17135	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/diag.comp.cpp	a3078ac8b2b6f8b6
+16334	17135	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/diag.comp.cpp	a3078ac8b2b6f8b6
+16230	17207	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q6_k.comp.cpp	d5d40d4609dc5af7
+16230	17207	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q6_k.comp.cpp	d5d40d4609dc5af7
+16299	17217	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q8_0.comp.cpp	c57da28c5c326d2c
+16299	17217	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q8_0.comp.cpp	c57da28c5c326d2c
+16467	17363	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/diag_mask_inf.comp.cpp	d6df490c94bacaaf
+16467	17363	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/diag_mask_inf.comp.cpp	d6df490c94bacaaf
+15826	17444	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_nl.comp.cpp	aea19daeb0bf4563
+15826	17444	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq4_nl.comp.cpp	aea19daeb0bf4563
+15999	17486	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_s.comp.cpp	a17bf1d984801c77
+15999	17486	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq3_s.comp.cpp	a17bf1d984801c77
+15150	17505	7916744200000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_m.comp.cpp	63afb26cf5346f23
+15150	17505	7916744200000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_iq1_m.comp.cpp	63afb26cf5346f23
+16149	17629	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_k.comp.cpp	e63c45914479bb76
+16149	17629	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_k.comp.cpp	e63c45914479bb76
+16917	18276	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_0.comp.cpp	1b1cb2e26b4b27bb
+16917	18276	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_0.comp.cpp	1b1cb2e26b4b27bb
+16927	18308	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_k.comp.cpp	d96a89a9a11a339b
+16927	18308	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_k.comp.cpp	d96a89a9a11a339b
+16432	18374	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_1.comp.cpp	60d5c73bd642e655
+16432	18374	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q5_1.comp.cpp	60d5c73bd642e655
+16343	18466	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_1.comp.cpp	4706365a97bd1a78
+16343	18466	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/dequant_q4_1.comp.cpp	4706365a97bd1a78
+17363	18593	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu.comp.cpp	b0e923f12a760782
+17363	18593	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu.comp.cpp	b0e923f12a760782
+17217	18647	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm1.comp.cpp	fd2e808da84e9dcc
+17217	18647	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm1.comp.cpp	fd2e808da84e9dcc
+17505	18912	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu_erf.comp.cpp	bad8595216c32264
+17505	18912	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu_erf.comp.cpp	bad8595216c32264
+17137	19005	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/fill.comp.cpp	6ce2dd3931bdcfeb
+17137	19005	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/fill.comp.cpp	6ce2dd3931bdcfeb
+16718	19057	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/div.comp.cpp	5d0f9a6901689787
+16718	19057	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/div.comp.cpp	5d0f9a6901689787
+17630	19226	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_split_k_reduce.comp.cpp	1c39f1412fa573cd
+17630	19226	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_split_k_reduce.comp.cpp	1c39f1412fa573cd
+18308	19379	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/geglu_quick.comp.cpp	ec330c3818c059a4
+18308	19379	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/geglu_quick.comp.cpp	ec330c3818c059a4
+18466	19443	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu_erf.comp.cpp	10f4088edf192c42
+18466	19443	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu_erf.comp.cpp	10f4088edf192c42
+18276	19457	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm2.comp.cpp	2ac9dbf6ed875444
+18276	19457	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn_cm2.comp.cpp	2ac9dbf6ed875444
+17445	19571	7916744220000000	llama.cpp_build/ggml/src/ggml-vulkan/exp.comp.cpp	e5764d1e6be934d7
+17445	19571	7916744220000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/exp.comp.cpp	e5764d1e6be934d7
+19006	20081	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/hardswish.comp.cpp	a9ced9f17b656d8b
+19006	20081	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/hardswish.comp.cpp	a9ced9f17b656d8b
+18593	20450	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu_quick.comp.cpp	e50027acf0c0e99
+18593	20450	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu_quick.comp.cpp	e50027acf0c0e99
+17496	20591	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/floor.comp.cpp	4aa08f3cb6aade8
+17496	20591	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/floor.comp.cpp	4aa08f3cb6aade8
+18375	20716	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/group_norm.comp.cpp	523fc1a34b737e4b
+18375	20716	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/group_norm.comp.cpp	523fc1a34b737e4b
+17208	21032	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/flash_attn.comp.cpp	81f79e85ce0d5da5
+17208	21032	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/flash_attn.comp.cpp	81f79e85ce0d5da5
+19058	21398	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/gelu.comp.cpp	abaee12aaa2f1642
+19058	21398	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/gelu.comp.cpp	abaee12aaa2f1642
+18912	21588	7916744240000000	llama.cpp_build/ggml/src/ggml-vulkan/hardsigmoid.comp.cpp	3f0b31191237a2e2
+18912	21588	7916744240000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/hardsigmoid.comp.cpp	3f0b31191237a2e2
+19226	21722	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/get_rows.comp.cpp	226fa8de13df9eba
+19226	21722	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/get_rows.comp.cpp	226fa8de13df9eba
+19443	21816	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/im2col_3d.comp.cpp	effd60477077f064
+19443	21816	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/im2col_3d.comp.cpp	effd60477077f064
+19379	21972	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/im2col.comp.cpp	ca138eeefb65c9a1
+19379	21972	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/im2col.comp.cpp	ca138eeefb65c9a1
+19571	22072	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/l2_norm.comp.cpp	5e3ef51da7ac4219
+19571	22072	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/l2_norm.comp.cpp	5e3ef51da7ac4219
+20716	22444	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/log.comp.cpp	ab71dfbab865b764
+20716	22444	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/log.comp.cpp	ab71dfbab865b764
+20450	22453	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_split_k_reduce.comp.cpp	8ed248e8f80999b4
+20450	22453	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_split_k_reduce.comp.cpp	8ed248e8f80999b4
+20081	22727	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/leaky_relu.comp.cpp	410f4ca61005b94c
+20081	22727	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/leaky_relu.comp.cpp	410f4ca61005b94c
+19464	23034	7916744260000000	llama.cpp_build/ggml/src/ggml-vulkan/mul.comp.cpp	f60aa0b13e465194
+19464	23034	7916744260000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul.comp.cpp	f60aa0b13e465194
+22481	24603	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_back.comp.cpp	8af920dfba427e71
+22481	24603	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_back.comp.cpp	8af920dfba427e71
+22444	24654	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/roll.comp.cpp	f58609a00e47b65f
+22444	24654	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/roll.comp.cpp	f58609a00e47b65f
+21591	24806	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_norm.comp.cpp	a88d03e6dcbb2f58
+21591	24806	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_norm.comp.cpp	a88d03e6dcbb2f58
+21972	24845	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_vision.comp.cpp	5d0c06a97e4f8349
+21972	24845	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_vision.comp.cpp	5d0c06a97e4f8349
+18647	24915	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/get_rows_quant.comp.cpp	24215aae3756b6b2
+18647	24915	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/get_rows_quant.comp.cpp	24215aae3756b6b2
+23038	25131	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_partials.comp.cpp	dd964955cf5bd6c
+23038	25131	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm_partials.comp.cpp	dd964955cf5bd6c
+21722	25373	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_neox.comp.cpp	2b55c156d6e5f11d
+21722	25373	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_neox.comp.cpp	2b55c156d6e5f11d
+20602	25383	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_m.comp.cpp	54a50a634eaf2395
+20602	25383	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_m.comp.cpp	54a50a634eaf2395
+21816	25469	7916744280000000	llama.cpp_build/ggml/src/ggml-vulkan/round.comp.cpp	4223f3bc1b4a68e9
+21816	25469	7916744280000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/round.comp.cpp	4223f3bc1b4a68e9
+22072	25943	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/rms_norm.comp.cpp	959986d4e02fa7b9
+22072	25943	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rms_norm.comp.cpp	959986d4e02fa7b9
+24654	26104	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/sin.comp.cpp	88e32bef58d6ff4f
+24654	26104	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sin.comp.cpp	88e32bef58d6ff4f
+21398	26367	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_s.comp.cpp	4545f2a81bed021c
+21398	26367	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec_iq1_s.comp.cpp	4545f2a81bed021c
+22746	26659	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/rope_multi.comp.cpp	51a8dc7671102c4e
+22746	26659	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/rope_multi.comp.cpp	51a8dc7671102c4e
+24813	26703	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/sigmoid.comp.cpp	cd23a9ebe0eae954
+24813	26703	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sigmoid.comp.cpp	cd23a9ebe0eae954
+25373	26901	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/scale.comp.cpp	5df9bc2f8d507994
+25373	26901	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/scale.comp.cpp	5df9bc2f8d507994
+24845	27004	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_back.comp.cpp	5afb4b67ce95ae88
+24845	27004	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_back.comp.cpp	5afb4b67ce95ae88
+25469	27085	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/silu_back.comp.cpp	aef3246648e36b51
+25469	27085	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/silu_back.comp.cpp	aef3246648e36b51
+24605	27112	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max.comp.cpp	5913f02c832c57c4
+24605	27112	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max.comp.cpp	5913f02c832c57c4
+25383	27481	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/silu.comp.cpp	69e8e858423e4852
+25383	27481	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/silu.comp.cpp	69e8e858423e4852
+24916	27799	7916744300000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large1.comp.cpp	deb2ad7209b44cb7
+24916	27799	7916744300000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large1.comp.cpp	deb2ad7209b44cb7
+26104	28052	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/square.comp.cpp	e170d41a4a458bb3
+26104	28052	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/square.comp.cpp	e170d41a4a458bb3
+25943	28203	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large3.comp.cpp	30f2a47d34243a33
+25943	28203	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large3.comp.cpp	30f2a47d34243a33
+26703	28572	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/step.comp.cpp	49b871ebe71f0857
+26703	28572	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/step.comp.cpp	49b871ebe71f0857
+26901	28619	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/ssm_conv.comp.cpp	50218edcc1021d6d
+26901	28619	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ssm_conv.comp.cpp	50218edcc1021d6d
+26660	28815	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/softplus.comp.cpp	fac95cb626ce1aef
+26660	28815	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/softplus.comp.cpp	fac95cb626ce1aef
+25131	28912	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large2.comp.cpp	f7185e9c6cabd2a3
+25131	28912	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/soft_max_large2.comp.cpp	f7185e9c6cabd2a3
+27112	29032	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/sqrt.comp.cpp	cfefa593481dbad2
+27112	29032	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sqrt.comp.cpp	cfefa593481dbad2
+27085	29061	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/solve_tri.comp.cpp	14cd0a833244358f
+27085	29061	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/solve_tri.comp.cpp	14cd0a833244358f
+27482	29429	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_argsort.comp.cpp	bd8c93b29733413a
+27482	29429	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_argsort.comp.cpp	bd8c93b29733413a
+26378	29491	7916744320000000	llama.cpp_build/ggml/src/ggml-vulkan/ssm_scan.comp.cpp	e2b8598930f6d4b2
+26378	29491	7916744320000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/ssm_scan.comp.cpp	e2b8598930f6d4b2
+28913	29714	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/tanh.comp.cpp	c0e56f03faec9d3
+28913	29714	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/tanh.comp.cpp	c0e56f03faec9d3
+28206	29753	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/swiglu.comp.cpp	c3c1aad22a37edb6
+28206	29753	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/swiglu.comp.cpp	c3c1aad22a37edb6
+27799	29785	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/sum_rows.comp.cpp	50b3eb66dc1f968f
+27799	29785	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sum_rows.comp.cpp	50b3eb66dc1f968f
+29032	29807	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_moe.comp.cpp	1af3d477ec7fbcca
+29032	29807	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_moe.comp.cpp	1af3d477ec7fbcca
+27004	29834	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/sub.comp.cpp	5e8c7ab9af813860
+27004	29834	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/sub.comp.cpp	5e8c7ab9af813860
+29062	29836	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/trunc.comp.cpp	cabb143112f090e2
+29062	29836	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/trunc.comp.cpp	cabb143112f090e2
+28054	29843	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/topk_nary_search.comp.cpp	fe942c71e88a46b6
+28054	29843	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/topk_nary_search.comp.cpp	fe942c71e88a46b6
+28574	29900	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/timestep_embedding.comp.cpp	c696176598d07b9b
+28574	29900	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/timestep_embedding.comp.cpp	c696176598d07b9b
+28815	30108	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/tri.comp.cpp	c137ac60404b68a7
+28815	30108	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/tri.comp.cpp	c137ac60404b68a7
+28619	30303	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/swiglu_oai.comp.cpp	85297fbbfa33568b
+28619	30303	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/swiglu_oai.comp.cpp	85297fbbfa33568b
+29492	30323	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/upscale.comp.cpp	429f99e93538bdb6
+29492	30323	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/upscale.comp.cpp	429f99e93538bdb6
+29714	30393	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/xielu.comp.cpp	2417262f0848376a
+29714	30393	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/xielu.comp.cpp	2417262f0848376a
+29753	30463	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/wkv6.comp.cpp	fa5b4e19d68985a
+29753	30463	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/wkv6.comp.cpp	fa5b4e19d68985a
+29429	30508	7916744340000000	llama.cpp_build/ggml/src/ggml-vulkan/wkv7.comp.cpp	df52445bf0f19137
+29429	30508	7916744340000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/wkv7.comp.cpp	df52445bf0f19137
+21042	31864	7916744360000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec.comp.cpp	68c005b2edfa6cd4
+21042	31864	7916744360000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mat_vec.comp.cpp	68c005b2edfa6cd4
+29785	35842	7916744389800000	bin/libggml-cpu.so	38a2babd9aeaa6be
+13653	53883	7916744580000000	llama.cpp_build/ggml/src/ggml-vulkan/mul_mm.comp.cpp	1cb994a49eeab2e4
+13653	53883	7916744580000000	F:/Haku Project/haku/android/app/.cxx/debug/1g6d5649/arm64-v8a/llama.cpp_build/ggml/src/ggml-vulkan/mul_mm.comp.cpp	1cb994a49eeab2e4
+53906	54186	7916744572100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu_quick.comp.cpp.o	18be9c074b2ba46
+53920	54224	7916744572400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu_erf.comp.cpp.o	12a77542fa55460e
+53927	54234	7916744572500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/gelu.comp.cpp.o	1b2d097141fe580f
+53913	54244	7916744572300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu_erf.comp.cpp.o	6f16ece2863c446b
+53958	54263	7916744572800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/hardsigmoid.comp.cpp.o	ad6358b9da1ad608
+53975	54273	7916744573000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/leaky_relu.comp.cpp.o	f254693feb2edd72
+53935	54285	7916744572600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu_quick.comp.cpp.o	31c37ad84e6754c1
+53966	54311	7916744572900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/group_norm.comp.cpp.o	d44422628239c292
+54187	54335	7916744574700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/l2_norm.comp.cpp.o	bfd5b05a92413c7e
+53950	54347	7916744572800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/get_rows.comp.cpp.o	1be04ed7f372b6ad
+54224	54439	7916744575300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/hardswish.comp.cpp.o	8aff8cae07c4f537
+54263	54530	7916744575500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/log.comp.cpp.o	89244d84328a6386
+54273	54541	7916744576000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_split_k_reduce.comp.cpp.o	998bded063dc2abb
+54234	54566	7916744575600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/im2col_3d.comp.cpp.o	c881fa0320b8e9e5
+54245	54591	7916744575500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/im2col.comp.cpp.o	e10e34568a09e824
+54441	54603	7916744577500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vecq.comp.cpp.o	be57cb0018724154
+54566	54711	7916744578500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mm_cm2.comp.cpp.o	da55c9aea38b0f7a
+54592	54738	7916744578900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mmq.comp.cpp.o	657c3b3810ad0b39
+54604	54827	7916744579000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/multi_add.comp.cpp.o	d00cbbcd924abf53
+54286	54848	7916744576200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul.comp.cpp.o	5b735fa297a4fc2e
+54712	54900	7916744580200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/neg.comp.cpp.o	dac4d7222666132
+54739	54914	7916744580400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/norm.comp.cpp.o	3bd1df7a06721df9
+53893	54940	7916744571700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq1_s.comp.cpp.o	df4facb31cdf8f93
+54828	55023	7916744581400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/pad.comp.cpp.o	2b7d90efcc978d20
+54848	55044	7916744581800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_back.comp.cpp.o	dbb6077370daddb1
+54914	55077	7916744582100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/opt_step_adamw.comp.cpp.o	9f31b1aec45b0587
+53888	55089	7916744571600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq1_m.comp.cpp.o	6a8324feeefb5bc7
+54336	55111	7916744576500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q5_k.comp.cpp.o	d14d395c3b0153bc
+54900	55122	7916744582200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/opt_step_sgd.comp.cpp.o	a7987329a27429b1
+54531	55153	7916744578200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q4_k.comp.cpp.o	bd346fdcc5b6377d
+55024	55207	7916744583200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_nc.comp.cpp.o	33c2a4343a14031
+53901	55233	7916744571900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_s.comp.cpp.o	a3f7450faeb8a25a
+54311	55283	7916744576300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q6_k.comp.cpp.o	317f3879493cfe86
+55112	55370	7916744584100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_p021.comp.cpp.o	ac60706c44e166bc
+55154	55380	7916744584600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/round.comp.cpp.o	4fe7e714e14f767e
+55208	55406	7916744585200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sigmoid.comp.cpp.o	ee4bcdf234959e28
+53943	55421	7916744572700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/get_rows_quant.comp.cpp.o	7bc5ff12b4ad3e32
+55234	55480	7916744585300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_vision.comp.cpp.o	3a5d09bb7a25ff73
+54348	55493	7916744576700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q3_k.comp.cpp.o	f77d732c9d885c75
+55283	55609	7916744585800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_norm.comp.cpp.o	295bf72e189ed6ad
+55371	55621	7916744586900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/scale.comp.cpp.o	942bbe5cb253c4d5
+55407	55645	7916744587000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/silu_back.comp.cpp.o	97ee0f5ce247a9f0
+55480	55666	7916744588000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sin.comp.cpp.o	25ec9a97210427f0
+55421	55688	7916744587600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/silu.comp.cpp.o	74df744e5efda922
+55495	55773	7916744588700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/repeat.comp.cpp.o	4afc573e7e151c94
+55609	55809	7916744589200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/pool2d.comp.cpp.o	715862ad6b11e67a
+55621	55822	7916744589300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/reglu.comp.cpp.o	7927e88bc2eee676
+55666	55862	7916744590100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/relu.comp.cpp.o	ab80b14aae8857fd
+55646	55871	7916744589400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/quantize_q8_1.comp.cpp.o	53aacc04455b1d9f
+55689	55880	7916744590000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm_partials.comp.cpp.o	d7ea93ab2d383608
+54940	55890	7916744582400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_xxs.comp.cpp.o	839b812744c99370
+55773	55942	7916744590700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm_back.comp.cpp.o	e76a68a090f01bdb
+55090	56027	7916744584000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq3_xxs.comp.cpp.o	d5304835a51f896f
+55380	56069	7916744587000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max.comp.cpp.o	adb32a010a99a53d
+55862	56098	7916744591800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/roll.comp.cpp.o	81a0489cdf98525e
+55890	56129	7916744592000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/softplus.comp.cpp.o	46cf14752cf8875d
+55809	56140	7916744591900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/repeat_back.comp.cpp.o	6e589e878d93c2e7
+55078	56164	7916744583800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq3_s.comp.cpp.o	e5eca3e4cca9e53b
+55943	56196	7916744593100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large2.comp.cpp.o	c39c5119777fbf51
+56070	56243	7916744593500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large1.comp.cpp.o	beb362c04023b69b
+55122	56276	7916744584400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_q2_k.comp.cpp.o	7801263708e470a2
+55047	56312	7916744583400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec_iq2_xs.comp.cpp.o	7d94544fd1d2af4d
+55880	56325	7916744591900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_neox.comp.cpp.o	efd0ecf150183392
+56130	56338	7916744594100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_conv.comp.cpp.o	5eca4d9eba75353f
+56027	56351	7916744594000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/soft_max_large3.comp.cpp.o	64af2321aec9fbce
+55823	56365	7916744591200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rms_norm.comp.cpp.o	1e2788c6ba410a30
+55871	56376	7916744592100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/rope_multi.comp.cpp.o	700f8e4ac9e48ee3
+56098	56388	7916744594500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sqrt.comp.cpp.o	36649800de6acb93
+56140	56412	7916744594800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/square.comp.cpp.o	c8123e916ff2014
+56165	56425	7916744594700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ssm_scan.comp.cpp.o	c473bd07c8d3ec42
+56197	56449	7916744595000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/solve_tri.comp.cpp.o	a008115e1a08f0bf
+56244	56565	7916744595900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu.comp.cpp.o	bd4aea4b58261cb7
+56276	56588	7916744596100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sum_rows.comp.cpp.o	442126b71aeec9f6
+56326	56663	7916744596600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/step.comp.cpp.o	ab65f4cb032d06a
+56340	56676	7916744596700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/timestep_embedding.comp.cpp.o	53492c938bbd1705
+56353	56716	7916744597000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_argsort.comp.cpp.o	b02e9af41dd91fbc
+56388	56731	7916744597300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tanh.comp.cpp.o	1e5d8fb9a5148e4
+56366	56744	7916744597100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_moe.comp.cpp.o	68ed424c41b2d294
+56413	56756	7916744597500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/trunc.comp.cpp.o	8fb307811fa7a187
+56377	56769	7916744597200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/swiglu_oai.comp.cpp.o	1caf030871e7606b
+56426	56812	7916744597700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/topk_nary_search.comp.cpp.o	79c91c333bd303af
+56452	56852	7916744597900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/tri.comp.cpp.o	de67e10373ce076e
+56313	56937	7916744596200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/sub.comp.cpp.o	5244b986b6ca754a
+56567	56951	7916744599100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/upscale.comp.cpp.o	31794e088f9ec68b
+56664	56966	7916744599700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/xielu.comp.cpp.o	d724dd82367ad4e5
+56590	56981	7916744599200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv6.comp.cpp.o	1217957bdf83eebc
+56677	57037	7916744599900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/wkv7.comp.cpp.o	b8cb20db445d9004
+56968	57375	7916744603400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-cparams.cpp.o	5214aed668de1671
+56717	59519	7916744600600000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-mmap.cpp.o	8f0477c52ba578d5
+53883	60348	7916744571600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mat_vec.comp.cpp.o	61202da17bd2c62b
+56854	60634	7916744602000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-arch.cpp.o	fcff59bc118c5c18
+56954	60886	7916744603400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-chat.cpp.o	fdb93130e22d7e0c
+56771	61037	7916744601000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-recurrent.cpp.o	1e844cd0740f4cf9
+57376	61120	7916744606800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-batch.cpp.o	dcdc4028dc73fbce
+56813	61407	7916744601400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-adapter.cpp.o	b9fb3c0c2d57e227
+56744	61504	7916744600900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-hybrid-iswa.cpp.o	2bd429c0a734e95
+56732	61518	7916744600700000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory-hybrid.cpp.o	2e7ccb65a6b2e1b8
+60348	61698	7916744636800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-io.cpp.o	b5f07eb1368a7af4
+56938	62045	7916744602900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama.cpp.o	a43701e0b31ee67d
+60634	62058	7916744639500000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-hparams.cpp.o	5a628369a222b2d3
+56756	62310	7916744600800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model-loader.cpp.o	3d22981fabde8e3
+62059	62325	7916744653700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add1.comp.cpp.o	967b0298af566b8
+56982	62379	7916744603400000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-context.cpp.o	6660215c2b9712bb
+62327	62570	7916744656500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/abs.comp.cpp.o	d0d3b1a5775f7f6
+62380	62622	7916744656800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/acc.comp.cpp.o	3f6816a5eb48d8f8
+62570	62715	7916744658700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/arange.comp.cpp.o	f2d3a74febb80784
+62623	62802	7916744659500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add_id.comp.cpp.o	57ba144c281461eb
+62716	62909	7916744660200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ceil.comp.cpp.o	69d94c0a16cda086
+62803	62973	7916744660900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argmax.comp.cpp.o	a51ccbfa6423aaae
+62311	63096	7916744656000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/add.comp.cpp.o	a3762339c58bcbdf
+62974	63139	7916744662700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argsort.comp.cpp.o	b218c47767a76941
+62909	63150	7916744661900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/argsort_large.comp.cpp.o	27557e3201d082bf
+57039	63183	7916744604000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-grammar.cpp.o	e187d6c0d2661b1a
+63097	63326	7916744663900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/contig_copy.comp.cpp.o	60e6dff993433ae4
+63150	63381	7916744664700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/clamp.comp.cpp.o	b585a128ead2ee43
+63140	63438	7916744664500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/concat.comp.cpp.o	f2c5283a4a3e1a48
+61120	63479	7916744644000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-impl.cpp.o	555de834e4c377cd
+63326	63527	7916744666300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv2d_dw.comp.cpp.o	871505aa73ec5783
+63382	63571	7916744667000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv_transpose_1d.comp.cpp.o	d592d21af0470645
+63438	63619	7916744667500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum_multipass2.comp.cpp.o	3ca312213b048632
+63184	63631	7916744665100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/conv2d_mm.comp.cpp.o	484607d658467792
+63479	63643	7916744667700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/count_experts.comp.cpp.o	3dddbff20a2c2d43
+63528	63701	7916744668300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum_multipass1.comp.cpp.o	e651abba2f426784
+63571	63742	7916744668700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_f32.comp.cpp.o	87d2f9945ef41de8
+59519	63756	7916744628800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-graph.cpp.o	16b790241c5cef0c
+61519	63848	7916744649000000	llama.cpp_build/ggml/src/CMakeFiles/ggml.dir/ggml-backend-dl.cpp.o	fc0490301175378c
+63632	63872	7916744669300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_transpose.comp.cpp.o	6b0ba46ecd5ac0a1
+63620	63899	7916744669900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cumsum.comp.cpp.o	4e852ef7e28b7c33
+63743	63960	7916744670800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/cos.comp.cpp.o	8fcfa26945053218
+63850	64005	7916744671500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/count_equal.comp.cpp.o	796002077a4fa6fc
+61407	64050	7916744647300000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-memory.cpp.o	5d1e18cbcb91f72a
+63702	64073	7916744670100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy.comp.cpp.o	ee5e0b20e7cb44e0
+63757	64162	7916744670500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_from_quant.comp.cpp.o	840cad3c4c2fce19
+63873	64179	7916744672100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq1_m.comp.cpp.o	9dc59c5486f096f9
+63899	64222	7916744672100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq1_s.comp.cpp.o	8492419792505c36
+64051	64240	7916744673600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq4_nl.comp.cpp.o	3d99358c2bc0c802
+64006	64253	7916744673100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_xs.comp.cpp.o	8c50d526a18a1895
+63960	64282	7916744672900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_s.comp.cpp.o	d63c16f780ec0460
+64074	64305	7916744673700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq2_xxs.comp.cpp.o	347e403ea7a9e748
+64163	64405	7916744674800000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq3_s.comp.cpp.o	cea30a5d1dba1781
+61506	64427	7916744648200000	CMakeFiles/haku_llm.dir/llama_jni.cpp.o	fe015d97d2fca151
+64180	64440	7916744675000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq4_xs.comp.cpp.o	96f04115647abb05
+64253	64474	7916744675500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_cm2.comp.cpp.o	ca718acac57988ce
+64223	64486	7916744675300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_iq3_xxs.comp.cpp.o	3b69f557011056fd
+64241	64499	7916744675700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_mxfp4.comp.cpp.o	488d99ba3cb805d2
+64284	64512	7916744676000000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/floor.comp.cpp.o	1504b24a57a18bd
+64306	64584	7916744676500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/geglu.comp.cpp.o	6d5f7d848f59d922
+64406	64597	7916744677200000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_cm1.comp.cpp.o	fa5fd62bf1886616
+64441	64644	7916744677300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q2_k.comp.cpp.o	f91b5575d0238858
+64427	64692	7916744677600000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn_split_k_reduce.comp.cpp.o	3d6839a978f79875
+64475	64723	7916744678100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_1.comp.cpp.o	a999ea89a872f76d
+64500	64751	7916744678300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q3_k.comp.cpp.o	de3623fe9243e07f
+64486	64774	7916744678300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_0.comp.cpp.o	2b7b1830eda78e26
+64513	64805	7916744678400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q6_k.comp.cpp.o	ed6d507452edc5cf
+64585	64844	7916744679100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_k.comp.cpp.o	9157ad5a176e50fd
+64645	64885	7916744679700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q4_k.comp.cpp.o	15c553095363aa51
+64598	64909	7916744679500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_0.comp.cpp.o	efd8c717fb25949
+64724	64957	7916744680400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/diag_mask_inf.comp.cpp.o	82fe37eb73bf0d52
+64692	64985	7916744680500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q5_1.comp.cpp.o	9075308ff028e6d9
+61038	65005	7916744643900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-kv-cache-iswa.cpp.o	317ed2af73430be1
+64776	65017	7916744680900000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/exp.comp.cpp.o	3267b387f6284b3c
+64806	65083	7916744681100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/diag.comp.cpp.o	966011ef2181c94f
+64845	65096	7916744681700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/dequant_q8_0.comp.cpp.o	aeae5ccb6eb3f2db
+64887	65159	7916744682100000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/fill.comp.cpp.o	647ce8abd8c13749
+64752	65265	7916744680700000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/div.comp.cpp.o	4a216c604c97da6
+61699	65313	7916744650300000	llama.cpp_build/ggml/src/CMakeFiles/ggml.dir/ggml-backend-reg.cpp.o	6e32755a6cb44214
+64910	65692	7916744682300000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/flash_attn.comp.cpp.o	853a6ae7b0f56af6
+63644	65706	7916744669500000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/copy_to_quant.comp.cpp.o	d4bd03ea2ead3ff7
+60886	65985	7916744642000000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-kv-cache.cpp.o	8b74fad118a4d4f8
+65097	68395	7916744684300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gptneox.cpp.o	4bb5de6307b6a689
+65018	68406	7916744683400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma2-iswa.cpp.o	c1f9549eb71d1526
+64958	68473	7916744682700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma3.cpp.o	2e1dc97793ee11b9
+65007	68506	7916744683400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma3n-iswa.cpp.o	470e02b81f2fd9f2
+65266	68542	7916744685800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/granite-hybrid.cpp.o	1a908641191ab783
+65085	68593	7916744684300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma.cpp.o	b401fefc547fbed0
+65160	68609	7916744684600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/glm4.cpp.o	27967fa220d76a12
+64986	68636	7916744683000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gemma-embedding.cpp.o	eef7ba30667655e4
+65314	68652	7916744686200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/glm4-moe.cpp.o	8cd8954bd96ad8cf
+65695	68927	7916744690000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/gpt2.cpp.o	3a697260b2c2cf17
+68407	71553	7916744717100000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model-saver.cpp.o	1cf2d63b5e308255
+68654	71593	7916744719800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/baichuan.cpp.o	e3d5821a3a9c1fb5
+68611	71703	7916744719300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arcee.cpp.o	7218fc7922a04324
+65987	71852	7916744692900000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-quant.cpp.o	75c0f7e1279c10c
+68542	71868	7916744718700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/afmoe.cpp.o	13f581c52e6da6cc
+68638	71981	7916744719600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/apertus.cpp.o	1152251e68d2aea5
+68928	72333	7916744722300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bailingmoe2.cpp.o	4b0db637789274c0
+68506	73953	7916744718400000	llama.cpp_build/src/CMakeFiles/llama.dir/unicode-data.cpp.o	55de331c4a79358d
+68395	74364	7916744717600000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-vocab.cpp.o	f502434e49d9f555
+71594	74517	7916744749200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arctic.cpp.o	6fd409c6405a159c
+68474	74674	7916744717800000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-sampling.cpp.o	45ca8e58d02133aa
+71869	74708	7916744751700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bert.cpp.o	bfca0fddc5adc0fd
+71982	74774	7916744752700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/chameleon.cpp.o	53cdc40793bab4e4
+71853	74786	7916744751700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/chatglm.cpp.o	9a5847315d092c30
+71554	74807	7916744750500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bailingmoe.cpp.o	45594099feeca86e
+71704	74974	7916744750300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/arwkv7.cpp.o	407aed6d5cf32fb4
+68594	75112	7916744719300000	llama.cpp_build/src/CMakeFiles/llama.dir/unicode.cpp.o	869805028c9e4313
+72334	75285	7916744756300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bloom.cpp.o	b7f3b5436504dc06
+65707	75683	7916744690200000	llama.cpp_build/src/CMakeFiles/llama.dir/llama-model.cpp.o	2b00fd2fc58dc884
+73953	77029	7916744774400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/bitnet.cpp.o	56add6bab2d6fbe5
+62046	77645	7916744653400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/ggml-vulkan.cpp.o	e8732c37646f726e
+74364	77830	7916744778100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/codeshell.cpp.o	2a4ad605b6d823f6
+74517	77850	7916744778100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/cohere2-iswa.cpp.o	dfbbbd23ca021911
+74787	77902	7916744781100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/cogvlm.cpp.o	2bfec10160b2c41d
+74708	77915	7916744780000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/command-r.cpp.o	be472a1f7c5d2022
+74674	77985	7916744779900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dbrx.cpp.o	8f523b5c8d384878
+74975	78059	7916744782800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dream.cpp.o	c297df8bfed16286
+74774	78089	7916744780900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deci.cpp.o	ad43a86504e876d5
+74807	78179	7916744781200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/dots1.cpp.o	5b28abc1cd2eff6c
+75113	78194	7916744784100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/ernie4-5-moe.cpp.o	92132f0018dd7b09
+75285	78335	7916744785900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deepseek2.cpp.o	bda11f0a0daa067a
+75684	78627	7916744789900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/deepseek.cpp.o	3df4764ae2eb3436
+77029	79919	7916744803300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/falcon-h1.cpp.o	50a1b5d7d8de6300
+77645	80973	7916744810000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/ernie4-5.cpp.o	c297119996a8e31d
+77831	80995	7916744811200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone4.cpp.o	9957267be13653ca
+78091	81268	7916744814000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/granite.cpp.o	3674d9951ac43aeb
+77916	81330	7916744812200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/falcon.cpp.o	faa4e56d0d145e14
+77903	81347	7916744812200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone.cpp.o	e9c668684007ae7b
+77851	81449	7916744811800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/exaone-moe.cpp.o	85796dbb16e06685
+78194	81500	7916744815200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/grovemoe.cpp.o	2a3a5944b9c1278b
+78180	81610	7916744815000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/grok.cpp.o	a86a43c4a1f1c77d
+78336	81645	7916744816500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llada-moe.cpp.o	591f771b04a028cb
+77987	81678	7916744813100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/hunyuan-dense.cpp.o	228fb91664079906
+78060	81780	7916744813700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/hunyuan-moe.cpp.o	fc6bf9d89ce6c186
+78628	81876	7916744819400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/jais.cpp.o	32be18d0ed2b0af6
+79919	82715	7916744832100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/internlm2.cpp.o	a41ff0ad34c964b9
+80973	84281	7916744842700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/jamba.cpp.o	71b38086df9d4535
+80995	84830	7916744843300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/lfm2.cpp.o	4c133148963b9782
+81330	84865	7916744846800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llama-iswa.cpp.o	bd9d7b7fd225c9a
+81450	84965	7916744848100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mamba.cpp.o	7fd4a7b3df029b5d
+81646	84983	7916744850100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mpt.cpp.o	8394738fa5de7d6d
+81501	85024	7916744849300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/maincoder.cpp.o	76f748ee8c0e9894
+81269	85039	7916744845900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llada.cpp.o	91975c0196d5e1d8
+81348	85054	7916744846900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/llama.cpp.o	32c108d1ba4854f2
+81782	85132	7916744851400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/minimax-m2.cpp.o	913166968c5d12f6
+81613	85255	7916744849400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/minicpm3.cpp.o	cdd32606d2a20fc0
+81679	85307	7916744850300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/modern-bert.cpp.o	ab059b1ee7ba13a7
+81877	85332	7916744852000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mimo2-iswa.cpp.o	ec6dc627830742df
+82717	85669	7916744860100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/nemotron-h.cpp.o	47cda5fe0e6d5425
+84282	87260	7916744876300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmo.cpp.o	4a185653f2914bba
+84830	88187	7916744881800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmo2.cpp.o	3b3cef021564bc8a
+85026	88408	7916744883300000	llama.cpp_build/src/CMakeFiles/llama.dir/models/orion.cpp.o	bc3003c75f447477
+84865	88441	7916744881800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/olmoe.cpp.o	9e991df8e47be40f
+84965	88454	7916744882800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/nemotron.cpp.o	a8836fb9dc8c4658
+85257	88466	7916744885900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/phi2.cpp.o	746ae36fcbd03e6f
+85055	88547	7916744883900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/openai-moe-iswa.cpp.o	7cafcb5847a417d3
+85333	88572	7916744886500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo.cpp.o	fa9bd0e95ac6054f
+85040	88686	7916744883600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/openelm.cpp.o	12c36290fd12a323
+84983	88754	7916744883000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/neo-bert.cpp.o	ffe6b1b34c06f91e
+85132	88834	7916744884500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/pangu-embedded.cpp.o	8c907e38f68bb6c
+85309	88851	7916744886200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/phi3.cpp.o	be194c6cac1d043d
+85671	89157	7916744889700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo2.cpp.o	e3e936c001d2c48e
+87261	90382	7916744905800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plamo3.cpp.o	175fe08a9d28167e
+88187	92100	7916744916200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/plm.cpp.o	442ad6b2147dfe33
+88755	92579	7916744920800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3moe.cpp.o	c3d9caf2e1fec5d0
+88467	92618	7916744918000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2moe.cpp.o	7abbaa96852ea644
+88454	92702	7916744917600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3vl.cpp.o	23a046c04279a527
+88572	92859	7916744919000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2vl.cpp.o	b1f7d39ba45dee9
+88441	92873	7916744917700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3.cpp.o	a678575f782cebb9
+88409	92887	7916744918200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen.cpp.o	632f83e15682d933
+88853	92911	7916744921700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rnd1.cpp.o	fdcb636e95d71851
+88687	93203	7916744920100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/refact.cpp.o	693ce5d24b326ff3
+88549	93230	7916744918600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen2.cpp.o	8141bb84f927871c
+88836	93343	7916744921500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3vl-moe.cpp.o	b4c2afba33471607
+89158	93445	7916744924700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/qwen3next.cpp.o	ed6ba7a1b0e00840
+90382	93587	7916744937000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv7.cpp.o	3f2d676e46b41f78
+92101	95726	7916744956500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6qwen2.cpp.o	8be305cf4caf2f18
+92579	96067	7916744959500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6-base.cpp.o	39f4c80dacde8e08
+92703	96118	7916744960400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv6.cpp.o	eafdc6ce8addcb6c
+92912	96244	7916744962400000	llama.cpp_build/src/CMakeFiles/llama.dir/models/seed-oss.cpp.o	7ff2637732cfb524
+92859	96268	7916744961700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/stablelm.cpp.o	f173b3c38fbbde67
+92873	96273	7916744961800000	llama.cpp_build/src/CMakeFiles/llama.dir/models/smallthinker.cpp.o	22d688f03b59f51
+92618	96278	7916744960000000	llama.cpp_build/src/CMakeFiles/llama.dir/models/rwkv7-base.cpp.o	b823398e8ba607e6
+92887	96305	7916744961900000	llama.cpp_build/src/CMakeFiles/llama.dir/models/starcoder.cpp.o	374e8e5c0a015fe6
+93203	96612	7916744965100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/smollm3.cpp.o	e8f36d408affa291
+93230	96653	7916744965500000	llama.cpp_build/src/CMakeFiles/llama.dir/models/starcoder2.cpp.o	928f1d1703eed724
+93344	96697	7916744966600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/t5-dec.cpp.o	60af625fa642eb8f
+93446	96734	7916744967700000	llama.cpp_build/src/CMakeFiles/llama.dir/models/xverse.cpp.o	56def47a11463d60
+93589	96799	7916744969100000	llama.cpp_build/src/CMakeFiles/llama.dir/models/wavtokenizer-dec.cpp.o	b4c42fbaa766e1e1
+95726	97576	7916744990200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/t5-enc.cpp.o	435bd057e7baff38
+96119	97837	7916744994200000	llama.cpp_build/src/CMakeFiles/llama.dir/models/mistral3.cpp.o	fbbba845d3ebea57
+96067	98005	7916744993600000	llama.cpp_build/src/CMakeFiles/llama.dir/models/graph-context-mamba.cpp.o	545ebef9b9ff87e5
+54542	102949	7916744578400000	llama.cpp_build/ggml/src/ggml-vulkan/CMakeFiles/ggml-vulkan.dir/mul_mm.comp.cpp.o	c63230ca80f02c0
+102949	111351	7916745144000000	bin/libggml-vulkan.so	6270211599b39d2d
+111352	111911	7916745150700000	bin/libggml.so	7f5baaebc1e21e6
+111912	131666	7916745347100000	bin/libllama.so	a497d70f4d3b9a49
+131667	131924	7916745351300000	F:/Haku Project/haku/android/app/build/intermediates/cxx/debug/1g6d5649/obj/arm64-v8a/libhaku_llm.so	da19246e5451eddd

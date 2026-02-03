@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/f/AndroidSDK/platform-tools/adb.exe shell:*)",
+      "Bash(\"/f/AndroidSDK/platform-tools/adb.exe\" root)",
+      "Bash(where:*)",
+      "Bash(where gcc)",
+      "Bash(pacman -S:*)",
+      "Bash(find:*)",
+      "Bash(# Check if vulkan-shaders-gen was built ls \"\"F:/Haku Project/haku/android/app/.cxx/debug/6z3o4x2d/arm64-v8a/debug/vulkan-shaders-gen.exe\"\" && echo \"\"Found shaders-gen exe\"\" || echo \"\"Not found\"\" # Check glslc find \"\"F:/AndroidSDK\"\" -name \"\"glslc*\"\")",
+      "Bash(# Check what Vulkan_GLSLC_EXECUTABLE was found by cmake grep -r \"\"glslc\"\" \"\"F:/Haku Project/haku/android/app/.cxx/debug/6z3o4x2d/arm64-v8a/CMakeCache.txt\"\")",
+      "Bash(flutter --version:*)",
+      "Bash(flutter.bat:*)"
+    ]
+  }
+}
