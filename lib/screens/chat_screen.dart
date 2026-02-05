@@ -9,6 +9,7 @@ import '../services/database_helper.dart';
 import '../services/mvp_trigger_service.dart';
 import '../services/notification_service.dart';
 import '../services/rag_service.dart';
+import '../services/chat_summary_service.dart';
 import '../services/mediapipe_llm_service.dart';
 import '../services/prompt_builder.dart';
 
@@ -27,6 +28,15 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
   void addMessage(ChatMessage message) {
     state = [...state, message];
+    
+    // 🔋 บันทึกประวัติแชทสำหรับสรุปแบบ Deferred (ไม่กินแบต)
+    if (!message.isLoading && !message.isError) {
+      ChatSummaryService().logChatMessage(
+        message: message.content,
+        isUser: message.isUser,
+        intent: message.isProactive ? 'proactive' : 'chat',
+      );
+    }
   }
 
   /// 🤖 ส่งข้อความไปให้ AI พร้อม Context Retriever
@@ -34,7 +44,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     debugPrint('🚀 ============================================');
     debugPrint('🚀 sendToAI called: $userMessage');
     
-    // เพิ่มข้อความผู้ใช้
+    // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
     addMessage(ChatMessage.user(userMessage));
     
     // แสดง "กำลังพิมพ์..."
@@ -61,8 +71,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         }
       }
       
-      // 🎯 เรียก MediaPipe LLM พร้อม System Prompt
+      // 🎯 เรียก MediaPipe LLM แบบ Lazy Loading
       final llm = MediaPipeLLMService();
+
+      // 🔋 Lazy Loading: พยายามโหลด LLM เมื่อใช้งานจริง
+      if (!llm.isInitialized && !llm.isLoading) {
+        debugPrint('🔄 Lazy Loading: Initializing LLM...');
+        await llm.initialize();
+      }
 
       if (llm.isInitialized) {
         try {
@@ -125,6 +141,12 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       
       String response;
       final llm = MediaPipeLLMService();
+      
+      // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
+      if (!llm.isInitialized && !llm.isLoading) {
+        await llm.initialize();
+      }
+      
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
       } else {
@@ -208,10 +230,16 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
       String response;
       final llm = MediaPipeLLMService();
+      
+      // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
+      if (!llm.isInitialized && !llm.isLoading) {
+        await llm.initialize();
+      }
+      
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
       } else {
-        // Mock
+        // Mock response เมื่อ LLM ไม่พร้อม
         response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
       }
 
@@ -263,18 +291,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _initializeServices() async {
     try {
-      // Initialize RAG
+      // Initialize RAG (Lightweight - ไม่ใช้ LLM)
       debugPrint('🔄 Initializing RAG...');
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
       
-      // 🤖 Initialize TFLite LLM (Gemma-2)
-      debugPrint('🔄 Initializing TFLite LLM (Gemma-2)...');
-      final llm = MediaPipeLLMService();
-      if (!llm.isInitialized) {
-        await llm.initialize();
-      }
-      debugPrint('✅ LLM: ${llm.isInitialized ? "Ready" : "Using Mock"}');
+      // 📝 NOTE: LLM (MediaPipe) จะถูกโหลดแบบ Lazy Loading
+      // เมื่อมีการเรียก generate() ครั้งแรกเท่านั้น
+      // ไม่โหลดตอน initState เพื่อประหยัดแบตเตอรี่
+      debugPrint('💡 LLM จะโหลดแบบ Lazy Loading (เมื่อใช้งานจริง)');
+      
+      // 🔋 Initialize Chat Summary Service (Deferred Processing)
+      debugPrint('🔄 Initializing Chat Summary Service...');
+      await ChatSummaryService().initialize();
+      debugPrint('✅ Chat Summary Service initialized (Deferred to Charging)');
       
       // Index entries ถ้ายังไม่มี
       if (RAGService().isInitialized) {

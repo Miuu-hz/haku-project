@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,18 +13,24 @@ import '../utils/constants.dart';
 /// ใช้ MediaPipe Tasks GenAI สำหรับรันโมเดล LiteRT (.task)
 /// ✅ All-in-One: มี tokenizer รวมในไฟล์โมเดลแล้ว
 /// ✅ รองรับ Gemma-3, Qwen, Llama ผ่าน LiteRT
-/// ✅ ไม่ต้องจัดการ native library เอง
+/// ✅ ไม่ต้อง compile native library เอง
 
 class MediaPipeLLMService {
   static final MediaPipeLLMService _instance = MediaPipeLLMService._internal();
   factory MediaPipeLLMService() => _instance;
   MediaPipeLLMService._internal();
 
-  static const MethodChannel _channel = MethodChannel('com.example.haku/mediapipe');
+  static const MethodChannel _channel = MethodChannel('com.example.haku/llm');
 
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _currentModelPath;
+  
+  /// 🔋 Auto-unload timer สำหรับประหยัดแบตเตอรี่
+  Timer? _autoUnloadTimer;
+  
+  /// ⏱️ เวลาที่ไม่ใช้งานก่อน auto-unload (นาที)
+  static const int autoUnloadMinutes = 5;
 
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
@@ -115,6 +122,8 @@ class MediaPipeLLMService {
 
       if (_isInitialized) {
         debugPrint('✅ MediaPipe LLM initialized');
+        // เริ่มต้น auto-unload timer
+        _resetAutoUnloadTimer();
       } else {
         debugPrint('❌ Failed to initialize MediaPipe LLM');
       }
@@ -137,6 +146,9 @@ class MediaPipeLLMService {
       throw StateError('MediaPipe LLM not initialized');
     }
 
+    // 🔋 Reset auto-unload timer เมื่อมีการใช้งาน
+    _resetAutoUnloadTimer();
+
     try {
       debugPrint('🤖 Generating with MediaPipe...');
       
@@ -153,8 +165,36 @@ class MediaPipeLLMService {
     }
   }
 
+  /// ⏰ ตั้ง Timer สำหรับ auto-unload
+  void _resetAutoUnloadTimer() {
+    _autoUnloadTimer?.cancel();
+    _autoUnloadTimer = Timer(const Duration(minutes: autoUnloadMinutes), () {
+      _autoUnload();
+    });
+    debugPrint('⏰ Auto-unload timer reset: จะ unload ใน $autoUnloadMinutes นาที');
+  }
+
+  /// 🔋 Auto-unload โมเดลเมื่อไม่ใช้งาน
+  Future<void> _autoUnload() async {
+    if (!_isInitialized) return;
+    
+    debugPrint('🔋 Auto-unloading LLM เพื่อประหยัดแบตเตอรี่...');
+    await dispose();
+  }
+
+  /// 🛑 หยุด auto-unload timer (ใช้เมื่อต้องการ keep model loaded)
+  void cancelAutoUnload() {
+    _autoUnloadTimer?.cancel();
+    _autoUnloadTimer = null;
+    debugPrint('⏰ Auto-unload timer cancelled');
+  }
+
   /// 🗑️ ปิดโมเดล
   Future<void> dispose() async {
+    // ยกเลิก auto-unload timer
+    _autoUnloadTimer?.cancel();
+    _autoUnloadTimer = null;
+    
     try {
       await _channel.invokeMethod('unloadModel');
       _isInitialized = false;

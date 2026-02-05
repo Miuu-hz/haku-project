@@ -30,6 +30,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -47,18 +48,6 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
-        
-        externalNativeBuild {
-            cmake {
-                cppFlags "-O3 -flto -ffunction-sections -fdata-sections -fexceptions -frtti"
-                // Vulkan สำหรับ GPU acceleration
-                arguments "-DANDROID_STL=c++_shared", "-DGGML_VULKAN=ON",
-                          "-DGGML_VULKAN_SHADERS_GEN_TOOLCHAIN=${project.file('src/main/cpp/host-toolchain-msvc.cmake').absolutePath.replace('\\\\', '/')}",
-                          "-DVulkan_GLSLC_EXECUTABLE=${android.ndkDirectory.absolutePath.replace('\\\\', '/')}/shader-tools/windows-x86_64/glslc.exe"
-                        // Build เฉพาะ ARM64 สำหรับ GPU (x86 emulator ไม่มี GPU จริง)
-                abiFilters 'arm64-v8a'
-            }
-        }
     }
 
     buildTypes {
@@ -67,45 +56,12 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-O3 -flto -DNDEBUG"
-                }
-            }
         }
         debug {
             signingConfig signingConfigs.debug
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-O0 -g"
-                }
-            }
-            // Debug ใช้แค่ ARM64 เหมือนกัน (ลดเวลา build และป้องกันปัญหา APK location)
-            ndk {
-                abiFilters 'arm64-v8a'
-            }
         }
     }
-    
-    externalNativeBuild {
-        cmake {
-            path "src/main/cpp/CMakeLists.txt"
-            version "3.22.1"
-        }
-    }
-    
-    packagingOptions {
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libhaku_llm.so'
-    }
-    
-    // ปิด splits เพื่อให้ Flutter หา APK เจอ (Flutter จะจัดการเอง)
-    // splits {
-    //     abi {
-    //         enable true
-    //         universalApk true
-    //     }
-    // }
+
 }
 
 flutter {
@@ -116,4 +72,11 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0"
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.core:core-ktx:1.12.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // 🤖 MediaPipe GenAI LLM
+    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+    
+    // Coroutines สำหรับ async operations
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
 }

@@ -1,125 +1,59 @@
-import 'dart:async';
+/// 🔌 DEPRECATED: LlamaNativeBridge
+/// 
+/// 📝 หมายเหตุ: ไฟล์นี้ถูกแทนที่ด้วย MediaPipeLLMBridge
+/// 
+/// llama.cpp + Vulkan ถูกปิดการใช้งานแล้ว 
+/// ใช้ MediaPipe GenAI (mediapipe_llm_service.dart) แทน
+/// 
+/// เหตุผล:
+/// - ไม่ต้อง compile native library (C++)
+/// - ใช้ prebuilt AAR จาก Google
+/// - All-in-one: มี tokenizer ในตัว
+/// - รองรับ Gemma, Phi, Qwen ผ่าน LiteRT
+/// 
+/// วิธีใช้งานใหม่:
+/// ```dart
+/// import 'mediapipe_llm_service.dart';
+/// 
+/// final llm = MediaPipeLLMService();
+/// await llm.initialize(modelFileName: 'gemma-3-270m-it.task');
+/// final response = await llm.generate('สวัสดี');
+/// ```
 
+// ignore: unused_import
+import 'dart:ffi';
+// ignore: unused_import
+import 'dart:io';
+// ignore: unused_import
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
-/// 🔌 Native Bridge สำหรับ LLM (llama.cpp)
-/// 
-/// ใช้ Dart FFI เชื่อมต่อกับ llama.cpp ที่ compile เป็น .so (Android)
-/// หรือ .framework (iOS)
-/// 
-/// สำหรับ Android: ต้องมี libllama.so ใน jniLibs/
-/// สำหรับ iOS: ต้องมี Llama.framework
-/// 
-/// NOTE: ตอนนี้ปิดการใช้งาน FFI ไว้ก่อน (Phase 2)
-
+/// DEPRECATED: ใช้ MediaPipeLLMService แทน
+@deprecated
 class LlamaNativeBridge {
+  @deprecated
   static final LlamaNativeBridge _instance = LlamaNativeBridge._internal();
+  @deprecated
   factory LlamaNativeBridge() => _instance;
+  @deprecated
   LlamaNativeBridge._internal();
 
-  bool get isInitialized => false;
+  @deprecated
+  bool get isAvailable => false;
 
-  /// 🚀 โหลด Native Library (ยังไม่ implement)
-  Future<bool> initialize(String modelPath) async {
-    // TODO: Phase 2 - Implement FFI
-    if (kDebugMode) {
-      print('⚠️ Native LLM ยังไม่พร้อมใช้งาน (ต้อง compile llama.cpp ก่อน)');
-    }
+  @deprecated
+  Future<bool> loadModel(String modelPath, {int contextSize = 4096, int gpuLayers = 0}) async {
+    debugPrint('⚠️ LlamaNativeBridge ถูกปิดการใช้งาน - ใช้ MediaPipeLLMService แทน');
     return false;
   }
 
-  /// 💬 Generate ข้อความ (ยังไม่ implement)
-  Future<String> generate(
-    String prompt, {
-    double temperature = 0.7,
-    int maxTokens = 512,
-  }) async {
-    // TODO: Phase 2 - Implement with FFI
+  @deprecated
+  Future<String> generate(String prompt, {double temperature = 0.7, int maxTokens = 512}) async {
+    debugPrint('⚠️ LlamaNativeBridge ถูกปิดการใช้งาน - ใช้ MediaPipeLLMService แทน');
     return '';
   }
 
-  /// 🧹 ปิด LLM และคืน memory
-  void dispose() {
-    // TODO: Phase 2
-  }
-}
-
-/// 🔄 Isolate-based LLM (ถ้า FFI ยากเกินไป)
-/// 
-/// ใช้ MethodChannel เรียกไป Native (Android/Kotlin) แทน
-class LLMMethodChannel {
-  static const MethodChannel _channel = MethodChannel('com.example.haku/llm');
-  
-  static Future<bool> loadModel(String modelPath) async {
-    try {
-      final result = await _channel.invokeMethod('loadModel', {
-        'modelPath': modelPath,
-        'contextSize': 4096,
-      });
-      return result == true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Load model error: $e');
-      }
-      return false;
-    }
-  }
-  
-  static Future<String> generate(
-    String prompt, {
-    double temperature = 0.7,
-    int maxTokens = 512,
-  }) async {
-    try {
-      final result = await _channel.invokeMethod('generate', {
-        'prompt': prompt,
-        'temperature': temperature,
-        'maxTokens': maxTokens,
-      });
-      return result as String? ?? '';
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Generate error: $e');
-      }
-      return '';
-    }
-  }
-  
-  static Stream<String> generateStream(
-    String prompt, {
-    double temperature = 0.7,
-    int maxTokens = 512,
-  }) async* {
-    try {
-      final stream = _channel.invokeMethod('generateStream', {
-        'prompt': prompt,
-        'temperature': temperature,
-        'maxTokens': maxTokens,
-      });
-      
-      await for (final token in _streamFromChannel(stream)) {
-        yield token;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Stream error: $e');
-      }
-    }
-  }
-  
-  static Stream<String> _streamFromChannel(dynamic stream) async* {
-    // Implementation depends on platform
-    yield* const Stream<String>.empty();
-  }
-  
-  static Future<void> unloadModel() async {
-    try {
-      await _channel.invokeMethod('unloadModel');
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ Unload error: $e');
-      }
-    }
+  @deprecated
+  void unloadModel() {
+    debugPrint('⚠️ LlamaNativeBridge ถูกปิดการใช้งาน');
   }
 }

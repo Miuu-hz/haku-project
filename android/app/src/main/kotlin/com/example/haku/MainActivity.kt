@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.util.Log
+import kotlinx.coroutines.*
 
 /**
  * 🎌 MainActivity ของ Haku
@@ -162,90 +163,77 @@ class MainActivity: FlutterFragmentActivity() {
     }
     
     /**
-     * 🤖 Setup LLM MethodChannel
+     * 🤖 Setup LLM MethodChannel สำหรับ MediaPipe
+     * 
+     * ใช้ MediaPipe GenAI แทน llama.cpp + Vulkan
      */
     private fun setupLLMChannel(flutterEngine: FlutterEngine) {
+        val mediaPipeBridge = MediaPipeLLMBridge.getInstance(this)
+        
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LLM_CHANNEL).setMethodCallHandler {
             call, result ->
-            
-            // ตรวจสอบว่า native library พร้อมใช้งานหรือไม่
-            if (!LLMBridge.isAvailable()) {
-                Log.e(TAG, "❌ LLM native library not available for method: ${call.method}")
-                result.error(
-                    "NATIVE_NOT_AVAILABLE", 
-                    "LLM native library is not available. Please ensure llama.cpp is properly built.", 
-                    null
-                )
-                return@setMethodCallHandler
-            }
             
             try {
                 when (call.method) {
                     "loadModel" -> {
                         val modelPath = call.argument<String>("modelPath")
-                        val contextSize = call.argument<Int>("contextSize") ?: 4096
-                        val gpuLayers = call.argument<Int>("gpuLayers") ?: 0
+                        val maxTokens = call.argument<Int>("maxTokens") ?: 1024
+                        val temperature = (call.argument<Double>("temperature") ?: 0.7).toFloat()
                         
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
                             return@setMethodCallHandler
                         }
                         
-                        Log.i(TAG, "📥 Loading model: $modelPath")
-                        val success = LLMBridge.loadModel(modelPath, contextSize, gpuLayers)
-                        result.success(success)
+                        Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
+                        
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val success = mediaPipeBridge.loadModel(
+                                modelPath = modelPath,
+                                maxTokens = maxTokens,
+                                temperature = temperature
+                            )
+                            result.success(success)
+                        }
                     }
                     
                     "generate" -> {
                         val prompt = call.argument<String>("prompt")
-                        val temperature = call.argument<Double>("temperature") ?: 0.7
-                        val maxTokens = call.argument<Int>("maxTokens") ?: 512
                         
                         if (prompt == null) {
                             result.error("INVALID_PROMPT", "Prompt is null", null)
                             return@setMethodCallHandler
                         }
                         
-                        Log.d(TAG, "🤖 Generating text...")
-                        val response = LLMBridge.generate(prompt, temperature, maxTokens)
-                        result.success(response)
-                    }
-                    
-                    "generateStream" -> {
-                        // TODO: Implement streaming generation with EventChannel
-                        // ตอนนี้ fallback ไปใช้ generate ปกติก่อน
-                        val prompt = call.argument<String>("prompt")
-                        val temperature = call.argument<Double>("temperature") ?: 0.7
-                        val maxTokens = call.argument<Int>("maxTokens") ?: 512
-                        
-                        if (prompt == null) {
-                            result.error("INVALID_PROMPT", "Prompt is null", null)
+                        if (!mediaPipeBridge.isInitialized) {
+                            result.error("NOT_INITIALIZED", "MediaPipe not initialized", null)
                             return@setMethodCallHandler
                         }
                         
-                        val response = LLMBridge.generate(prompt, temperature, maxTokens)
-                        result.success(response)
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val response = mediaPipeBridge.generate(prompt)
+                            result.success(response)
+                        }
                     }
                     
                     "unloadModel" -> {
-                        Log.i(TAG, "🗑️ Unloading model")
-                        LLMBridge.unloadModel()
+                        mediaPipeBridge.unloadModel()
                         result.success(null)
                     }
                     
                     "isModelLoaded" -> {
-                        result.success(LLMBridge.isModelLoaded())
+                        result.success(mediaPipeBridge.isInitialized)
                     }
                     
                     "getModelInfo" -> {
-                        result.success(LLMBridge.getModelInfo())
+                        result.success(mediaPipeBridge.getModelInfo())
                     }
                     
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error in LLM method ${call.method}: ${e.message}")
-                result.error("LLM_ERROR", e.message, e.stackTraceToString())
+                Log.e(TAG, "❌ Error in MediaPipe method ${call.method}: ${e.message}")
+                result.error("MEDIAPIPE_ERROR", e.message, e.stackTraceToString())
             }
         }
     }
@@ -295,10 +283,6 @@ class MainActivity: FlutterFragmentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        // ปิดโมเดลเมื่อแอพปิด (ถ้า native library พร้อมใช้งาน)
-        if (LLMBridge.isAvailable() && LLMBridge.isModelLoaded()) {
-            Log.i(TAG, "🗑️ Unloading model on destroy")
-            LLMBridge.unloadModel()
-        }
+        // 📝 llama.cpp ถูกปิดการใช้งานแล้ว ไม่ต้อง unload model
     }
 }

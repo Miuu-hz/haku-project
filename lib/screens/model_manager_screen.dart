@@ -73,7 +73,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Text(
-                    '❌ ยังไม่มีโมเดล\nกรุณา import โมเดล .gguf',
+                    '❌ ยังไม่มีโมเดล\nกรุณา import โมเดล .task (MediaPipe)',
                     style: TextStyle(color: Colors.orange),
                   );
                 }
@@ -105,7 +105,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.file_upload),
-        label: Text(_isImporting ? 'กำลังนำเข้า...' : '📁 เลือกไฟล์โมเดล (.gguf)'),
+        label: Text(_isImporting ? 'กำลังนำเข้า...' : '📁 เลือกไฟล์โมเดล (.task)'),
       ),
     );
 
@@ -121,23 +121,18 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
             ),
             const SizedBox(height: 8),
             _buildModelItem(
-              'Qwen3-VL-4B-Thinking-Q4_K_M.gguf',
-              '2.4 GB',
-              'ดีที่สุดสำหรับภาษาไทย + รูปภาพ',
+              'Gemma 3 270M IT',
+              '~180 MB',
+              'เร็วที่สุด ใช้งานง่าย',
             ),
             _buildModelItem(
-              'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
-              '1.9 GB',
-              'เร็ว ประหยัดแบต',
-            ),
-            _buildModelItem(
-              'Phi-4-mini-Q4.gguf',
-              '2.0 GB',
-              ' balanced',
+              'Gemma 3 4B IT',
+              '~2.8 GB',
+              'คุณภาพสูง ตอบโต้ดี',
             ),
             const SizedBox(height: 8),
             const Text(
-              '💡 ดาวน์โหลดจาก: huggingface.co',
+              '💡 ดาวน์โหลดจาก: Google AI / Kaggle',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
@@ -160,7 +155,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        allowedExtensions: ['gguf'],
+        allowedExtensions: ['task'],
       );
 
       if (result == null || result.files.single.path == null) {

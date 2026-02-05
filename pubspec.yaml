@@ -57,6 +57,12 @@ dependencies:
   # 🔔 Local Notifications
   flutter_local_notifications: ^17.0.0  # แสดง notifications
 
+  # 🌐 HTTP Client สำหรับดาวน์โหลดโมเดล
+  http: ^1.2.0
+
+  # 🔋 Battery Monitoring (สำหรับ Defer to Charging)
+  battery_plus: ^6.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

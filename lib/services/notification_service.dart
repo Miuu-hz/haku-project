@@ -84,13 +84,11 @@ class NotificationService {
     final triggerId = event.timestamp.millisecondsSinceEpoch.toString();
     
     // Quick Reply Actions
-    final actions = event.quickReplyOptions.map((option) {
-      return AndroidNotificationAction(
+    final actions = event.quickReplyOptions.map((option) => AndroidNotificationAction(
         'reply_$option',
         option,
         showsUserInterface: false,
-      );
-    }).toList();
+      )).toList();
 
     // เพิ่มปุ่ม "เปิดแอพ"
     actions.add(

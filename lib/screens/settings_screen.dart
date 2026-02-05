@@ -394,7 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
                   )
                 : const Icon(Icons.file_open, color: Color(0xFF9B7CB6)),
-              title: const Text('เลือกไฟล์ .gguf', style: TextStyle(color: Colors.white)),
+              title: const Text('เลือกไฟล์ .task', style: TextStyle(color: Colors.white)),
               subtitle: Text(
                 _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกไฟล์โมเดลจากเครื่อง',
                 style: TextStyle(color: Colors.white.withAlpha(150)),
@@ -434,16 +434,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        dialogTitle: 'เลือกไฟล์โมเดล (.gguf)',
+        dialogTitle: 'เลือกไฟล์โมเดล (.task)',
       );
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
 
-        if (!filePath.endsWith('.gguf')) {
+        if (!filePath.endsWith('.task')) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('กรุณาเลือกไฟล์ .gguf เท่านั้น')),
+            const SnackBar(content: Text('กรุณาเลือกไฟล์ .task เท่านั้น')),
           );
           return;
         }
