@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/biometric_service.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
-import '../services/llm_service.dart';
+import '../services/mediapipe_llm_service.dart';
 import '../utils/constants.dart';
 
 /// ⚙️ หน้าตั้งค่า
@@ -42,13 +42,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPath = prefs.getString(StorageKeys.customLlmModelPath);
-    
+
     // ตรวจสอบสถานะไฟล์ถ้ามี custom path
     Map<String, dynamic>? validation;
     if (savedPath != null && savedPath.isNotEmpty) {
-      validation = await LLMService().validateCustomModel();
+      validation = await MediaPipeLLMService().validateCustomModel();
     }
-    
+
     setState(() {
       _customLlmPath = savedPath;
       _modelValidation = validation;
@@ -57,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _validateModelFile() async {
-    final validation = await LLMService().validateCustomModel();
+    final validation = await MediaPipeLLMService().validateCustomModel();
     setState(() => _modelValidation = validation);
     
     if (!mounted) return;
@@ -394,9 +394,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
                   )
                 : const Icon(Icons.file_open, color: Color(0xFF9B7CB6)),
-              title: const Text('เลือกไฟล์ .gguf', style: TextStyle(color: Colors.white)),
+              title: const Text('เลือกไฟล์ .task', style: TextStyle(color: Colors.white)),
               subtitle: Text(
-                _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกไฟล์โมเดลจากเครื่อง',
+                _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกโมเดล MediaPipe (.task)',
                 style: TextStyle(color: Colors.white.withAlpha(150)),
               ),
               onTap: _isPickingModel 
@@ -434,16 +434,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        dialogTitle: 'เลือกไฟล์โมเดล (.gguf)',
+        dialogTitle: 'เลือกไฟล์โมเดล (.task)',
       );
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
 
-        if (!filePath.endsWith('.gguf')) {
+        if (!filePath.endsWith('.task')) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('กรุณาเลือกไฟล์ .gguf เท่านั้น')),
+            const SnackBar(content: Text('กรุณาเลือกไฟล์ .task เท่านั้น (MediaPipe)')),
           );
           return;
         }
@@ -458,10 +458,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return;
         }
 
-        await LLMService().setCustomModelPath(filePath);
-        
+        await MediaPipeLLMService().setCustomModelPath(filePath);
+
         // ตรวจสอบไฟล์ทันทีหลังเลือก
-        final validation = await LLMService().validateCustomModel();
+        final validation = await MediaPipeLLMService().validateCustomModel();
         
         setState(() {
           _customLlmPath = filePath;
@@ -489,7 +489,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _clearCustomLlmPath() async {
-    await LLMService().setCustomModelPath(null);
+    await MediaPipeLLMService().setCustomModelPath(null);
     setState(() {
       _customLlmPath = null;
       _modelValidation = null;

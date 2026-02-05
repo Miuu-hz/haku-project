@@ -1,7 +1,9 @@
 import 'dart:math';
 
 import '../models/entry.dart';
-import 'llm_service.dart';
+import 'context_retriever.dart';
+import 'mediapipe_llm_service.dart';
+import 'prompt_builder.dart';
 
 /// 📝 Summarization Service - สรุปบันทึกด้วย AI
 /// 
@@ -19,31 +21,22 @@ class SummarizationService {
   /// 
   /// ใช้ LLM สรุปบันทึกยาว ๆ ให้กระชับ
   Future<String> summarizeEntry(Entry entry) async {
-    if (!LLMService().isInitialized) {
+    if (!MediaPipeLLMService().isInitialized) {
       return _fallbackSummarizeEntry(entry);
     }
 
-    final prompt = '''<|im_start|>system
-คุณคือ Haku (箱) ผู้ช่วยสรุปบันทึกชีวิตประจำวัน<|im_end|>
-<|im_start|>user
-บันทึก:
-"""
-${entry.content}
-"""
+    // ดึง context ที่เกี่ยวข้อง
+    final contextData = await ContextRetriever().retrieveFullContext();
+    final contextStr = ContextRetriever().buildContextString(contextData);
 
-สรุปบันทึกนี้ให้กระชับ 2-3 ประโยค พร้อมอิโมจิ
-ถ้ามีอารมณ์/ความรู้สึก ให้ระบุด้วย<|im_end|>
-<|im_start|>assistant
-'''
-    ;
+    final prompt = PromptBuilder.buildSummarizeEntryPrompt(
+      entry.content,
+      context: contextStr.isNotEmpty ? contextStr : null,
+    );
 
     try {
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.7,
-        maxTokens: 128,
-      );
-      
+      final response = await MediaPipeLLMService().generate(prompt);
+
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntry(entry);
@@ -59,34 +52,28 @@ ${entry.content}
       return 'ยังไม่มีบันทึกสำหรับ${period ?? 'ช่วงนี้'}ค่ะ';
     }
 
-    if (!LLMService().isInitialized) {
+    if (!MediaPipeLLMService().isInitialized) {
       return _fallbackSummarizeEntries(entries, period: period);
     }
 
     // รวมเนื้อหาทั้งหมด
-    final content = entries.map((e) => 
+    final content = entries.map((e) =>
       '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
     ).join('\n');
 
-    final prompt = '''<|im_start|>system
-คุณคือ Haku (箱) ช่วยสรุปวันของผู้ใช้ให้กระชับ เป็นกันเอง<|im_end|>
-<|im_start|>user
-บันทึก${period ?? 'วันนี้'}:
-$content
+    // ดึง context ที่เกี่ยวข้อง
+    final contextData = await ContextRetriever().retrieveFullContext();
+    final contextStr = ContextRetriever().buildContextString(contextData);
 
-สรุป${period ?? 'วันนี้'}เป็นข้อความสั้น ๆ 3-5 ประโยค พร้อมอิโมจิ
-เน้นความรู้สึกและเหตุการณ์สำคัญ<|im_end|>
-<|im_start|>assistant
-'''
-    ;
+    final prompt = PromptBuilder.buildDailySummaryPrompt(
+      entriesContent: content,
+      period: period,
+      context: contextStr.isNotEmpty ? contextStr : null,
+    );
 
     try {
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.7,
-        maxTokens: 256,
-      );
-      
+      final response = await MediaPipeLLMService().generate(prompt);
+
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntries(entries, period: period);
@@ -95,38 +82,29 @@ $content
 
   /// 🔍 ดึง Key Insights จาก Entry
   Future<List<String>> extractInsights(Entry entry) async {
-    if (!LLMService().isInitialized) {
+    if (!MediaPipeLLMService().isInitialized) {
       return _fallbackExtractInsights(entry);
     }
 
-    final prompt = '''<|im_start|>system
-วิเคราะห์บันทึกและดึงประเด็นสำคัญ ตอบเป็นรายการสั้น ๆ<|im_end|>
-<|im_start|>user
-${entry.content}
+    // ดึง context ที่เกี่ยวข้อง
+    final contextData = await ContextRetriever().retrieveFullContext();
+    final contextStr = ContextRetriever().buildContextString(contextData);
 
-ดึง 3-5 ประเด็นสำคัญจากบันทึกนี้ (เช่น กิจกรรม, ความรู้สึก, สถานที่)
-ตอบเป็นรายการ:
-- <ประเด็น 1>
-- <ประเด็น 2>
-...<|im_end|>
-<|im_start|>assistant
-'''
-    ;
+    final prompt = PromptBuilder.buildInsightsPrompt(
+      entry.content,
+      context: contextStr.isNotEmpty ? contextStr : null,
+    );
 
     try {
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.5,
-        maxTokens: 150,
-      );
-      
+      final response = await MediaPipeLLMService().generate(prompt);
+
       // Parse รายการ
       final lines = response.split('\n')
-        .where((l) => l.trim().startsWith('-'))
-        .map((l) => l.trim().substring(1).trim())
-        .where((l) => l.isNotEmpty)
+        .where((String l) => l.trim().startsWith('-'))
+        .map((String l) => l.trim().substring(1).trim())
+        .where((String l) => l.isNotEmpty)
         .toList();
-      
+
       return lines.isEmpty ? _fallbackExtractInsights(entry) : lines;
     } catch (e) {
       return _fallbackExtractInsights(entry);

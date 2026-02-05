@@ -30,6 +30,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -51,11 +52,13 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-O3 -flto -ffunction-sections -fdata-sections -fexceptions -frtti"
-                // Vulkan สำหรับ GPU acceleration
-                arguments "-DANDROID_STL=c++_shared", "-DGGML_VULKAN=ON",
-                          "-DGGML_VULKAN_SHADERS_GEN_TOOLCHAIN=${project.file('src/main/cpp/host-toolchain-msvc.cmake').absolutePath.replace('\\\\', '/')}",
-                          "-DVulkan_GLSLC_EXECUTABLE=${android.ndkDirectory.absolutePath.replace('\\\\', '/')}/shader-tools/windows-x86_64/glslc.exe"
-                        // Build เฉพาะ ARM64 สำหรับ GPU (x86 emulator ไม่มี GPU จริง)
+                // ⚠️ CPU-ONLY MODE - ปิด Vulkan เพื่อป้องกัน crash บน Adreno GPU (Qualcomm)
+                // Adreno GPU มีปัญหา Vulkan shader crash กับ llama.cpp
+                // ถ้าต้องการเปิด Vulkan: เปลี่ยน HAKU_CPU_ONLY=OFF และ GGML_VULKAN=ON
+                arguments "-DANDROID_STL=c++_shared",
+                          "-DHAKU_CPU_ONLY=ON",
+                          "-DGGML_VULKAN=OFF"
+                // Build เฉพาะ ARM64
                 abiFilters 'arm64-v8a'
             }
         }
@@ -97,6 +100,10 @@ android {
     packagingOptions {
         pickFirst '**/libc++_shared.so'
         pickFirst '**/libhaku_llm.so'
+        // MediaPipe GenAI native libs
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     
     // ปิด splits เพื่อให้ Flutter หา APK เจอ (Flutter จะจัดการเอง)
@@ -116,4 +123,10 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0"
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.core:core-ktx:1.12.0'
+    
+    // 🤖 MediaPipe GenAI - LLM Inference (ต้องใช้ version ล่าสุด)
+    implementation 'com.google.mediapipe:tasks-genai:0.10.24'
+    
+    // 📱 Flutter Local Notifications - Core Library Desugaring
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
 }

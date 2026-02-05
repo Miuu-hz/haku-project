@@ -21,18 +21,20 @@ linter:
     prefer_single_quotes: true
     prefer_const_constructors: true
     prefer_const_literals_to_create_immutables: true
-    avoid_print: true
+    avoid_print: false
     prefer_final_locals: true
     prefer_final_in_for_each: true
     avoid_unnecessary_containers: true
     use_key_in_widget_constructors: true
-    
+    prefer_expression_function_bodies: false
+    dangling_library_doc_comments: false
+    always_specify_types: false
+
     # 📋 กฎเพิ่มเติม
     always_declare_return_types: true
     cancel_subscriptions: true
     close_sinks: true
     prefer_collection_literals: true
-    prefer_expression_function_bodies: true
     prefer_if_null_operators: true
     prefer_null_aware_operators: true
     prefer_relative_imports: true

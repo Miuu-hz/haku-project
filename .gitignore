@@ -47,13 +47,19 @@ desktop.ini
 *.sqlite3
 hive/
 
-# Large model files
+# Large model files (ไฟล์โมเดลขนาดใหญ่ - ไม่ควร push ขึ้น git)
 *.gguf
 *.onnx
 *.tflite
 *.pt
 *.pth
-models/
+*.task
+*.bin
+
+# เก็บโครงสร้าง models/ directory แต่ ignore ไฟล์ข้างใน
+models/*
+!models/.gitkeep
+!models/README.md
 
 # Logs
 *.log

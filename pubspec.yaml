@@ -53,6 +53,12 @@ dependencies:
 
   # 📱 Widgets (Android)
   home_widget: ^0.5.0                # สื่อสารกับ Home Screen Widgets
+  
+  # 🤖 TFLite - ใช้ Gemma-2 (Google, ไม่ crash)
+  tflite_flutter: ^0.10.4
+  
+  # 🔔 Local Notifications
+  flutter_local_notifications: ^17.2.3
 
 dev_dependencies:
   flutter_test:

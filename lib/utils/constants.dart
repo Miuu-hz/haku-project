@@ -85,4 +85,5 @@ class StorageKeys {
   static const String userPreferences = 'user_preferences';
   static const String aiModelDownloaded = 'ai_model_downloaded';
   static const String customLlmModelPath = 'custom_llm_model_path';
+  static const String llmUseGpu = 'llm_use_gpu';  // true = GPU, false = CPU-only
 }

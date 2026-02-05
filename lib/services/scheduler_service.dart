@@ -3,14 +3,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'llm_service.dart';
+import 'mediapipe_llm_service.dart';
+import 'prompt_builder.dart';
 
-/// 📅 Scheduler Service - Auto-scheduling จากข้อความธรรมชาติ
-/// 
-/// รองรับ:
-/// - ดึง intent/เวลา/วันที่ จากข้อความ
-/// - สร้าง event ใน Calendar ของเครื่อง
-/// - แจ้งเตือนล่วงหน้า
+// 📅 Scheduler Service - Auto-scheduling จากข้อความธรรมชาติ
+// 
+// รองรับ:
+//- ดึง intent/เวลา/วันที่ จากข้อความ
+// - สร้าง event ใน Calendar ของเครื่อง
+// - แจ้งเตือนล่วงหน้า
 
 class SchedulerService {
   static const MethodChannel _channel = MethodChannel('com.example.haku/scheduler');
@@ -22,26 +23,12 @@ class SchedulerService {
   /// 🧠 วิเคราะห์ข้อความแล้วดึงข้อมูลกิจกรรม
   Future<EventInfo?> extractEvent(String text) async {
     try {
-      // ใช้ LLM ดึงข้อมูล
-      final prompt = '''<|im_start|>system
-วิเคราะห์ข้อความและดึงข้อมูลกิจกรรม ตอบเป็น JSON เท่านั้น:
-{
-  "title": "ชื่อกิจกรรม",
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM",
-  "duration_minutes": number,
-  "location": "สถานที่ (ถ้ามี)"
-}
-ถ้าไม่มีข้อมูลเวลา ใช้ null<|im_end|>
-<|im_start|>user
-$text<|im_end|>
-<|im_start|>assistant
-'''
-      ;
+      // ใช้ LLM ดึงข้อมูล (Gemma-3 format)
+      final prompt = PromptBuilder.buildSchedulerPrompt(text);
 
       String response;
-      if (LLMService().isInitialized) {
-        response = await LLMService().generate(prompt, temperature: 0.1);
+      if (MediaPipeLLMService().isInitialized) {
+        response = await MediaPipeLLMService().generate(prompt);
       } else {
         // Simple regex fallback
         return _fallbackExtract(text);

@@ -1,5 +1,5 @@
-# CMakeLists.txt for Haku LLM with Vulkan GPU Support
-# ใช้สำหรับ compile llama.cpp ด้วย Vulkan backend
+# CMakeLists.txt for Haku LLM (CPU-only for stability)
+# ปิด Vulkan เพื่อป้องกัน crash บน Adreno GPU (Qualcomm)
 
 cmake_minimum_required(VERSION 3.10.2)
 project("haku_llm")
@@ -11,6 +11,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # =============================================================================
 # Build mode selection
 # =============================================================================
+
+# ⚠️ CPU-ONLY MODE (Recommended for compatibility)
+# Adreno GPU (Qualcomm Snapdragon) มีปัญหา Vulkan shader crash กับ llama.cpp
+# เปิด option นี้เพื่อป้องกัน SIGSEGV crash
+option(HAKU_CPU_ONLY "Force CPU-only mode (disable Vulkan)" ON)
 
 # Check if we want to build stub only (for quick testing)
 option(BUILD_STUB_ONLY "Build stub library only (no llama.cpp)" OFF)
@@ -38,21 +43,29 @@ if(NOT EXISTS ${LLAMA_ROOT} OR BUILD_STUB_ONLY)
 endif()
 
 # =============================================================================
-# Vulkan Setup for Android GPU
+# GPU Backend Selection
 # =============================================================================
 
-message(STATUS "🔧 Configuring llama.cpp with Vulkan GPU support...")
-
-# Find Vulkan (สำหรับ Android ใช้จาก NDK)
-find_package(Vulkan QUIET)
-
-if(Vulkan_FOUND)
-    message(STATUS "✅ Vulkan found: ${Vulkan_VERSION}")
-    set(GGML_VULKAN ON CACHE BOOL "" FORCE)
-    set(GGML_VULKAN_CHECK_RESULTS OFF CACHE BOOL "" FORCE)
-else()
-    message(WARNING "⚠️  Vulkan not found, falling back to CPU only")
+if(HAKU_CPU_ONLY)
+    # ⚠️ Force CPU-only mode
+    message(STATUS "🖥️ CPU-ONLY MODE ENABLED")
+    message(STATUS "   Vulkan disabled to prevent Adreno GPU crashes")
     set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+else()
+    # Try Vulkan (⚠️ May crash on Adreno GPU!)
+    message(STATUS "🔧 Configuring llama.cpp with Vulkan GPU support...")
+    message(WARNING "⚠️ Vulkan mode may crash on Adreno GPU (Qualcomm Snapdragon)")
+
+    find_package(Vulkan QUIET)
+
+    if(Vulkan_FOUND)
+        message(STATUS "✅ Vulkan found: ${Vulkan_VERSION}")
+        set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+        set(GGML_VULKAN_CHECK_RESULTS OFF CACHE BOOL "" FORCE)
+    else()
+        message(WARNING "⚠️  Vulkan not found, falling back to CPU only")
+        set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+    endif()
 endif()
 
 # =============================================================================
@@ -131,7 +144,8 @@ target_include_directories(
     ${LLAMA_ROOT}/ggml/include
 )
 
-if(Vulkan_FOUND)
+# Vulkan linking (only if enabled and found)
+if(NOT HAKU_CPU_ONLY AND Vulkan_FOUND)
     target_include_directories(haku_llm PRIVATE ${Vulkan_INCLUDE_DIRS})
 endif()
 
@@ -143,7 +157,7 @@ target_link_libraries(
     android
 )
 
-if(Vulkan_FOUND)
+if(NOT HAKU_CPU_ONLY AND Vulkan_FOUND)
     target_link_libraries(haku_llm ${Vulkan_LIBRARIES})
 endif()
 
@@ -193,8 +207,10 @@ if(ANDROID_STL STREQUAL "c++_shared")
 endif()
 
 message(STATUS "✅ Configuration complete!")
-if(GGML_VULKAN)
-    message(STATUS "🎮 Vulkan GPU acceleration: ENABLED")
+if(HAKU_CPU_ONLY)
+    message(STATUS "🖥️ Mode: CPU-ONLY (stable, compatible with all devices)")
+elseif(GGML_VULKAN)
+    message(STATUS "🎮 Mode: Vulkan GPU (faster but may crash on Adreno)")
 else()
-    message(STATUS "⚠️  Vulkan GPU acceleration: DISABLED (CPU only)")
+    message(STATUS "🖥️ Mode: CPU-ONLY (Vulkan not available)")
 endif()

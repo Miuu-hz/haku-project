@@ -6,9 +6,12 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.util.Log
+import java.util.concurrent.Executors
 
 /**
  * 🎌 MainActivity ของ Haku
@@ -19,21 +22,27 @@ import android.util.Log
  */
 
 class MainActivity: FlutterFragmentActivity() {
-    
+
     companion object {
         private const val TAG = "HakuMain"
         private const val WIDGET_CHANNEL = "com.example.haku/widget"
         private const val LLM_CHANNEL = "com.example.haku/llm"
+        private const val MEDIAPIPE_CHANNEL = "com.example.haku/mediapipe"
         private const val SCHEDULER_CHANNEL = "com.example.haku/scheduler"
     }
-    
+
     private var pendingWidgetAction: Map<String, String>? = null
+
+    // 🔄 Background executor สำหรับ LLM operations (ป้องกัน ANR)
+    private val llmExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
         setupWidgetChannel(flutterEngine)
         setupLLMChannel(flutterEngine)
+        setupMediaPipeChannel(flutterEngine)
         setupSchedulerChannel(flutterEngine)
     }
     
@@ -185,46 +194,80 @@ class MainActivity: FlutterFragmentActivity() {
                         val modelPath = call.argument<String>("modelPath")
                         val contextSize = call.argument<Int>("contextSize") ?: 4096
                         val gpuLayers = call.argument<Int>("gpuLayers") ?: 0
-                        
+
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
                             return@setMethodCallHandler
                         }
-                        
-                        Log.i(TAG, "📥 Loading model: $modelPath")
-                        val success = LLMBridge.loadModel(modelPath, contextSize, gpuLayers)
-                        result.success(success)
+
+                        // 🔄 Run on background thread เพื่อป้องกัน ANR
+                        Log.i(TAG, "📥 Loading model on background thread: $modelPath")
+                        llmExecutor.execute {
+                            try {
+                                val success = LLMBridge.loadModel(modelPath, contextSize, gpuLayers)
+                                mainHandler.post {
+                                    result.success(success)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Load model failed: ${e.message}")
+                                mainHandler.post {
+                                    result.error("LOAD_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }
                     }
                     
                     "generate" -> {
                         val prompt = call.argument<String>("prompt")
                         val temperature = call.argument<Double>("temperature") ?: 0.7
                         val maxTokens = call.argument<Int>("maxTokens") ?: 512
-                        
+
                         if (prompt == null) {
                             result.error("INVALID_PROMPT", "Prompt is null", null)
                             return@setMethodCallHandler
                         }
-                        
-                        Log.d(TAG, "🤖 Generating text...")
-                        val response = LLMBridge.generate(prompt, temperature, maxTokens)
-                        result.success(response)
+
+                        // 🔄 Run on background thread เพื่อป้องกัน ANR
+                        Log.d(TAG, "🤖 Starting generation on background thread...")
+                        llmExecutor.execute {
+                            try {
+                                val response = LLMBridge.generate(prompt, temperature, maxTokens)
+                                // ส่งผลกลับ main thread
+                                mainHandler.post {
+                                    result.success(response)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Generation failed: ${e.message}")
+                                mainHandler.post {
+                                    result.error("GENERATE_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }
                     }
-                    
+
                     "generateStream" -> {
-                        // TODO: Implement streaming generation with EventChannel
-                        // ตอนนี้ fallback ไปใช้ generate ปกติก่อน
                         val prompt = call.argument<String>("prompt")
                         val temperature = call.argument<Double>("temperature") ?: 0.7
                         val maxTokens = call.argument<Int>("maxTokens") ?: 512
-                        
+
                         if (prompt == null) {
                             result.error("INVALID_PROMPT", "Prompt is null", null)
                             return@setMethodCallHandler
                         }
-                        
-                        val response = LLMBridge.generate(prompt, temperature, maxTokens)
-                        result.success(response)
+
+                        // 🔄 Run on background thread
+                        llmExecutor.execute {
+                            try {
+                                val response = LLMBridge.generate(prompt, temperature, maxTokens)
+                                mainHandler.post {
+                                    result.success(response)
+                                }
+                            } catch (e: Exception) {
+                                mainHandler.post {
+                                    result.error("GENERATE_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }
                     }
                     
                     "unloadModel" -> {
@@ -240,12 +283,112 @@ class MainActivity: FlutterFragmentActivity() {
                     "getModelInfo" -> {
                         result.success(LLMBridge.getModelInfo())
                     }
-                    
+
+                    "getGpuInfo" -> {
+                        val gpuInfo = LLMBridge.getGpuInfo()
+                        Log.i(TAG, "🎮 GPU Info: $gpuInfo")
+                        result.success(gpuInfo)
+                    }
+
+                    "isGpuSafe" -> {
+                        val safe = LLMBridge.isGpuSafeForVulkan()
+                        Log.i(TAG, "🎮 GPU safe for Vulkan: $safe")
+                        result.success(safe)
+                    }
+
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error in LLM method ${call.method}: ${e.message}")
                 result.error("LLM_ERROR", e.message, e.stackTraceToString())
+            }
+        }
+    }
+
+    /**
+     * 🔥 Setup MediaPipe GenAI MethodChannel
+     */
+    private fun setupMediaPipeChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIAPIPE_CHANNEL).setMethodCallHandler {
+            call, result ->
+            
+            try {
+                when (call.method) {
+                    "loadModel" -> {
+                        val modelPath = call.argument<String>("modelPath")
+                        val maxTokens = call.argument<Int>("maxTokens") ?: 1024
+                        val temperature = (call.argument<Double>("temperature") ?: 0.7).toFloat()
+
+                        if (modelPath == null) {
+                            result.error("INVALID_PATH", "Model path is null", null)
+                            return@setMethodCallHandler
+                        }
+
+                        // 🔄 Run on background thread
+                        Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
+                        llmExecutor.execute {
+                            try {
+                                val success = MediaPipeLLMBridge.loadModel(
+                                    context = applicationContext,
+                                    modelPath = modelPath,
+                                    maxTokens = maxTokens,
+                                    temperature = temperature
+                                )
+                                mainHandler.post {
+                                    result.success(success)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ Load MediaPipe model failed: ${e.message}")
+                                mainHandler.post {
+                                    result.error("LOAD_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }
+                    }
+                    
+                    "generate" -> {
+                        val prompt = call.argument<String>("prompt")
+
+                        if (prompt == null) {
+                            result.error("INVALID_PROMPT", "Prompt is null", null)
+                            return@setMethodCallHandler
+                        }
+
+                        // 🔄 Run on background thread
+                        llmExecutor.execute {
+                            try {
+                                val response = MediaPipeLLMBridge.generate(prompt)
+                                mainHandler.post {
+                                    result.success(response)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ MediaPipe generation failed: ${e.message}")
+                                mainHandler.post {
+                                    result.error("GENERATE_ERROR", e.message, e.stackTraceToString())
+                                }
+                            }
+                        }
+                    }
+
+                    "unloadModel" -> {
+                        Log.i(TAG, "🗑️ Unloading MediaPipe model")
+                        MediaPipeLLMBridge.unloadModel()
+                        result.success(null)
+                    }
+                    
+                    "isModelLoaded" -> {
+                        result.success(MediaPipeLLMBridge.isModelLoaded())
+                    }
+                    
+                    "getModelInfo" -> {
+                        result.success(MediaPipeLLMBridge.getModelInfo())
+                    }
+
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error in MediaPipe method ${call.method}: ${e.message}")
+                result.error("MEDIAPIPE_ERROR", e.message, e.stackTraceToString())
             }
         }
     }
@@ -295,6 +438,10 @@ class MainActivity: FlutterFragmentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
+
+        // 🛑 Shutdown executor
+        llmExecutor.shutdown()
+
         // ปิดโมเดลเมื่อแอพปิด (ถ้า native library พร้อมใช้งาน)
         if (LLMBridge.isAvailable() && LLMBridge.isModelLoaded()) {
             Log.i(TAG, "🗑️ Unloading model on destroy")

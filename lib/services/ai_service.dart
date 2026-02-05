@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/entry.dart';
 import 'database_helper.dart';
 
@@ -84,9 +86,11 @@ class AIService {
 
   static Future<String> _getTodaySummaryInternal() async {
     try {
+      debugPrint('🔄 _getTodaySummaryInternal called');
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
+      debugPrint('📅 Date range: $startOfDay - $endOfDay');
       
       // ดึง entries วันนี้ทั้งหมด
       final allEntries = await DatabaseHelper.instance.getAllEntries();
