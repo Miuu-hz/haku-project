@@ -9,7 +9,12 @@ import 'database_helper.dart';
 import 'location_service.dart';
 
 /// ⚡ MVP Trigger Service - ตัวกระตุ้นอัตโนมัติตามบริบท
-/// 
+///
+/// 🔋 Battery Optimization (Phase 2.1):
+/// - Time check interval: 5 นาที (จาก 1 นาที)
+/// - Location: ใช้ significant change เท่านั้น (ไม่ใช่ realtime)
+/// - สามารถปิด location tracking ได้เพื่อประหยัดแบตเตอรี่
+///
 /// Trigger types:
 /// - GPS: ถึงที่ทำงาน / ออกจากที่ทำงาน / ถึงบ้าน
 /// - Time: 09:00 (เริ่มงาน), 12:00 (พักเที่ยง), 17:00 (เลิกงาน), 22:00 (ก่อนนอน)
@@ -20,63 +25,98 @@ class MVPTriggerService {
   factory MVPTriggerService() => _instance;
   MVPTriggerService._internal();
 
+  /// 🔋 Battery settings
+  static const int timeCheckIntervalMinutes = 5; // เพิ่มจาก 1 นาที เป็น 5 นาที
+  static const int locationDistanceFilter = 200; // เมตร - ต้องเดิน 200m ถึงจะ update
+
   Timer? _timeCheckTimer;
   StreamSubscription<Position>? _locationSubscription;
-  
+
   bool _isInitialized = false;
-  
+  bool _locationTrackingEnabled = true; // สามารถปิดได้เพื่อประหยัดแบต
+
   // เก็บ state เพื่อป้องกัน trigger ซ้ำ
   final Set<String> _triggeredToday = {};
   DateTime? _lastTriggerDate;
-  
+
   // Callback เมื่อมี Trigger
   void Function(TriggerEvent)? onTrigger;
 
+  /// สถานะการติดตามตำแหน่ง
+  bool get isLocationTrackingEnabled => _locationTrackingEnabled;
+
   /// 🚀 เริ่มต้น service
-  Future<void> initialize() async {
+  ///
+  /// [enableLocationTracking] - ถ้า false จะไม่เปิด GPS tracking (ประหยัดแบต)
+  Future<void> initialize({bool enableLocationTracking = true}) async {
     if (_isInitialized) return;
-    
-    // เริ่ม Time-based triggers
+
+    _locationTrackingEnabled = enableLocationTracking;
+
+    // เริ่ม Time-based triggers (เช็คทุก 5 นาที แทน 1 นาที)
     _startTimeChecker();
-    
-    // เริ่ม Location-based triggers
-    await _startLocationMonitor();
-    
+
+    // เริ่ม Location-based triggers (ถ้าเปิดใช้งาน)
+    if (_locationTrackingEnabled) {
+      await _startLocationMonitor();
+    } else {
+      debugPrint('📍 Location tracking disabled (battery saver mode)');
+    }
+
     _isInitialized = true;
-    debugPrint('✅ MVP Trigger Service initialized');
+    debugPrint('✅ MVP Trigger Service initialized (battery optimized)');
+    debugPrint(
+        '   - Time check: every $timeCheckIntervalMinutes minutes');
+    debugPrint('   - Location: ${_locationTrackingEnabled ? "enabled (${locationDistanceFilter}m filter)" : "disabled"}');
   }
 
-  /// ⏰ Time-based triggers
+  /// 🔋 เปิด/ปิด Location Tracking
+  Future<void> setLocationTracking(bool enabled) async {
+    if (_locationTrackingEnabled == enabled) return;
+
+    _locationTrackingEnabled = enabled;
+    if (enabled) {
+      await _startLocationMonitor();
+      debugPrint('📍 Location tracking enabled');
+    } else {
+      _locationSubscription?.cancel();
+      _locationSubscription = null;
+      debugPrint('📍 Location tracking disabled (battery saver)');
+    }
+  }
+
+  /// ⏰ Time-based triggers (Battery Optimized)
   void _startTimeChecker() {
-    // เช็คทุก 1 นาที
-    _timeCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+    // 🔋 เช็คทุก 5 นาที (ประหยัดแบตกว่า 1 นาที)
+    _timeCheckTimer =
+        Timer.periodic(Duration(minutes: timeCheckIntervalMinutes), (_) {
       _checkTimeTriggers();
     });
-    
+
     // เช็คครั้งแรกทันที
     _checkTimeTriggers();
   }
 
   void _checkTimeTriggers() {
     final now = DateTime.now();
-    
+
     // เคลียร์ state ถ้าเปลี่ยนวัน
-    if (_lastTriggerDate == null || 
-        !_isSameDay(_lastTriggerDate!, now)) {
+    if (_lastTriggerDate == null || !_isSameDay(_lastTriggerDate!, now)) {
       _triggeredToday.clear();
       _lastTriggerDate = now;
     }
-    
+
     final hour = now.hour;
     final minute = now.minute;
-    
-    // Trigger ตามช่วงเวลา (เช็คแค่ช่วงนาทีแรกของชั่วโมง)
-    if (minute > 5) return; // ไม่ trigger ถ้าเลยช่วงนาทีแรกไปแล้ว
-    
+
+    // 🔋 Battery Optimized: เช็คช่วงเวลาที่กว้างขึ้น (0-9 นาที แทน 0-5)
+    // เพราะ timer interval เป็น 5 นาที
+    if (minute > 9) return;
+
     TriggerType? triggerType;
     String? message;
     String triggerKey = '';
-    
+
     switch (hour) {
       case 9:
         triggerType = TriggerType.morningStart;
@@ -99,7 +139,7 @@ class MVPTriggerService {
         triggerKey = 'bedtime_${now.year}${now.month}${now.day}';
         break;
     }
-    
+
     // Deduplication: ตรวจสอบว่า trigger นี้ยิงไปแล้วหรือยัง
     if (triggerType != null && !_triggeredToday.contains(triggerKey)) {
       _triggeredToday.add(triggerKey);
@@ -111,19 +151,29 @@ class MVPTriggerService {
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// 📍 Location-based triggers
+  /// 📍 Location-based triggers (Battery Optimized)
+  ///
+  /// 🔋 ใช้ distanceFilter 200m และ medium accuracy เพื่อประหยัดแบต
   Future<void> _startLocationMonitor() async {
+    // ยกเลิก subscription เดิมก่อน (ถ้ามี)
+    await _locationSubscription?.cancel();
+    _locationSubscription = null;
+
     // ขอ permission ก่อน
     final hasPermission = await LocationService.requestPermission();
     if (!hasPermission) {
       debugPrint('⚠️ Location permission denied, skipping location triggers');
+      _locationTrackingEnabled = false;
       return;
     }
-    
-    // ตรวจจับการเปลี่ยนแปลงสถานที่
+
+    // ตรวจจับการเปลี่ยนแปลงสถานที่ (battery optimized)
     final positionStream = LocationService.getPositionStream();
-    if (positionStream == null) return;
-    
+    if (positionStream == null) {
+      debugPrint('⚠️ Position stream unavailable');
+      return;
+    }
+
     _locationSubscription = positionStream.listen(
       (Position position) async {
         await _checkLocationTriggers(position.latitude, position.longitude);
@@ -133,6 +183,8 @@ class MVPTriggerService {
         // ไม่ throw error ออกไป ให้ทำงานต่อโดยไม่มี location trigger
       },
     );
+
+    debugPrint('📍 Location monitoring started (200m distance filter)');
   }
 
   Future<void> _checkLocationTriggers(double lat, double lng) async {
@@ -254,8 +306,31 @@ class MVPTriggerService {
   /// 🧹 Dispose
   void dispose() {
     _timeCheckTimer?.cancel();
+    _timeCheckTimer = null;
     _locationSubscription?.cancel();
+    _locationSubscription = null;
     _isInitialized = false;
+    _triggeredToday.clear();
+    debugPrint('🧹 MVP Trigger Service disposed');
+  }
+
+  /// ⏸️ Pause service (ประหยัดแบตเตอรี่)
+  void pause() {
+    _timeCheckTimer?.cancel();
+    _timeCheckTimer = null;
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+    debugPrint('⏸️ MVP Trigger Service paused');
+  }
+
+  /// ▶️ Resume service
+  Future<void> resume() async {
+    if (!_isInitialized) return;
+    _startTimeChecker();
+    if (_locationTrackingEnabled) {
+      await _startLocationMonitor();
+    }
+    debugPrint('▶️ MVP Trigger Service resumed');
   }
 }
 
