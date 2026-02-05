@@ -20,47 +20,36 @@ class SchedulerService {
   SchedulerService._internal();
 
   /// 🧠 วิเคราะห์ข้อความแล้วดึงข้อมูลกิจกรรม
+  ///
+  /// 🔋 Battery Optimized: ใช้ lazy loading - LLM จะโหลดเมื่อใช้งานจริง
   Future<EventInfo?> extractEvent(String text) async {
     try {
-      // ใช้ LLM ดึงข้อมูล
-      final prompt = '''<|im_start|>system
-วิเคราะห์ข้อความและดึงข้อมูลกิจกรรม ตอบเป็น JSON เท่านั้น:
-{
-  "title": "ชื่อกิจกรรม",
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM",
-  "duration_minutes": number,
-  "location": "สถานที่ (ถ้ามี)"
-}
-ถ้าไม่มีข้อมูลเวลา ใช้ null<|im_end|>
-<|im_start|>user
-$text<|im_end|>
-<|im_start|>assistant
-'''
-      ;
+      // 🔋 ใช้ HakuPrompts (Private Life OS concept)
+      final prompt = HakuPrompts.forEventExtraction(text);
 
-      String response;
-      if (LLMService().isInitialized) {
-        response = await LLMService().generate(prompt, temperature: 0.1);
-      } else {
-        // Simple regex fallback
+      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
+      final response = await LLMService().generate(prompt, temperature: 0.1);
+
+      if (response.isEmpty) {
+        // LLM ไม่พร้อม ใช้ fallback
         return _fallbackExtract(text);
       }
 
       // Parse JSON
       final jsonStr = _extractJson(response);
-      if (jsonStr == null) return null;
+      if (jsonStr == null) return _fallbackExtract(text);
 
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
       return EventInfo(
         title: data['title'] as String? ?? 'กิจกรรม',
-        date: data['date'] != null ? DateTime.parse(data['date'] as String) : null,
+        date: data['date'] != null
+            ? DateTime.parse(data['date'] as String)
+            : null,
         time: data['time'] as String?,
         durationMinutes: data['duration_minutes'] as int? ?? 60,
         location: data['location'] as String?,
         originalText: text,
       );
-
     } catch (e) {
       if (kDebugMode) print('❌ Extract event failed: $e');
       return _fallbackExtract(text);

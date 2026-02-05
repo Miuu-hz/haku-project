@@ -16,34 +16,23 @@ class SummarizationService {
   SummarizationService._internal();
 
   /// 📝 สรุป Entry เดี่ยว
-  /// 
-  /// ใช้ LLM สรุปบันทึกยาว ๆ ให้กระชับ
+  ///
+  /// 🔋 Battery Optimized: ใช้ lazy loading - LLM จะโหลดเมื่อใช้งานจริง
   Future<String> summarizeEntry(Entry entry) async {
-    if (!LLMService().isInitialized) {
-      return _fallbackSummarizeEntry(entry);
-    }
-
-    final prompt = '''<|im_start|>system
-คุณคือ Haku (箱) ผู้ช่วยสรุปบันทึกชีวิตประจำวัน<|im_end|>
-<|im_start|>user
-บันทึก:
-"""
-${entry.content}
-"""
-
-สรุปบันทึกนี้ให้กระชับ 2-3 ประโยค พร้อมอิโมจิ
-ถ้ามีอารมณ์/ความรู้สึก ให้ระบุด้วย<|im_end|>
-<|im_start|>assistant
-'''
-    ;
+    // 🔋 ใช้ HakuPrompts (Private Life OS concept)
+    final prompt = HakuPrompts.forSummarization(entry.content);
 
     try {
+      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
       final response = await LLMService().generate(
         prompt,
         temperature: 0.7,
         maxTokens: 128,
       );
-      
+
+      if (response.isEmpty) {
+        return _fallbackSummarizeEntry(entry);
+      }
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntry(entry);
@@ -51,6 +40,8 @@ ${entry.content}
   }
 
   /// 📅 สรุปหลาย Entries (สรุปวัน/สัปดาห์)
+  ///
+  /// 🔋 Battery Optimized: ใช้ lazy loading
   Future<String> summarizeEntries(
     List<Entry> entries, {
     String? period,
@@ -59,34 +50,26 @@ ${entry.content}
       return 'ยังไม่มีบันทึกสำหรับ${period ?? 'ช่วงนี้'}ค่ะ';
     }
 
-    if (!LLMService().isInitialized) {
-      return _fallbackSummarizeEntries(entries, period: period);
-    }
-
     // รวมเนื้อหาทั้งหมด
-    final content = entries.map((e) => 
-      '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
-    ).join('\n');
+    final content = entries
+        .map((e) =>
+            '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}')
+        .join('\n');
 
-    final prompt = '''<|im_start|>system
-คุณคือ Haku (箱) ช่วยสรุปวันของผู้ใช้ให้กระชับ เป็นกันเอง<|im_end|>
-<|im_start|>user
-บันทึก${period ?? 'วันนี้'}:
-$content
-
-สรุป${period ?? 'วันนี้'}เป็นข้อความสั้น ๆ 3-5 ประโยค พร้อมอิโมจิ
-เน้นความรู้สึกและเหตุการณ์สำคัญ<|im_end|>
-<|im_start|>assistant
-'''
-    ;
+    // 🔋 ใช้ HakuPrompts (Private Life OS concept)
+    final prompt = HakuPrompts.forSummarization(content);
 
     try {
+      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
       final response = await LLMService().generate(
         prompt,
         temperature: 0.7,
         maxTokens: 256,
       );
-      
+
+      if (response.isEmpty) {
+        return _fallbackSummarizeEntries(entries, period: period);
+      }
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntries(entries, period: period);
@@ -94,39 +77,40 @@ $content
   }
 
   /// 🔍 ดึง Key Insights จาก Entry
+  ///
+  /// 🔋 Battery Optimized: ใช้ lazy loading
   Future<List<String>> extractInsights(Entry entry) async {
-    if (!LLMService().isInitialized) {
-      return _fallbackExtractInsights(entry);
-    }
-
+    // 🔋 ใช้ prompt ที่ optimize สำหรับ small model
     final prompt = '''<|im_start|>system
-วิเคราะห์บันทึกและดึงประเด็นสำคัญ ตอบเป็นรายการสั้น ๆ<|im_end|>
-<|im_start|>user
-${entry.content}
-
-ดึง 3-5 ประเด็นสำคัญจากบันทึกนี้ (เช่น กิจกรรม, ความรู้สึก, สถานที่)
+ดึง 3-5 ประเด็นสำคัญจากบันทึก (กิจกรรม ความรู้สึก สถานที่)
 ตอบเป็นรายการ:
-- <ประเด็น 1>
-- <ประเด็น 2>
-...<|im_end|>
+- ประเด็น 1
+- ประเด็น 2<|im_end|>
+<|im_start|>user
+${entry.content}<|im_end|>
 <|im_start|>assistant
-'''
-    ;
+''';
 
     try {
+      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
       final response = await LLMService().generate(
         prompt,
         temperature: 0.5,
         maxTokens: 150,
       );
-      
+
+      if (response.isEmpty) {
+        return _fallbackExtractInsights(entry);
+      }
+
       // Parse รายการ
-      final lines = response.split('\n')
-        .where((l) => l.trim().startsWith('-'))
-        .map((l) => l.trim().substring(1).trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-      
+      final lines = response
+          .split('\n')
+          .where((l) => l.trim().startsWith('-'))
+          .map((l) => l.trim().substring(1).trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+
       return lines.isEmpty ? _fallbackExtractInsights(entry) : lines;
     } catch (e) {
       return _fallbackExtractInsights(entry);
