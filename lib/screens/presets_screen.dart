@@ -118,7 +118,7 @@ class _PresetsTabState extends State<_PresetsTab> {
   }
 
   void _showPresetDetails(Preset preset) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (context) => _PresetDetailsSheet(preset: preset),
@@ -321,7 +321,7 @@ class _PresetDetailsSheet extends StatelessWidget {
               const Divider(height: 32),
 
               // Trigger Info
-              _SectionTitle(
+              const _SectionTitle(
                 icon: Icons.timer,
                 title: 'Trigger Conditions',
               ),
@@ -330,7 +330,7 @@ class _PresetDetailsSheet extends StatelessWidget {
               const Divider(height: 32),
 
               // Behavior Info
-              _SectionTitle(
+              const _SectionTitle(
                 icon: Icons.psychology,
                 title: 'AI Behavior',
               ),
@@ -542,6 +542,7 @@ class _LocationsTabState extends State<_LocationsTab> {
           icon: '🏠',
           title: 'Home',
           location: locations['home'],
+          isLoading: _isSaving,
           onSave: () => _saveCurrentLocation('home'),
           onDelete: () => _deleteLocation('home'),
         ),
@@ -551,6 +552,7 @@ class _LocationsTabState extends State<_LocationsTab> {
           icon: '🏢',
           title: 'Office',
           location: locations['office'],
+          isLoading: _isSaving,
           onSave: () => _saveCurrentLocation('office'),
           onDelete: () => _deleteLocation('office'),
         ),
@@ -560,6 +562,7 @@ class _LocationsTabState extends State<_LocationsTab> {
           icon: '🏋️',
           title: 'Gym',
           location: locations['gym'],
+          isLoading: _isSaving,
           onSave: () => _saveCurrentLocation('gym'),
           onDelete: () => _deleteLocation('gym'),
         ),
@@ -643,6 +646,7 @@ class _LocationCard extends StatelessWidget {
   final SavedLocation? location;
   final VoidCallback onSave;
   final VoidCallback onDelete;
+  final bool isLoading;
 
   const _LocationCard({
     required this.icon,
@@ -650,6 +654,7 @@ class _LocationCard extends StatelessWidget {
     required this.location,
     required this.onSave,
     required this.onDelete,
+    this.isLoading = false,
   });
 
   @override
@@ -691,9 +696,15 @@ class _LocationCard extends StatelessWidget {
                   onPressed: onDelete,
                 ),
               ElevatedButton.icon(
-                onPressed: onSave,
-                icon: Icon(location == null ? Icons.add_location : Icons.refresh),
-                label: Text(location == null ? 'Set' : 'Update'),
+                onPressed: isLoading ? null : onSave,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(location == null ? Icons.add_location : Icons.refresh),
+                label: Text(isLoading ? 'Saving...' : (location == null ? 'Set' : 'Update')),
               ),
             ],
           ),

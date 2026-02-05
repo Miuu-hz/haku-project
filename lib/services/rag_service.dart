@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/entry.dart';
 import 'database_helper.dart';
 import 'hybrid_vector_search.dart';
@@ -45,7 +47,7 @@ class RAGService {
       // ถ้ายังไม่มีข้อมูล ให้โหลดจาก database
       final count = await vs.count;
       if (count == 0) {
-        print('🔄 Initializing vector index from existing entries...');
+        debugPrint('🔄 Initializing vector index from existing entries...');
         final entries = await DatabaseHelper.instance.getAllEntries();
         if (entries.isNotEmpty) {
           await vs.indexEntries(entries);
@@ -53,11 +55,11 @@ class RAGService {
       }
 
       _isInitialized = true;
-      print('✅ RAG Service initialized (HybridVectorSearch, $count entries)');
+      debugPrint('✅ RAG Service initialized (HybridVectorSearch, $count entries)');
       return true;
 
     } catch (e) {
-      print('❌ RAG Service initialization failed: $e');
+      debugPrint('❌ RAG Service initialization failed: $e');
       _vectorSearch = null;
       return false;
     }
@@ -96,7 +98,7 @@ class RAGService {
 
       return entriesWithScore;
     } catch (e) {
-      print('❌ Vector search failed: $e');
+      debugPrint('❌ Vector search failed: $e');
       return _fallbackKeywordSearch(query, limit);
     }
   }

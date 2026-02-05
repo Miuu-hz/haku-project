@@ -89,7 +89,7 @@ class MVPTriggerService {
   void _startTimeChecker() {
     // 🔋 เช็คทุก 5 นาที (ประหยัดแบตกว่า 1 นาที)
     _timeCheckTimer =
-        Timer.periodic(Duration(minutes: timeCheckIntervalMinutes), (_) {
+        Timer.periodic(const Duration(minutes: timeCheckIntervalMinutes), (_) {
       _checkTimeTriggers();
     });
 
@@ -269,17 +269,39 @@ class MVPTriggerService {
       currentLocation: location,
     );
     
+    // Quick reply options based on trigger type
+    final quickReplyOptions = _getQuickReplyOptions(type);
+    
     final event = TriggerEvent(
       type: type,
       timestamp: DateTime.now(),
       suggestedMessage: message,
       context: context,
+      quickReplyOptions: quickReplyOptions,
     );
     
     // เรียก callback
     onTrigger?.call(event);
     
     debugPrint('🔔 Trigger fired: ${type.name} - $message');
+  }
+
+  /// 💬 ดึง Quick Reply Options ตาม Trigger Type
+  List<String> _getQuickReplyOptions(TriggerType type) {
+    switch (type) {
+      case TriggerType.morningStart:
+        return ['พร้อมมาก!', 'ยังง่วง', 'วันนี้มีอะไร?'];
+      case TriggerType.lunchTime:
+        return ['กินแล้ว', 'ยังไม่กิน', 'ไปกินข้าวข้างนอก'];
+      case TriggerType.eveningEnd:
+        return ['เหนื่อยมาก', 'สบายดี', 'เลิกงานแล้ว!'];
+      case TriggerType.bedtime:
+        return ['วันนี้ดีมาก', 'เหนื่อย', 'พรุ่งนี้สู้ๆ'];
+      case TriggerType.locationRevisit:
+        return ['มาที่เดิม', 'มีเรื่องใหม่', 'ยังไม่ได้บันทึก'];
+      case TriggerType.noEntryReminder:
+        return ['บันทึกเลย', 'ไม่มีไร', 'เดี๋ยวบันทึก'];
+    }
   }
 
   /// 🎯 สร้าง Prompt จาก Trigger
@@ -350,12 +372,14 @@ class TriggerEvent {
   final DateTime timestamp;
   final String? suggestedMessage;
   final ContextData context;
+  final List<String> quickReplyOptions;
 
   TriggerEvent({
     required this.type,
     required this.timestamp,
     this.suggestedMessage,
     required this.context,
+    this.quickReplyOptions = const [],
   });
 
   String get displayTitle {

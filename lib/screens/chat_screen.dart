@@ -3,14 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
-import '../services/ai_action_service.dart';
 import '../services/ai_service.dart';
 import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
-import '../services/llm_service.dart';
 import '../services/mvp_trigger_service.dart';
-import '../services/preset_service.dart';
+import '../services/notification_service.dart';
 import '../services/rag_service.dart';
+import '../services/mediapipe_llm_service.dart';
+import '../services/prompt_builder.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 /// 
@@ -31,150 +31,134 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
   /// 🤖 ส่งข้อความไปให้ AI พร้อม Context Retriever
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
+    debugPrint('🚀 ============================================');
+    debugPrint('🚀 sendToAI called: $userMessage');
+    
     // เพิ่มข้อความผู้ใช้
     addMessage(ChatMessage.user(userMessage));
     
     // แสดง "กำลังพิมพ์..."
     addMessage(ChatMessage.loading());
 
+    String? response;
+    
     try {
       String contextStr = '';
       
       // 🧠 Context Retriever: ดึงข้อมูลจากหลายแหล่ง
       if (useContext) {
+        debugPrint('🔄 Retrieving context...');
         try {
           final contextData = await ContextRetriever().retrieveFullContext(
             userQuery: userMessage,
           );
           contextStr = ContextRetriever().buildContextString(contextData);
-        } catch (e) {
+          debugPrint('✅ Context retrieved, length: ${contextStr.length}');
+        } catch (e, stackTrace) {
           debugPrint('⚠️ Context retrieval failed: $e');
+          debugPrint('Stack: $stackTrace');
           // ยังคงทำต่อโดยไม่มี context
         }
       }
       
-      // 📝 สร้าง prompt ที่มี context
-      final prompt = _buildPrompt(userMessage, contextStr);
-      
-      // 🎯 เรียก LLM (Lazy Loading - โหลดอัตโนมัติเมื่อใช้งาน)
-      String response;
-      try {
-        // LLM จะโหลดอัตโนมัติถ้ายังไม่ได้โหลด (autoLoad: true by default)
-        response = await LLMService().generate(
-          prompt,
-          temperature: 0.7,
-          maxTokens: 512,
-        );
-        // ถ้า response ว่าง แปลว่าโหลดโมเดลไม่ได้ ใช้ mock แทน
-        if (response.isEmpty) {
-          debugPrint('⚠️ LLM returned empty, using mock');
-          response = await AIService.getMockResponse(userMessage);
+      // 🎯 เรียก MediaPipe LLM พร้อม System Prompt
+      final llm = MediaPipeLLMService();
+
+      if (llm.isInitialized) {
+        try {
+          debugPrint('🔄 Calling MediaPipe LLM with Gemma-3 prompt...');
+          // สร้าง prompt ที่มี system prompt + context + user message
+          final prompt = PromptBuilder.buildGemmaPrompt(
+            userMessage: userMessage,
+            context: contextStr.isNotEmpty ? contextStr : null,
+          );
+          response = await llm.generate(prompt);
+          debugPrint('✅ LLM responded');
+        } catch (e) {
+          debugPrint('⚠️ LLM failed: $e');
+          response = null;
         }
-      } catch (e) {
-        debugPrint('⚠️ LLM generate failed: $e');
+      }
+      
+      // Fallback ไป Mock ถ้า LLM ไม่พร้อม
+      if (response == null || response.isEmpty) {
+        debugPrint('🔄 Using mock response...');
         response = await AIService.getMockResponse(userMessage);
       }
-
-      // 🤖 Parse AI Actions (ถ้ามี [ACTION:...] tags)
-      final parseResult = AIActionService().parseResponse(response);
-      final cleanResponse = parseResult.cleanResponse;
-
-      // Execute actions อัตโนมัติ
-      if (parseResult.hasActions) {
-        for (final action in parseResult.actions) {
-          debugPrint('🤖 Executing action: ${action.displayName}');
-          final success = await AIActionService().executeAction(action);
-          debugPrint('   Result: ${success ? "✅" : "❌"}');
-        }
-      }
-
+      
+      debugPrint('🔄 Removing loading message...');
       // ลบ "กำลังพิมพ์..." ออก
       state = state.where((m) => !m.isLoading).toList();
-
-      // เพิ่มคำตอบ (ใช้ clean response ที่ตัด action tags ออกแล้ว)
+      
+      debugPrint('🔄 Adding assistant message...');
+      // เพิ่มคำตอบ
       addMessage(ChatMessage.assistant(
-        cleanResponse,
+        response,
         sources: useContext ? _extractSources(contextStr) : null,
-        actions: parseResult.hasActions
-            ? parseResult.actions.map((a) => a.displayName).toList()
-            : null,
       ));
+      debugPrint('✅ sendToAI completed successfully');
+      debugPrint('🚀 ============================================');
       
     } catch (e, stackTrace) {
-      debugPrint('❌ sendToAI error: $e');
+      debugPrint('❌❌❌ CRITICAL ERROR in sendToAI: $e');
       debugPrint('Stack: $stackTrace');
       
+      // ลบ loading ถ้ายังมี
       state = state.where((m) => !m.isLoading).toList();
-      addMessage(ChatMessage.error('ขอโทษค่ะ เกิดข้อผิดพลาด กรุณาลองใหม่ ($e)'));
+      
+      // แสดงข้อความ error ที่ user เข้าใจ
+      addMessage(ChatMessage.error(
+        'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
+        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ'
+      ));
+      debugPrint('🚀 ============================================');
     }
   }
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive)
-  ///
-  /// 🔋 Battery Note: Trigger ใช้ suggestedMessage โดยตรงถ้าไม่มี LLM
-  /// เพื่อไม่โหลด LLM โดยไม่จำเป็น (ประหยัดแบต)
   Future<void> respondToTrigger(TriggerEvent trigger) async {
     addMessage(ChatMessage.loading());
 
     try {
-      // 🔋 Battery Optimization: ใช้ suggested message ถ้า LLM ยังไม่โหลด
-      // ไม่ต้องโหลด LLM เพื่อ trigger (ประหยัดแบต)
+      // สร้าง prompt จาก trigger context
+      final prompt = await _buildTriggerPrompt(trigger);
+      
       String response;
-      if (LLMService().isInitialized) {
-        // ถ้า LLM โหลดแล้ว (จากการใช้งานก่อนหน้า) ก็ใช้ได้เลย
-        final prompt = _buildTriggerPrompt(trigger);
-        response = await LLMService().generate(
-          prompt,
-          temperature: 0.8,
-          maxTokens: 256,
-          autoLoad: false, // ไม่โหลดอัตโนมัติสำหรับ trigger
-        );
-        if (response.isEmpty) {
-          response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
-        }
+      final llm = MediaPipeLLMService();
+      if (llm.isInitialized) {
+        response = await llm.generate(prompt);
       } else {
-        // ถ้า LLM ยังไม่โหลด ใช้ suggested message (ประหยัดแบต)
         response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
       }
-
+      
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.proactive(
         response,
         triggerTitle: trigger.displayTitle,
       ));
+      
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.assistant(trigger.suggestedMessage ?? 'สวัสดีค่ะ!'));
     }
   }
 
-  /// 📝 สร้าง Prompt สำหรับ Trigger (Private Life OS - Proactive)
-  ///
-  /// Haku ทักทายผู้ใช้ก่อน ไม่รอให้ถาม (Proactive vs Passive)
-  String _buildTriggerPrompt(TriggerEvent trigger) {
-    final contextStr = ContextRetriever().buildContextString(trigger.context);
-    return HakuPrompts.forProactiveTrigger(
-        contextStr, trigger.suggestedMessage ?? '');
+  /// 📝 สร้าง Prompt สำหรับ Trigger (Gemma-3 format)
+  Future<String> _buildTriggerPrompt(TriggerEvent trigger) async {
+    final triggerContextStr = ContextRetriever().buildContextString(trigger.context);
+    
+    // ดึง context เพิ่มเติมจาก ContextRetriever
+    final fullContextData = await ContextRetriever().retrieveFullContext();
+    final fullContextStr = ContextRetriever().buildContextString(fullContextData);
+    
+    return PromptBuilder.buildProactivePrompt(
+      triggerContext: triggerContextStr,
+      suggestedMessage: trigger.suggestedMessage ?? 'สวัสดีค่ะ',
+      context: fullContextStr.isNotEmpty ? fullContextStr : null,
+    );
   }
 
-  /// 📝 สร้าง Prompt สำหรับ LLM (Private Life OS - Contextual Intelligence)
-  ///
-  /// Haku รู้จักผู้ใช้จากข้อมูลที่มี ไม่ใช่แค่ตอบคำถาม
-  /// 🤖 ใช้ forChatWithActions เพื่อให้ AI สร้าง action tags ได้
-  String _buildPrompt(String userMessage, String context) {
-    // ดึง preset context ถ้ามี
-    final currentPreset = PresetService().currentPreset;
-    final presetContext = currentPreset != null
-        ? '${currentPreset.name} - ${currentPreset.behavior.personality}'
-        : null;
 
-    // ถ้ามี context ใช้ RAG prompt
-    if (context.isNotEmpty && !context.contains('ไม่พบบันทึก')) {
-      return HakuPrompts.forRAGQuestion(userMessage, [context]);
-    }
-    // ถ้าไม่มี context ใช้ chat prompt พร้อม action support
-    return HakuPrompts.forChatWithActions(userMessage, presetContext: presetContext);
-  }
 
   /// 🔗 ดึง sources จาก context
   List<String>? _extractSources(String context) {
@@ -212,28 +196,23 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         return;
       }
 
-      // สร้าง context
-      final context = todayEntries
-          .map((e) =>
-              '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}')
-          .join('\n');
+      // สร้าง context และ prompt (Gemma-3 format)
+      final entriesContent = todayEntries.map((e) =>
+        '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
+      ).join('\n');
 
-      // 🔋 ใช้ HakuPrompts (Private Life OS concept)
-      final prompt = HakuPrompts.forSummarization(context);
+      final prompt = PromptBuilder.buildDailySummaryPrompt(
+        entriesContent: entriesContent,
+        period: 'วันนี้',
+      );
 
-      // 🔋 LLM Lazy Loading: โหลดอัตโนมัติเมื่อใช้งาน
       String response;
-      try {
-        response = await LLMService().generate(prompt);
-        if (response.isEmpty) {
-          // Fallback to mock
-          response =
-              'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
-        }
-      } catch (e) {
+      final llm = MediaPipeLLMService();
+      if (llm.isInitialized) {
+        response = await llm.generate(prompt);
+      } else {
         // Mock
-        response =
-            'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
+        response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
       }
 
       state = state.where((m) => !m.isLoading).toList();
@@ -284,17 +263,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _initializeServices() async {
     try {
-      // Initialize RAG (lightweight, ไม่กินแบต)
+      // Initialize RAG
       debugPrint('🔄 Initializing RAG...');
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
-
-      // 🔋 Battery Optimization: ไม่โหลด LLM ตอน initState
-      // LLM จะถูกโหลดแบบ lazy เมื่อมีการเรียกใช้งาน generate() จริงๆ
-      // และจะ auto-unload หลังไม่ใช้งาน 5 นาที
-      debugPrint('⏸️ LLM: Lazy loading enabled - จะโหลดเมื่อใช้งานจริง');
-
-      // Index entries ถ้ายังไม่มี (lightweight operation)
+      
+      // 🤖 Initialize TFLite LLM (Gemma-2)
+      debugPrint('🔄 Initializing TFLite LLM (Gemma-2)...');
+      final llm = MediaPipeLLMService();
+      if (!llm.isInitialized) {
+        await llm.initialize();
+      }
+      debugPrint('✅ LLM: ${llm.isInitialized ? "Ready" : "Using Mock"}');
+      
+      // Index entries ถ้ายังไม่มี
       if (RAGService().isInitialized) {
         debugPrint('🔄 Indexing entries...');
         final entries = await DatabaseHelper.instance.getAllEntries();
@@ -303,17 +285,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         debugPrint('✅ Entries indexed');
       }
-
-      // Initialize MVP Trigger Service (battery-optimized)
+      
+      // Initialize Notification Service
+      debugPrint('🔄 Initializing Notification Service...');
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+      notificationService.onQuickReply = (triggerId, response) {
+        // ส่งข้อความตอบกลับจาก notification ตรงไปที่ AI
+        _sendQuickReplyFromNotification(response);
+      };
+      notificationService.onNotificationTap = (event) {
+        _handleTrigger(event);
+      };
+      
+      // Initialize MVP Trigger Service
       debugPrint('🔄 Initializing Trigger Service...');
       final triggerService = MVPTriggerService();
       await triggerService.initialize();
-
-      // ตั้ง callback เมื่อมี trigger
+      
+      // ตั้ง callback เมื่อมี trigger - แสดงทั้งในแอพและ notification
       triggerService.onTrigger = (event) {
         _handleTrigger(event);
+        notificationService.showTriggerNotification(event);
       };
-      debugPrint('✅ All services initialized (battery optimized)');
+      debugPrint('✅ All services initialized');
     } catch (e, stackTrace) {
       debugPrint('❌ Error initializing services: $e');
       debugPrint('Stack: $stackTrace');
@@ -323,6 +318,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _handleTrigger(TriggerEvent event) {
     // แสดง proactive message
     ref.read(chatHistoryProvider.notifier).respondToTrigger(event);
+  }
+
+  /// 💬 ส่งข้อความตอบกลับจาก Quick Reply Notification
+  Future<void> _sendQuickReplyFromNotification(String reply) async {
+    debugPrint('💬 Quick reply from notification: $reply');
+    
+    // ส่งข้อความไปให้ AI เหมือนกับผู้ใช้พิมพ์เอง
+    await ref.read(chatHistoryProvider.notifier).sendToAI(reply);
+    
+    // Scroll ไปล่างสุด
+    _scrollToBottom();
   }
 
   @override
@@ -390,7 +396,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatHistoryProvider);
-    final llmService = LLMService();
+    final llmService = MediaPipeLLMService();
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
@@ -419,7 +425,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 const Text('Haku AI', style: TextStyle(fontSize: 16)),
                 Text(
-                  llmService.isInitialized ? 'Qwen3-VL-4B 🟢' : 'Mock Mode 🟡',
+                  llmService.isInitialized ? 'Gemma-3 🟢' : 'Mock Mode 🟡',
                   style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.normal),
                 ),
               ],
@@ -456,7 +462,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   Icon(Icons.info_outline, size: 14, color: Colors.orange.shade300),
                   const SizedBox(width: 8),
                   Text(
-                    'โหมดทดสอบ: ยังไม่ได้โหลดโมเดล Qwen3',
+                    'โหมดออฟไลน์: วางไฟล์ .task ในโฟลเดอร์ models/',
                     style: TextStyle(fontSize: 12, color: Colors.orange.shade300),
                   ),
                 ],
@@ -656,42 +662,6 @@ class _ChatBubble extends StatelessWidget {
                         fontSize: 10,
                         color: Colors.white.withValues(alpha: 0.4),
                         fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                  // 🤖 แสดง Actions ที่ AI ทำ
-                  if (message.hasActions) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withAlpha(30),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.withAlpha(100)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '✅ Actions ที่ทำแล้ว:',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          ...message.actions!.map((action) => Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Text(
-                                  action,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                              )),
-                        ],
                       ),
                     ),
                   ],

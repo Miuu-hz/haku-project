@@ -54,6 +54,9 @@ dependencies:
   # 📱 Widgets (Android)
   home_widget: ^0.5.0                # สื่อสารกับ Home Screen Widgets
 
+  # 🔔 Local Notifications
+  flutter_local_notifications: ^17.0.0  # แสดง notifications
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
