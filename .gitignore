@@ -47,12 +47,17 @@ desktop.ini
 *.sqlite3
 hive/
 
+<<<<<<< HEAD
 # Large model files (ไฟล์โมเดลขนาดใหญ่ - ไม่ควร push ขึ้น git)
+=======
+# Large model files (LLM weights)
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
 *.gguf
 *.onnx
 *.tflite
 *.pt
 *.pth
+<<<<<<< HEAD
 *.task
 *.bin
 
@@ -60,6 +65,9 @@ hive/
 models/*
 !models/.gitkeep
 !models/README.md
+=======
+/models/
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
 
 # Logs
 *.log

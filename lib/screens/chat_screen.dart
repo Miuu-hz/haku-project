@@ -61,6 +61,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         }
       }
       
+<<<<<<< HEAD
       // 🎯 เรียก MediaPipe LLM พร้อม System Prompt
       final llm = MediaPipeLLMService();
 
@@ -83,6 +84,27 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       // Fallback ไป Mock ถ้า LLM ไม่พร้อม
       if (response == null || response.isEmpty) {
         debugPrint('🔄 Using mock response...');
+=======
+      // 📝 สร้าง prompt ที่มี context
+      final prompt = _buildPrompt(userMessage, contextStr);
+      
+      // 🎯 เรียก LLM (Lazy Loading - โหลดอัตโนมัติเมื่อใช้งาน)
+      String response;
+      try {
+        // LLM จะโหลดอัตโนมัติถ้ายังไม่ได้โหลด (autoLoad: true by default)
+        response = await LLMService().generate(
+          prompt,
+          temperature: 0.7,
+          maxTokens: 512,
+        );
+        // ถ้า response ว่าง แปลว่าโหลดโมเดลไม่ได้ ใช้ mock แทน
+        if (response.isEmpty) {
+          debugPrint('⚠️ LLM returned empty, using mock');
+          response = await AIService.getMockResponse(userMessage);
+        }
+      } catch (e) {
+        debugPrint('⚠️ LLM generate failed: $e');
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
         response = await AIService.getMockResponse(userMessage);
       }
       
@@ -116,10 +138,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   }
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive)
+  ///
+  /// 🔋 Battery Note: Trigger ใช้ suggestedMessage โดยตรงถ้าไม่มี LLM
+  /// เพื่อไม่โหลด LLM โดยไม่จำเป็น (ประหยัดแบต)
   Future<void> respondToTrigger(TriggerEvent trigger) async {
     addMessage(ChatMessage.loading());
 
     try {
+<<<<<<< HEAD
       // สร้าง prompt จาก trigger context
       final prompt = await _buildTriggerPrompt(trigger);
       
@@ -127,22 +153,40 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       final llm = MediaPipeLLMService();
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
+=======
+      // 🔋 Battery Optimization: ใช้ suggested message ถ้า LLM ยังไม่โหลด
+      // ไม่ต้องโหลด LLM เพื่อ trigger (ประหยัดแบต)
+      String response;
+      if (LLMService().isInitialized) {
+        // ถ้า LLM โหลดแล้ว (จากการใช้งานก่อนหน้า) ก็ใช้ได้เลย
+        final prompt = _buildTriggerPrompt(trigger);
+        response = await LLMService().generate(
+          prompt,
+          temperature: 0.8,
+          maxTokens: 256,
+          autoLoad: false, // ไม่โหลดอัตโนมัติสำหรับ trigger
+        );
+        if (response.isEmpty) {
+          response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
+        }
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
       } else {
+        // ถ้า LLM ยังไม่โหลด ใช้ suggested message (ประหยัดแบต)
         response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
       }
-      
+
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.proactive(
         response,
         triggerTitle: trigger.displayTitle,
       ));
-      
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.assistant(trigger.suggestedMessage ?? 'สวัสดีค่ะ!'));
     }
   }
 
+<<<<<<< HEAD
   /// 📝 สร้าง Prompt สำหรับ Trigger (Gemma-3 format)
   Future<String> _buildTriggerPrompt(TriggerEvent trigger) async {
     final triggerContextStr = ContextRetriever().buildContextString(trigger.context);
@@ -159,6 +203,28 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   }
 
 
+=======
+  /// 📝 สร้าง Prompt สำหรับ Trigger (Private Life OS - Proactive)
+  ///
+  /// Haku ทักทายผู้ใช้ก่อน ไม่รอให้ถาม (Proactive vs Passive)
+  String _buildTriggerPrompt(TriggerEvent trigger) {
+    final contextStr = ContextRetriever().buildContextString(trigger.context);
+    return HakuPrompts.forProactiveTrigger(
+        contextStr, trigger.suggestedMessage ?? '');
+  }
+
+  /// 📝 สร้าง Prompt สำหรับ LLM (Private Life OS - Contextual Intelligence)
+  ///
+  /// Haku รู้จักผู้ใช้จากข้อมูลที่มี ไม่ใช่แค่ตอบคำถาม
+  String _buildPrompt(String userMessage, String context) {
+    // ถ้ามี context ใช้ RAG prompt
+    if (context.isNotEmpty && !context.contains('ไม่พบบันทึก')) {
+      return HakuPrompts.forRAGQuestion(userMessage, [context]);
+    }
+    // ถ้าไม่มี context ใช้ chat prompt
+    return HakuPrompts.forChat(userMessage);
+  }
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
 
   /// 🔗 ดึง sources จาก context
   List<String>? _extractSources(String context) {
@@ -196,6 +262,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         return;
       }
 
+<<<<<<< HEAD
       // สร้าง context และ prompt (Gemma-3 format)
       final entriesContent = todayEntries.map((e) =>
         '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
@@ -205,14 +272,37 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         entriesContent: entriesContent,
         period: 'วันนี้',
       );
+=======
+      // สร้าง context
+      final context = todayEntries
+          .map((e) =>
+              '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}')
+          .join('\n');
 
+      // 🔋 ใช้ HakuPrompts (Private Life OS concept)
+      final prompt = HakuPrompts.forSummarization(context);
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
+
+      // 🔋 LLM Lazy Loading: โหลดอัตโนมัติเมื่อใช้งาน
       String response;
+<<<<<<< HEAD
       final llm = MediaPipeLLMService();
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
       } else {
+=======
+      try {
+        response = await LLMService().generate(prompt);
+        if (response.isEmpty) {
+          // Fallback to mock
+          response =
+              'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
+        }
+      } catch (e) {
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
         // Mock
-        response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
+        response =
+            'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
       }
 
       state = state.where((m) => !m.isLoading).toList();
@@ -263,10 +353,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _initializeServices() async {
     try {
-      // Initialize RAG
+      // Initialize RAG (lightweight, ไม่กินแบต)
       debugPrint('🔄 Initializing RAG...');
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
+<<<<<<< HEAD
       
       // 🤖 Initialize TFLite LLM (Gemma-2)
       debugPrint('🔄 Initializing TFLite LLM (Gemma-2)...');
@@ -277,6 +368,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       debugPrint('✅ LLM: ${llm.isInitialized ? "Ready" : "Using Mock"}');
       
       // Index entries ถ้ายังไม่มี
+=======
+
+      // 🔋 Battery Optimization: ไม่โหลด LLM ตอน initState
+      // LLM จะถูกโหลดแบบ lazy เมื่อมีการเรียกใช้งาน generate() จริงๆ
+      // และจะ auto-unload หลังไม่ใช้งาน 5 นาที
+      debugPrint('⏸️ LLM: Lazy loading enabled - จะโหลดเมื่อใช้งานจริง');
+
+      // Index entries ถ้ายังไม่มี (lightweight operation)
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
       if (RAGService().isInitialized) {
         debugPrint('🔄 Indexing entries...');
         final entries = await DatabaseHelper.instance.getAllEntries();
@@ -285,6 +385,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         debugPrint('✅ Entries indexed');
       }
+<<<<<<< HEAD
       
       // Initialize Notification Service
       debugPrint('🔄 Initializing Notification Service...');
@@ -304,11 +405,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await triggerService.initialize();
       
       // ตั้ง callback เมื่อมี trigger - แสดงทั้งในแอพและ notification
+=======
+
+      // Initialize MVP Trigger Service (battery-optimized)
+      debugPrint('🔄 Initializing Trigger Service...');
+      final triggerService = MVPTriggerService();
+      await triggerService.initialize();
+
+      // ตั้ง callback เมื่อมี trigger
+>>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
       triggerService.onTrigger = (event) {
         _handleTrigger(event);
         notificationService.showTriggerNotification(event);
       };
-      debugPrint('✅ All services initialized');
+      debugPrint('✅ All services initialized (battery optimized)');
     } catch (e, stackTrace) {
       debugPrint('❌ Error initializing services: $e');
       debugPrint('Stack: $stackTrace');
