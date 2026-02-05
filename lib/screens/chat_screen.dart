@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
+import '../services/ai_action_service.dart';
 import '../services/ai_service.dart';
 import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
 import '../services/llm_service.dart';
 import '../services/mvp_trigger_service.dart';
+import '../services/preset_service.dart';
 import '../services/rag_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
@@ -72,14 +74,30 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         debugPrint('⚠️ LLM generate failed: $e');
         response = await AIService.getMockResponse(userMessage);
       }
-      
+
+      // 🤖 Parse AI Actions (ถ้ามี [ACTION:...] tags)
+      final parseResult = AIActionService().parseResponse(response);
+      final cleanResponse = parseResult.cleanResponse;
+
+      // Execute actions อัตโนมัติ
+      if (parseResult.hasActions) {
+        for (final action in parseResult.actions) {
+          debugPrint('🤖 Executing action: ${action.displayName}');
+          final success = await AIActionService().executeAction(action);
+          debugPrint('   Result: ${success ? "✅" : "❌"}');
+        }
+      }
+
       // ลบ "กำลังพิมพ์..." ออก
       state = state.where((m) => !m.isLoading).toList();
-      
-      // เพิ่มคำตอบ
+
+      // เพิ่มคำตอบ (ใช้ clean response ที่ตัด action tags ออกแล้ว)
       addMessage(ChatMessage.assistant(
-        response,
+        cleanResponse,
         sources: useContext ? _extractSources(contextStr) : null,
+        actions: parseResult.hasActions
+            ? parseResult.actions.map((a) => a.displayName).toList()
+            : null,
       ));
       
     } catch (e, stackTrace) {
@@ -142,13 +160,20 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   /// 📝 สร้าง Prompt สำหรับ LLM (Private Life OS - Contextual Intelligence)
   ///
   /// Haku รู้จักผู้ใช้จากข้อมูลที่มี ไม่ใช่แค่ตอบคำถาม
+  /// 🤖 ใช้ forChatWithActions เพื่อให้ AI สร้าง action tags ได้
   String _buildPrompt(String userMessage, String context) {
+    // ดึง preset context ถ้ามี
+    final currentPreset = PresetService().currentPreset;
+    final presetContext = currentPreset != null
+        ? '${currentPreset.name} - ${currentPreset.behavior.personality}'
+        : null;
+
     // ถ้ามี context ใช้ RAG prompt
     if (context.isNotEmpty && !context.contains('ไม่พบบันทึก')) {
       return HakuPrompts.forRAGQuestion(userMessage, [context]);
     }
-    // ถ้าไม่มี context ใช้ chat prompt
-    return HakuPrompts.forChat(userMessage);
+    // ถ้าไม่มี context ใช้ chat prompt พร้อม action support
+    return HakuPrompts.forChatWithActions(userMessage, presetContext: presetContext);
   }
 
   /// 🔗 ดึง sources จาก context
@@ -631,6 +656,42 @@ class _ChatBubble extends StatelessWidget {
                         fontSize: 10,
                         color: Colors.white.withValues(alpha: 0.4),
                         fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                  // 🤖 แสดง Actions ที่ AI ทำ
+                  if (message.hasActions) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withAlpha(30),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.withAlpha(100)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '✅ Actions ที่ทำแล้ว:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...message.actions!.map((action) => Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text(
+                                  action,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                              )),
+                        ],
                       ),
                     ),
                   ],
