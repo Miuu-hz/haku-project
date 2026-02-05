@@ -476,6 +476,13 @@ class LLMService {
 /// - Keep prompts short and clear
 /// - Use simple Thai sentences
 /// - Provide explicit context
+///
+/// 🤖 AI Actions:
+/// AI สามารถส่ง actions ในรูปแบบ:
+/// [ACTION:SCHEDULE] title="...", date=..., time=...
+/// [ACTION:PRESET] switch=...
+/// [ACTION:REMINDER] message="...", minutes=...
+/// [ACTION:OBJECTIVE] title="...", due=...
 class HakuPrompts {
   /// System prompt พื้นฐานที่อธิบาย Haku
   static const String _hakuIdentity = '''คุณคือ Haku (箱) - Private Life OS ระบบปฏิบัติการชีวิตส่วนตัว
@@ -485,6 +492,13 @@ class HakuPrompts {
 - เตือนก่อน: แจ้งเตือนเรื่องสำคัญ
 - ทำให้เลย: ลงมือทำทันที (ลงปฏิทิน, สรุปข้อมูล)
 การตอบ: กระชับ เป็นกันเอง ใช้อิโมจิ 1-2 ตัว พูดภาษาไทย''';
+
+  /// Action instructions for AI
+  static const String _actionInstructions = '''
+เมื่อต้องการทำ actions ให้เพิ่ม tag ท้ายข้อความ:
+- สร้างนัด: [ACTION:SCHEDULE] title="ชื่อ", date=พรุ่งนี้, time=09:00
+- ตั้งเตือน: [ACTION:REMINDER] message="ข้อความ", minutes=15
+- สร้างเป้าหมาย: [ACTION:OBJECTIVE] title="ชื่อ", due=พรุ่งนี้''';
 
   /// 🔍 RAG Question - ถามตอบจากบันทึก
   static String forRAGQuestion(String question, List<String> contextEntries) {
@@ -526,13 +540,34 @@ $text<|im_end|>
 <|im_start|>assistant
 ''';
 
-  /// 💬 Chat - คุยทั่วไป
+  /// 💬 Chat - คุยทั่วไป (พร้อม action support)
   static String forChat(String message) => '''<|im_start|>system
-$_hakuIdentity<|im_end|>
+$_hakuIdentity
+
+$_actionInstructions<|im_end|>
 <|im_start|>user
 $message<|im_end|>
 <|im_start|>assistant
 ''';
+
+  /// 🎯 Chat with Objective Detection
+  ///
+  /// ใช้เมื่อต้องการให้ AI ตรวจจับ intent และสร้าง action อัตโนมัติ
+  static String forChatWithActions(String message, {String? presetContext}) {
+    final context =
+        presetContext != null ? '\nโหมดปัจจุบัน: $presetContext' : '';
+    return '''<|im_start|>system
+$_hakuIdentity
+$context
+
+$_actionInstructions
+
+สำคัญ: ถ้าผู้ใช้พูดถึงนัดหมาย/เวลา/กิจกรรม ให้สร้าง action tag ด้วย<|im_end|>
+<|im_start|>user
+$message<|im_end|>
+<|im_start|>assistant
+''';
+  }
 
   /// 🔔 Proactive Trigger - ทักทายตามบริบท
   ///
@@ -549,6 +584,30 @@ $context
 $suggestedMessage<|im_end|>
 <|im_start|>assistant
 ''';
+
+  /// 🎭 Preset-based Chat
+  ///
+  /// ใช้เมื่อ AI ต้องตอบตาม preset personality
+  static String forPresetChat(
+    String message, {
+    required String presetName,
+    required String personality,
+    List<String> focusAreas = const [],
+  }) {
+    final focus =
+        focusAreas.isNotEmpty ? '\nโฟกัส: ${focusAreas.join(', ')}' : '';
+    return '''<|im_start|>system
+$_hakuIdentity
+
+โหมดปัจจุบัน: $presetName
+บุคลิก: $personality$focus
+
+$_actionInstructions<|im_end|>
+<|im_start|>user
+$message<|im_end|>
+<|im_start|>assistant
+''';
+  }
 
   /// 📍 Location Revisit - กลับมาที่เดิม
   static String forLocationRevisit(
@@ -576,6 +635,20 @@ $patternData
 หน้าที่: วิเคราะห์ pattern และให้คำแนะนำ<|im_end|>
 <|im_start|>user
 ช่วยวิเคราะห์ pattern ของฉันหน่อย<|im_end|>
+<|im_start|>assistant
+''';
+
+  /// 🎯 Objective Extraction
+  ///
+  /// ใช้เมื่อต้องการให้ AI วิเคราะห์ข้อความและดึง objectives ออกมา
+  static String forObjectiveExtraction(String text) => '''<|im_start|>system
+วิเคราะห์ข้อความและดึงข้อมูลเป้าหมาย/นัดหมาย
+ถ้าพบให้ตอบ:
+[ACTION:SCHEDULE] title="ชื่อ", date=วันที่, time=เวลา
+
+ถ้าไม่พบให้ตอบ: ไม่พบนัดหมาย<|im_end|>
+<|im_start|>user
+$text<|im_end|>
 <|im_start|>assistant
 ''';
 }

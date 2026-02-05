@@ -47,13 +47,13 @@ desktop.ini
 *.sqlite3
 hive/
 
-# Large model files
+# Large model files (LLM weights)
 *.gguf
 *.onnx
 *.tflite
 *.pt
 *.pth
-models/
+/models/
 
 # Logs
 *.log
