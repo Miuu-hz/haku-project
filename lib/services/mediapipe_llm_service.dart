@@ -219,7 +219,10 @@ class MediaPipeLLMService {
         debugPrint('✅ ใช้ custom model path: $customPath');
         return customPath;
       } else {
+        // ไฟล์ไม่มีอยู่แล้ว ให้ clear path เก่าออก
         debugPrint('⚠️ Custom model path ไม่พบไฟล์: $customPath');
+        debugPrint('🗑️ Clearing invalid custom path...');
+        await setCustomModelPath(null);
       }
     }
 
