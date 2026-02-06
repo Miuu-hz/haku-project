@@ -149,10 +149,9 @@ class ChatHistoryService {
 
   /// 🔍 ค้นหาข้อความด้วย ID
   ChatEntry? getMessageById(String id) {
-    return _rawHistory.firstWhere(
-      (e) => e.id == id,
-      orElse: () => ChatEntry.empty(),
-    );
+    final index = _rawHistory.indexWhere((e) => e.id == id);
+    if (index < 0) return null;
+    return _rawHistory[index];
   }
 
   /// 🔍 ค้นหา index ของข้อความ

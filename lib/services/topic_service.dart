@@ -214,18 +214,16 @@ class TopicService {
     final topicId = _messageIndex[messageId];
     if (topicId == null) return null;
 
-    return _topics.firstWhere(
-      (t) => t.id == topicId,
-      orElse: () => Topic.empty(),
-    );
+    final index = _topics.indexWhere((t) => t.id == topicId);
+    if (index < 0) return null;
+    return _topics[index];
   }
 
   /// 📋 Get topic by ID
   Topic? getTopicById(String topicId) {
-    return _topics.firstWhere(
-      (t) => t.id == topicId,
-      orElse: () => Topic.empty(),
-    );
+    final index = _topics.indexWhere((t) => t.id == topicId);
+    if (index < 0) return null;
+    return _topics[index];
   }
 
   /// 📋 Get recent topics
@@ -258,7 +256,7 @@ class TopicService {
   /// 📊 Get topic for context (Lean format)
   String getTopicContextLean(String topicId) {
     final topic = getTopicById(topicId);
-    if (topic == null || topic.id.isEmpty) return '';
+    if (topic == null) return '';
 
     // Topic:DoctorAppt|Range:1-15|Sum:Planning visit, feeling anxious
     return 'Topic:${topic.name}|Range:${topic.startIndex}-${topic.endIndex}|Sum:${topic.summary}';
