@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 android {
     namespace "com.example.haku"
     compileSdk 36
-    ndkVersion "27.0.12077973"
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -62,6 +62,17 @@ android {
         }
     }
 
+    // 🏗️ MediaPipe GenAI: Include all native libraries
+    packagingOptions {
+        pickFirst 'lib/**/*.so'
+        doNotStrip 'lib/**/*.so'
+    }
+    
+    // 🏗️ Extract native libraries properly
+    androidResources {
+        noCompress 'tflite', 'task'
+    }
+
 }
 
 flutter {
@@ -74,8 +85,8 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     
-    // 🤖 MediaPipe GenAI LLM
-    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+    // 🤖 MediaPipe GenAI LLM (Latest for Gemma 3 support)
+    implementation 'com.google.mediapipe:tasks-genai:0.10.20'
     
     // Coroutines สำหรับ async operations
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'

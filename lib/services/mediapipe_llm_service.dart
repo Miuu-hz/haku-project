@@ -87,11 +87,10 @@ class MediaPipeLLMService {
   /// 
   /// @param modelFileName ชื่อไฟล์โมเดล (เช่น 'gemma-3-270m-it-int8.task')
   /// @param maxTokens จำนวน token สูงสุด (default: 1024)
-  /// @param temperature ค่าความสร้างสรรค์ 0.0-1.0 (default: 0.7)
+  /// Note: temperature ไม่รองรับใน MediaPipe GenAI API
   Future<bool> initialize({
     String? modelFileName,
     int maxTokens = 1024,
-    double temperature = 0.7,
   }) async {
     if (_isInitialized) return true;
     if (_isLoading) return false;
@@ -110,10 +109,10 @@ class MediaPipeLLMService {
       debugPrint('📥 Loading MediaPipe model: $modelPath');
 
       // เรียก native ผ่าน MethodChannel
+      // Note: MediaPipe GenAI ไม่รองรับ temperature parameter
       final success = await _channel.invokeMethod<bool>('loadModel', {
         'modelPath': modelPath,
         'maxTokens': maxTokens,
-        'temperature': temperature,
       });
 
       _isInitialized = success ?? false;

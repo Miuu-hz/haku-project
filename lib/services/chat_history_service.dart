@@ -72,15 +72,15 @@ class ChatHistoryService {
       // Load raw history
       final rawJson = prefs.getString(_rawHistoryKey);
       if (rawJson != null) {
-        final List<dynamic> list = jsonDecode(rawJson);
-        _rawHistory = list.map((e) => ChatEntry.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(rawJson) as List<dynamic>;
+        _rawHistory = list.map((e) => ChatEntry.fromJson(e as Map<String, dynamic>)).toList();
       }
 
       // Load summaries
       final summaryJson = prefs.getString(_summaryKey);
       if (summaryJson != null) {
-        final List<dynamic> list = jsonDecode(summaryJson);
-        _summaries = list.map((e) => ChatSummary.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(summaryJson) as List<dynamic>;
+        _summaries = list.map((e) => ChatSummary.fromJson(e as Map<String, dynamic>)).toList();
       }
 
       // Load last summarized time
@@ -155,9 +155,7 @@ class ChatHistoryService {
   }
 
   /// 🔍 ค้นหา index ของข้อความ
-  int getMessageIndex(String id) {
-    return _rawHistory.indexWhere((e) => e.id == id);
-  }
+  int getMessageIndex(String id) => _rawHistory.indexWhere((e) => e.id == id);
 
   /// 📋 ดึง context สำหรับ Reply (±2 messages around target)
   ///
@@ -262,9 +260,9 @@ class ChatHistoryService {
 
     try {
       // แยกข้อความที่จะสรุป (เก็บล่าสุดไว้)
-      final toSummarize = _rawHistory.length > messagesPerSummary
+      final List<ChatEntry> toSummarize = _rawHistory.length > messagesPerSummary
           ? _rawHistory.sublist(0, _rawHistory.length - 10)
-          : [];
+          : <ChatEntry>[];
 
       if (toSummarize.isEmpty) {
         debugPrint('⚠️ No messages to summarize');
@@ -392,29 +390,25 @@ class ChatEntry {
   /// Is this an empty entry?
   bool get isEmpty => id.isEmpty;
 
-  factory ChatEntry.fromJson(Map<String, dynamic> json) {
-    return ChatEntry(
-      id: json['id'] as String,
-      role: json['role'] as String,
-      content: json['content'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      actions: json['actions'] != null
-          ? List<String>.from(json['actions'] as List)
-          : null,
-      replyToId: json['replyToId'] as String?,
-    );
-  }
+  factory ChatEntry.fromJson(Map<String, dynamic> json) => ChatEntry(
+        id: json['id'] as String,
+        role: json['role'] as String,
+        content: json['content'] as String,
+        timestamp: DateTime.parse(json['timestamp'] as String),
+        actions: json['actions'] != null
+            ? List<String>.from(json['actions'] as List)
+            : null,
+        replyToId: json['replyToId'] as String?,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'role': role,
-      'content': content,
-      'timestamp': timestamp.toIso8601String(),
-      'actions': actions,
-      'replyToId': replyToId,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'role': role,
+        'content': content,
+        'timestamp': timestamp.toIso8601String(),
+        'actions': actions,
+        'replyToId': replyToId,
+      };
 }
 
 /// 📊 Chat Summary - สรุปบทสนทนา
@@ -437,27 +431,23 @@ class ChatSummary {
     required this.createdAt,
   });
 
-  factory ChatSummary.fromJson(Map<String, dynamic> json) {
-    return ChatSummary(
-      id: json['id'] as String,
-      content: json['content'] as String,
-      period: json['period'] as String,
-      startDate: DateTime.parse(json['startDate'] as String),
-      endDate: DateTime.parse(json['endDate'] as String),
-      messageCount: json['messageCount'] as int,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-    );
-  }
+  factory ChatSummary.fromJson(Map<String, dynamic> json) => ChatSummary(
+        id: json['id'] as String,
+        content: json['content'] as String,
+        period: json['period'] as String,
+        startDate: DateTime.parse(json['startDate'] as String),
+        endDate: DateTime.parse(json['endDate'] as String),
+        messageCount: json['messageCount'] as int,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'content': content,
-      'period': period,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-      'messageCount': messageCount,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'content': content,
+        'period': period,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'messageCount': messageCount,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }

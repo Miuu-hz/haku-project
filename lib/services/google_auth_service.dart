@@ -258,7 +258,7 @@ class GoogleAuthService {
         final data = jsonDecode(response.body);
         final items = data['items'] as List? ?? [];
 
-        return items.map((e) => CalendarEvent.fromJson(e)).toList();
+        return items.map((e) => CalendarEvent.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Get events error: $e');
@@ -351,20 +351,19 @@ class GoogleAuthService {
     required DateTime dueDate,
     String? description,
     String? location,
-  }) async {
-    // สร้าง event ที่เวลา due
-    return createCalendarEvent(
-      title: '🎯 $title',
-      startTime: dueDate,
-      description: '''
+  }) =>
+      // สร้าง event ที่เวลา due
+      createCalendarEvent(
+        title: '🎯 $title',
+        startTime: dueDate,
+        description: '''
 Objective จาก Haku
 ID: $objectiveId
 
 $description
 ''',
-      location: location,
-    );
-  }
+        location: location,
+      );
 
   /// 📊 Get calendar stats
   Future<Map<String, dynamic>> getCalendarStats() async {

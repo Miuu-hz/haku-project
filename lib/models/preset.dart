@@ -1,8 +1,8 @@
-/// 🎭 Preset Model - โหมดการใช้งานตามบริบท
-///
-/// Preset คือ "โหมด" ที่กำหนดพฤติกรรมของ Haku ตามสถานการณ์
-/// เช่น Morning Mode จะทักทายด้วยการเช็คสุขภาพ
-/// Battle Mode จะเน้น Quick Capture และเตือนพักเบรค
+// 🎭 Preset Model - โหมดการใช้งานตามบริบท
+//
+// Preset คือ "โหมด" ที่กำหนดพฤติกรรมของ Haku ตามสถานการณ์
+// เช่น Morning Mode จะทักทายด้วยการเช็คสุขภาพ
+// Battle Mode จะเน้น Quick Capture และเตือนพักเบรค
 
 class Preset {
   final String id;

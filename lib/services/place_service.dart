@@ -70,8 +70,8 @@ class PlaceService {
       final prefs = await SharedPreferences.getInstance();
       final json = prefs.getString(_placesKey);
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _savedPlaces = list.map((e) => SavedPlace.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _savedPlaces = list.map((e) => SavedPlace.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Error loading saved places: $e');
@@ -84,8 +84,8 @@ class PlaceService {
       final prefs = await SharedPreferences.getInstance();
       final json = prefs.getString(_historyKey);
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _visitHistory = list.map((e) => PlaceVisit.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _visitHistory = list.map((e) => PlaceVisit.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Error loading visit history: $e');
@@ -148,7 +148,7 @@ class PlaceService {
         final data = jsonDecode(response.body);
         final results = data['results'] as List;
 
-        return results.map((r) => PlaceResult.fromGoogleJson(r)).toList();
+        return results.map((r) => PlaceResult.fromGoogleJson(r as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Google Places search error: $e');
@@ -182,8 +182,8 @@ class PlaceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> results = jsonDecode(response.body);
-        return results.map((r) => PlaceResult.fromNominatimJson(r)).toList();
+        final List<dynamic> results = jsonDecode(response.body) as List<dynamic>;
+        return results.map((r) => PlaceResult.fromNominatimJson(r as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Nominatim search error: $e');
@@ -192,9 +192,8 @@ class PlaceService {
     return [];
   }
 
-  String _getViewbox(double lat, double lng, double delta) {
-    return '${lng - delta},${lat - delta},${lng + delta},${lat + delta}';
-  }
+  String _getViewbox(double lat, double lng, double delta) =>
+      '${lng - delta},${lat - delta},${lng + delta},${lat + delta}';
 
   /// 📍 ค้นหาสถานที่ใกล้เคียง
   Future<List<PlaceResult>> searchNearby({
@@ -226,7 +225,7 @@ class PlaceService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final results = data['results'] as List;
-        return results.map((r) => PlaceResult.fromGoogleJson(r)).toList();
+        return results.map((r) => PlaceResult.fromGoogleJson(r as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Nearby search error: $e');
@@ -258,7 +257,7 @@ class PlaceService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['result'] != null) {
-          return PlaceDetails.fromJson(data['result']);
+          return PlaceDetails.fromJson(data['result'] as Map<String, dynamic>);
         }
       }
     } catch (e) {
@@ -520,20 +519,19 @@ class PlaceResult {
       longitude: location['lng'] as double,
       rating: (json['rating'] as num?)?.toDouble(),
       userRatingsTotal: json['user_ratings_total'] as int?,
-      types: List<String>.from(json['types'] ?? []),
-      isOpen: json['opening_hours']?['open_now'] ?? false,
+      types: List<String>.from((json['types'] as List<dynamic>?) ?? []),
+      isOpen: (json['opening_hours'] as Map<String, dynamic>?)?['open_now'] as bool? ?? false,
     );
   }
 
-  factory PlaceResult.fromNominatimJson(Map<String, dynamic> json) {
-    return PlaceResult(
-      name: json['display_name']?.split(',').first ?? 'Unknown',
-      address: json['display_name'] as String?,
-      latitude: double.parse(json['lat'] as String),
-      longitude: double.parse(json['lon'] as String),
-      types: [json['type'] as String? ?? 'place'],
-    );
-  }
+  factory PlaceResult.fromNominatimJson(Map<String, dynamic> json) =>
+      PlaceResult(
+        name: (json['display_name'] as String?)?.split(',').first ?? 'Unknown',
+        address: json['display_name'] as String?,
+        latitude: double.parse(json['lat'] as String),
+        longitude: double.parse(json['lon'] as String),
+        types: [json['type'] as String? ?? 'place'],
+      );
 
   String get displayRating => rating != null ? '${rating!.toStringAsFixed(1)}⭐' : '';
 
@@ -580,7 +578,7 @@ class PlaceDetails {
   factory PlaceDetails.fromJson(Map<String, dynamic> json) {
     final location = json['geometry']['location'];
     final reviews = (json['reviews'] as List?)
-            ?.map((r) => PlaceReview.fromJson(r))
+            ?.map((r) => PlaceReview.fromJson(r as Map<String, dynamic>))
             .toList() ??
         [];
 
@@ -592,7 +590,7 @@ class PlaceDetails {
       rating: (json['rating'] as num?)?.toDouble(),
       reviews: reviews,
       openingHours: List<String>.from(
-        json['opening_hours']?['weekday_text'] ?? [],
+        (json['opening_hours'] as Map<String, dynamic>?)?['weekday_text'] as List<dynamic>? ?? [],
       ),
       website: json['website'] as String?,
       phone: json['formatted_phone_number'] as String?,
@@ -618,16 +616,14 @@ class PlaceReview {
     required this.time,
   });
 
-  factory PlaceReview.fromJson(Map<String, dynamic> json) {
-    return PlaceReview(
-      authorName: json['author_name'] as String,
-      rating: (json['rating'] as num).toDouble(),
-      text: json['text'] as String,
-      time: DateTime.fromMillisecondsSinceEpoch(
-        (json['time'] as int) * 1000,
-      ),
-    );
-  }
+  factory PlaceReview.fromJson(Map<String, dynamic> json) => PlaceReview(
+        authorName: json['author_name'] as String,
+        rating: (json['rating'] as num).toDouble(),
+        text: json['text'] as String,
+        time: DateTime.fromMillisecondsSinceEpoch(
+          (json['time'] as int) * 1000,
+        ),
+      );
 }
 
 /// 💾 สถานที่ที่บันทึก
@@ -664,58 +660,53 @@ class SavedPlace {
     int? visitCount,
     DateTime? lastVisit,
     String? notes,
-  }) {
-    return SavedPlace(
-      id: id,
-      name: name,
-      latitude: latitude,
-      longitude: longitude,
-      address: address,
-      placeId: placeId,
-      category: category,
-      icon: icon,
-      notes: notes ?? this.notes,
-      createdAt: createdAt,
-      visitCount: visitCount ?? this.visitCount,
-      lastVisit: lastVisit ?? this.lastVisit,
-    );
-  }
+  }) =>
+      SavedPlace(
+        id: id,
+        name: name,
+        latitude: latitude,
+        longitude: longitude,
+        address: address,
+        placeId: placeId,
+        category: category,
+        icon: icon,
+        notes: notes ?? this.notes,
+        createdAt: createdAt,
+        visitCount: visitCount ?? this.visitCount,
+        lastVisit: lastVisit ?? this.lastVisit,
+      );
 
-  factory SavedPlace.fromJson(Map<String, dynamic> json) {
-    return SavedPlace(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      latitude: json['latitude'] as double,
-      longitude: json['longitude'] as double,
-      address: json['address'] as String?,
-      placeId: json['placeId'] as String?,
-      category: json['category'] as String,
-      icon: json['icon'] as String,
-      notes: json['notes'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      visitCount: json['visitCount'] as int,
-      lastVisit: json['lastVisit'] != null
-          ? DateTime.parse(json['lastVisit'] as String)
-          : null,
-    );
-  }
+  factory SavedPlace.fromJson(Map<String, dynamic> json) => SavedPlace(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        latitude: json['latitude'] as double,
+        longitude: json['longitude'] as double,
+        address: json['address'] as String?,
+        placeId: json['placeId'] as String?,
+        category: json['category'] as String,
+        icon: json['icon'] as String,
+        notes: json['notes'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        visitCount: json['visitCount'] as int,
+        lastVisit: json['lastVisit'] != null
+            ? DateTime.parse(json['lastVisit'] as String)
+            : null,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'latitude': latitude,
-      'longitude': longitude,
-      'address': address,
-      'placeId': placeId,
-      'category': category,
-      'icon': icon,
-      'notes': notes,
-      'createdAt': createdAt.toIso8601String(),
-      'visitCount': visitCount,
-      'lastVisit': lastVisit?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'address': address,
+        'placeId': placeId,
+        'category': category,
+        'icon': icon,
+        'notes': notes,
+        'createdAt': createdAt.toIso8601String(),
+        'visitCount': visitCount,
+        'lastVisit': lastVisit?.toIso8601String(),
+      };
 }
 
 /// 📍 การเยี่ยมชมสถานที่
@@ -738,29 +729,25 @@ class PlaceVisit {
     required this.visitedAt,
   });
 
-  factory PlaceVisit.fromJson(Map<String, dynamic> json) {
-    return PlaceVisit(
-      id: json['id'] as String,
-      placeId: json['placeId'] as String,
-      placeName: json['placeName'] as String?,
-      latitude: json['latitude'] as double?,
-      longitude: json['longitude'] as double?,
-      activity: json['activity'] as String?,
-      visitedAt: DateTime.parse(json['visitedAt'] as String),
-    );
-  }
+  factory PlaceVisit.fromJson(Map<String, dynamic> json) => PlaceVisit(
+        id: json['id'] as String,
+        placeId: json['placeId'] as String,
+        placeName: json['placeName'] as String?,
+        latitude: json['latitude'] as double?,
+        longitude: json['longitude'] as double?,
+        activity: json['activity'] as String?,
+        visitedAt: DateTime.parse(json['visitedAt'] as String),
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'placeId': placeId,
-      'placeName': placeName,
-      'latitude': latitude,
-      'longitude': longitude,
-      'activity': activity,
-      'visitedAt': visitedAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'placeId': placeId,
+        'placeName': placeName,
+        'latitude': latitude,
+        'longitude': longitude,
+        'activity': activity,
+        'visitedAt': visitedAt.toIso8601String(),
+      };
 }
 
 /// 📂 Place categories

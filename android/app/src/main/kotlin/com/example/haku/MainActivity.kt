@@ -178,7 +178,6 @@ class MainActivity: FlutterFragmentActivity() {
                     "loadModel" -> {
                         val modelPath = call.argument<String>("modelPath")
                         val maxTokens = call.argument<Int>("maxTokens") ?: 1024
-                        val temperature = (call.argument<Double>("temperature") ?: 0.7).toFloat()
                         
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
@@ -190,8 +189,7 @@ class MainActivity: FlutterFragmentActivity() {
                         CoroutineScope(Dispatchers.Main).launch {
                             val success = mediaPipeBridge.loadModel(
                                 modelPath = modelPath,
-                                maxTokens = maxTokens,
-                                temperature = temperature
+                                maxTokens = maxTokens
                             )
                             result.success(success)
                         }

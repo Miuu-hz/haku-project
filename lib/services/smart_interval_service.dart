@@ -23,7 +23,6 @@ class SmartIntervalService {
 
   // Activity tracking
   final Map<int, int> _hourlyActivity = {}; // hour -> activity count
-  DateTime? _lastActivity;
   int _consecutiveIdleMinutes = 0;
 
   // Current interval
@@ -88,7 +87,7 @@ class SmartIntervalService {
   /// 📱 Record user activity
   void recordActivity() {
     final now = DateTime.now();
-    _lastActivity = now;
+    // Activity recorded
     _consecutiveIdleMinutes = 0;
 
     // บันทึก activity ตาม hour
@@ -127,7 +126,7 @@ class SmartIntervalService {
 
     // 1. Base interval จาก battery
     final profile = _batteryService.getRecommendedProfile();
-    Duration baseInterval = Duration(minutes: profile.triggerIntervalMinutes);
+    final baseInterval = Duration(minutes: profile.triggerIntervalMinutes);
 
     // 2. ปรับตาม historical activity
     final hourlyScore = _getHourlyActivityScore(hour);
@@ -192,9 +191,7 @@ class SmartIntervalService {
   }
 
   /// 📈 Get activity pattern (for visualization)
-  Map<int, int> getActivityPattern() {
-    return Map.unmodifiable(_hourlyActivity);
-  }
+  Map<int, int> getActivityPattern() => Map.unmodifiable(_hourlyActivity);
 
   /// 🌙 Get detected sleep hours
   List<int> getDetectedSleepHours() {
@@ -246,7 +243,7 @@ class SmartIntervalService {
   Future<void> resetActivityData() async {
     _hourlyActivity.clear();
     _consecutiveIdleMinutes = 0;
-    _lastActivity = null;
+    // Activity reset
     await _saveActivityPattern();
   }
 

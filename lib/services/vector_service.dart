@@ -56,7 +56,7 @@ class VectorService {
       final json = prefs.getString(_vocabKey);
 
       if (json != null) {
-        _vocabulary = Map<String, int>.from(jsonDecode(json));
+        _vocabulary = Map<String, int>.from(jsonDecode(json) as Map<dynamic, dynamic>);
         _vocabSize = _vocabulary.length;
       }
     } catch (e) {
@@ -71,8 +71,8 @@ class VectorService {
       final json = prefs.getString(_vectorsKey);
 
       if (json != null) {
-        final Map<String, dynamic> data = jsonDecode(json);
-        _vectors = data.map((k, v) => MapEntry(k, List<double>.from(v)));
+        final Map<String, dynamic> data = jsonDecode(json) as Map<String, dynamic>;
+        _vectors = data.map((k, v) => MapEntry(k, List<double>.from(v as Iterable<dynamic>)));
       }
     } catch (e) {
       debugPrint('⚠️ Error loading vectors: $e');
@@ -252,9 +252,7 @@ class VectorService {
   }
 
   /// 📊 Get stored vector
-  List<double>? getVector(String topicId) {
-    return _vectors[topicId];
-  }
+  List<double>? getVector(String topicId) => _vectors[topicId];
 
   /// 🔄 Update topic vector
   Future<void> updateTopicVector(String topicId, String newContent) async {
@@ -293,13 +291,11 @@ class VectorService {
   }
 
   /// 📊 Get stats
-  Map<String, dynamic> getStats() {
-    return {
-      'vocabularySize': _vocabSize,
-      'storedVectors': _vectors.length,
-      'vectorDimension': vectorDimension,
-    };
-  }
+  Map<String, dynamic> getStats() => {
+        'vocabularySize': _vocabSize,
+        'storedVectors': _vectors.length,
+        'vectorDimension': vectorDimension,
+      };
 }
 
 // ============================================================

@@ -59,9 +59,9 @@ class WebSearchService {
       final json = prefs.getString(_cacheKey);
 
       if (json != null) {
-        final Map<String, dynamic> data = jsonDecode(json);
+        final Map<String, dynamic> data = jsonDecode(json) as Map<String, dynamic>;
         _cache = data.map((key, value) =>
-            MapEntry(key, CachedSearch.fromJson(value)));
+            MapEntry(key, CachedSearch.fromJson(value as Map<String, dynamic>)));
 
         // Clean expired cache
         _cache.removeWhere((_, v) => v.isExpired);
@@ -116,7 +116,7 @@ class WebSearchService {
     if (_lastSearchTime != null) {
       final elapsed = DateTime.now().difference(_lastSearchTime!);
       if (elapsed < minSearchInterval) {
-        await Future.delayed(minSearchInterval - elapsed);
+        await Future<void>.delayed(minSearchInterval - elapsed);
       }
     }
     _lastSearchTime = DateTime.now();
@@ -185,7 +185,6 @@ class WebSearchService {
       for (final result in results.take(maxResults)) {
         final titleElement = result.querySelector('.result__a');
         final snippetElement = result.querySelector('.result__snippet');
-        final urlElement = result.querySelector('.result__url');
 
         if (titleElement != null) {
           final title = titleElement.text.trim();
@@ -358,7 +357,7 @@ class WebSearchService {
 
     // Remove script, style, nav, footer, header elements
     document.querySelectorAll('script, style, nav, footer, header, aside')
-        .forEach((e) => e.remove());
+        .forEach((e) => (e as dynamic).remove());
 
     // Try to find main content area
     final mainSelectors = [
@@ -567,7 +566,7 @@ class CachedSearch {
       result: SearchResult(
         query: resultJson['query'] as String,
         items: (resultJson['items'] as List)
-            .map((i) => SearchItem.fromJson(i))
+            .map((i) => SearchItem.fromJson(i as Map<String, dynamic>))
             .toList(),
         source: resultJson['source'] as String,
       ),

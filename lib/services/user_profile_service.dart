@@ -49,7 +49,7 @@ class UserProfileService {
       final json = prefs.getString(_profileKey);
 
       if (json != null) {
-        _profile = UserProfile.fromJson(jsonDecode(json));
+        _profile = UserProfile.fromJson(jsonDecode(json) as Map<String, dynamic>);
       }
     } catch (e) {
       debugPrint('⚠️ Error loading profile: $e');
@@ -73,8 +73,8 @@ class UserProfileService {
       final json = prefs.getString(_factsKey);
 
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _pendingFacts = list.map((e) => PendingFact.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _pendingFacts = list.map((e) => PendingFact.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Error loading facts: $e');
@@ -377,35 +377,31 @@ class UserProfile {
     List<String>? goals,
     List<String>? completedGoals,
     Map<String, String>? customFields,
-  }) {
-    return UserProfile(
-      name: name ?? this.name,
-      nickname: nickname ?? this.nickname,
-      role: role ?? this.role,
-      likes: likes ?? this.likes,
-      dislikes: dislikes ?? this.dislikes,
-      goals: goals ?? this.goals,
-      completedGoals: completedGoals ?? this.completedGoals,
-      customFields: customFields ?? this.customFields,
-      updatedAt: DateTime.now(),
-    );
-  }
+  }) => UserProfile(
+        name: name ?? this.name,
+        nickname: nickname ?? this.nickname,
+        role: role ?? this.role,
+        likes: likes ?? this.likes,
+        dislikes: dislikes ?? this.dislikes,
+        goals: goals ?? this.goals,
+        completedGoals: completedGoals ?? this.completedGoals,
+        customFields: customFields ?? this.customFields,
+        updatedAt: DateTime.now(),
+      );
 
-  factory UserProfile.fromJson(Map<String, dynamic> json) {
-    return UserProfile(
-      name: json['name'] as String? ?? '',
-      nickname: json['nickname'] as String? ?? '',
-      role: json['role'] as String? ?? '',
-      likes: List<String>.from(json['likes'] ?? []),
-      dislikes: List<String>.from(json['dislikes'] ?? []),
-      goals: List<String>.from(json['goals'] ?? []),
-      completedGoals: List<String>.from(json['completedGoals'] ?? []),
-      customFields: Map<String, String>.from(json['customFields'] ?? {}),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
-    );
-  }
+  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
+        name: json['name'] as String? ?? '',
+        nickname: json['nickname'] as String? ?? '',
+        role: json['role'] as String? ?? '',
+        likes: List<String>.from(json['likes'] as Iterable<dynamic>? ?? []),
+        dislikes: List<String>.from(json['dislikes'] as Iterable<dynamic>? ?? []),
+        goals: List<String>.from(json['goals'] as Iterable<dynamic>? ?? []),
+        completedGoals: List<String>.from(json['completedGoals'] as Iterable<dynamic>? ?? []),
+        customFields: Map<String, String>.from(json['customFields'] as Map<dynamic, dynamic>? ?? {}),
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.parse(json['updatedAt'] as String)
+            : DateTime.now(),
+      );
 
   Map<String, dynamic> toJson() => {
         'name': name,
@@ -434,17 +430,15 @@ class PendingFact {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  factory PendingFact.fromJson(Map<String, dynamic> json) {
-    return PendingFact(
-      type: FactType.values.firstWhere(
-        (t) => t.name == json['type'],
-        orElse: () => FactType.like,
-      ),
-      value: json['value'] as String,
-      source: json['source'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-    );
-  }
+  factory PendingFact.fromJson(Map<String, dynamic> json) => PendingFact(
+        type: FactType.values.firstWhere(
+          (t) => t.name == json['type'],
+          orElse: () => FactType.like,
+        ),
+        value: json['value'] as String,
+        source: json['source'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
 
   Map<String, dynamic> toJson() => {
         'type': type.name,

@@ -28,7 +28,8 @@
         android:label="Haku"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@style/LaunchTheme">
+        android:theme="@style/LaunchTheme"
+        android:extractNativeLibs="true">
         
         <!-- 🎯 Main Activity -->
         <activity

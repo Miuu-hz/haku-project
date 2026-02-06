@@ -1,11 +1,11 @@
-/// 💬 Chat Message Model
-///
-/// ใช้เก็บข้อความในหน้าแชท รองรับหลายประเภท:
-/// - User message
-/// - Assistant message
-/// - Proactive message (trigger)
-/// - Loading indicator
-/// - Error message
+// 💬 Chat Message Model
+//
+// ใช้เก็บข้อความในหน้าแชท รองรับหลายประเภท:
+// - User message
+// - Assistant message
+// - Proactive message (trigger)
+// - Loading indicator
+// - Error message
 
 enum ChatMessageType {
   user,

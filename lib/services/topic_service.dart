@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,8 +56,8 @@ class TopicService {
       final json = prefs.getString(_topicsKey);
 
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _topics = list.map((e) => Topic.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _topics = list.map((e) => Topic.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Error loading topics: $e');
@@ -72,7 +71,7 @@ class TopicService {
       final json = prefs.getString(_indexKey);
 
       if (json != null) {
-        _messageIndex = Map<String, String>.from(jsonDecode(json));
+        _messageIndex = Map<String, String>.from(jsonDecode(json) as Map<dynamic, dynamic>);
       }
     } catch (e) {
       debugPrint('⚠️ Error loading index: $e');
@@ -427,21 +426,19 @@ class Topic {
     }
   }
 
-  factory Topic.fromJson(Map<String, dynamic> json) {
-    return Topic(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      summary: json['summary'] as String,
-      startIndex: json['startIndex'] as int,
-      endIndex: json['endIndex'] as int,
-      keywords: Set<String>.from(json['keywords'] ?? []),
-      isPending: json['isPending'] as bool? ?? false,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : null,
-    );
-  }
+  factory Topic.fromJson(Map<String, dynamic> json) => Topic(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        summary: json['summary'] as String,
+        startIndex: json['startIndex'] as int,
+        endIndex: json['endIndex'] as int,
+        keywords: Set<String>.from(json['keywords'] as Iterable<dynamic>? ?? []),
+        isPending: json['isPending'] as bool? ?? false,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.parse(json['updatedAt'] as String)
+            : null,
+      );
 
   Map<String, dynamic> toJson() => {
         'id': id,

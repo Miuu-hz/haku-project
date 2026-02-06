@@ -164,7 +164,7 @@ class AIActionService {
           );
 
         case AIActionType.unknown:
-          return ActionExecuteResult(success: false);
+          return const ActionExecuteResult(success: false);
       }
     } catch (e) {
       debugPrint('❌ Execute action failed: $e');
@@ -325,7 +325,7 @@ class AIActionService {
     final type = action.params['type']; // restaurant, cafe, etc.
 
     if (query.isEmpty) {
-      return ActionExecuteResult(
+      return const ActionExecuteResult(
         success: false,
         error: 'No search query provided',
       );
@@ -413,7 +413,7 @@ class AIActionService {
     final query = action.params['query'] ?? '';
 
     if (query.isEmpty) {
-      return ActionExecuteResult(
+      return const ActionExecuteResult(
         success: false,
         error: 'No search query provided',
       );

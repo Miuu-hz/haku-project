@@ -73,8 +73,8 @@ class GeofenceService {
       final json = prefs.getString(_zonesKey);
 
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _zones = list.map((e) => GeofenceZone.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _zones = list.map((e) => GeofenceZone.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Error loading geofence zones: $e');
@@ -392,27 +392,23 @@ class GeofenceZone {
     required this.createdAt,
   });
 
-  factory GeofenceZone.fromJson(Map<String, dynamic> json) {
-    return GeofenceZone(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      latitude: json['latitude'] as double,
-      longitude: json['longitude'] as double,
-      radius: json['radius'] as double,
-      icon: json['icon'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-    );
-  }
+  factory GeofenceZone.fromJson(Map<String, dynamic> json) => GeofenceZone(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        latitude: json['latitude'] as double,
+        longitude: json['longitude'] as double,
+        radius: json['radius'] as double,
+        icon: json['icon'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'latitude': latitude,
-      'longitude': longitude,
-      'radius': radius,
-      'icon': icon,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'radius': radius,
+        'icon': icon,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }

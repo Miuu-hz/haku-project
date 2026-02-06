@@ -203,8 +203,8 @@ class DeferredTaskService {
       final json = prefs.getString(_queueKey);
 
       if (json != null) {
-        final List<dynamic> list = jsonDecode(json);
-        _taskQueue = list.map((e) => DeferredTask.fromJson(e)).toList();
+        final List<dynamic> list = jsonDecode(json) as List<dynamic>;
+        _taskQueue = list.map((e) => DeferredTask.fromJson(e as Map<String, dynamic>)).toList();
         _sortQueue();
       }
     } catch (e) {
@@ -261,51 +261,45 @@ class DeferredTask {
     TaskStatus? status,
     DateTime? completedAt,
     String? error,
-  }) {
-    return DeferredTask(
-      id: id,
-      type: type,
-      payload: payload,
-      priority: priority,
-      status: status ?? this.status,
-      createdAt: createdAt,
-      expiresAt: expiresAt,
-      completedAt: completedAt ?? this.completedAt,
-      error: error ?? this.error,
-    );
-  }
+  }) => DeferredTask(
+        id: id,
+        type: type,
+        payload: payload,
+        priority: priority,
+        status: status ?? this.status,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        completedAt: completedAt ?? this.completedAt,
+        error: error ?? this.error,
+      );
 
-  factory DeferredTask.fromJson(Map<String, dynamic> json) {
-    return DeferredTask(
-      id: json['id'] as String,
-      type: json['type'] as String,
-      payload: Map<String, dynamic>.from(json['payload'] as Map),
-      priority: TaskPriority.values[json['priority'] as int],
-      status: TaskStatus.values[json['status'] as int],
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      expiresAt: json['expiresAt'] != null
-          ? DateTime.parse(json['expiresAt'] as String)
-          : null,
-      completedAt: json['completedAt'] != null
-          ? DateTime.parse(json['completedAt'] as String)
-          : null,
-      error: json['error'] as String?,
-    );
-  }
+  factory DeferredTask.fromJson(Map<String, dynamic> json) => DeferredTask(
+        id: json['id'] as String,
+        type: json['type'] as String,
+        payload: Map<String, dynamic>.from(json['payload'] as Map),
+        priority: TaskPriority.values[json['priority'] as int],
+        status: TaskStatus.values[json['status'] as int],
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        expiresAt: json['expiresAt'] != null
+            ? DateTime.parse(json['expiresAt'] as String)
+            : null,
+        completedAt: json['completedAt'] != null
+            ? DateTime.parse(json['completedAt'] as String)
+            : null,
+        error: json['error'] as String?,
+      );
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'type': type,
-      'payload': payload,
-      'priority': priority.index,
-      'status': status.index,
-      'createdAt': createdAt.toIso8601String(),
-      'expiresAt': expiresAt?.toIso8601String(),
-      'completedAt': completedAt?.toIso8601String(),
-      'error': error,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'payload': payload,
+        'priority': priority.index,
+        'status': status.index,
+        'createdAt': createdAt.toIso8601String(),
+        'expiresAt': expiresAt?.toIso8601String(),
+        'completedAt': completedAt?.toIso8601String(),
+        'error': error,
+      };
 }
 
 /// ⚡ Task Priority

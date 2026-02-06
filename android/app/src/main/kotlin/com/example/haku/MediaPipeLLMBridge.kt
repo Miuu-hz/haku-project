@@ -3,8 +3,6 @@ package com.example.haku
 import android.content.Context
 import android.util.Log
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import com.google.mediapipe.tasks.genai.llminference.LlmInferenceResult
-import com.google.mediapipe.tasks.core.OutputHandler
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileNotFoundException
@@ -14,11 +12,6 @@ import java.io.FileNotFoundException
  * 
  * ใช้ MediaPipe Tasks GenAI สำหรับรันโมเดล LiteRT (.task)
  * รองรับโมเดล: Gemma-3, Phi-4, Qwen ผ่าน LiteRT format
- * 
- * ข้อดี:
- * - ไม่ต้อง compile native library (C++)
- * - All-in-one: มี tokenizer ในตัว
- * - รองรับ GPU acceleration ผ่าน LiteRT
  */
 class MediaPipeLLMBridge(private val context: Context) {
     
@@ -45,7 +38,7 @@ class MediaPipeLLMBridge(private val context: Context) {
     
     /**
      * 📥 โหลดโมเดล MediaPipe (.task file)
-     *
+     * 
      * @param modelPath Path ไปยังไฟล์ .task
      * @param maxTokens จำนวน token สูงสุด (default: 1024)
      * @return true ถ้าโหลดสำเร็จ
@@ -56,20 +49,15 @@ class MediaPipeLLMBridge(private val context: Context) {
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
-
-            // ตรวจสอบไฟล์
+            
             val modelFile = File(modelPath)
             if (!modelFile.exists()) {
                 Log.e(TAG, "❌ Model file not found: $modelPath")
                 return@withContext false
             }
-
-            // ปิดโมเดลเก่าถ้ามี
+            
             unloadModel()
-
-            // สร้าง LlmInference
-            // Note: temperature ไม่สามารถตั้งค่าได้ใน LlmInferenceOptions
-            // ต้องใช้ค่า default ของโมเดล
+            
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(maxTokens)
@@ -92,10 +80,7 @@ class MediaPipeLLMBridge(private val context: Context) {
     }
     
     /**
-     * 💬 Generate text แบบ synchronous
-     * 
-     * @param prompt ข้อความ input
-     * @return ข้อความที่สร้าง
+     * 💬 Generate text (Synchronous)
      */
     suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         if (llmInference == null) {
@@ -119,10 +104,9 @@ class MediaPipeLLMBridge(private val context: Context) {
     }
     
     /**
-     * 💬 Generate text แบบ streaming
+     * 💬 Generate text with Streaming
      * 
-     * @param prompt ข้อความ input
-     * @param onToken callback สำหรับแต่ละ token
+     * Note: MediaPipe 0.10.20 - ใช้ generateResponse() แล้ว simulate streaming
      */
     suspend fun generateStream(
         prompt: String,
@@ -136,12 +120,20 @@ class MediaPipeLLMBridge(private val context: Context) {
         try {
             Log.d(TAG, "🤖 Generating with MediaPipe (streaming)...")
             
-            val outputHandler = OutputHandler<LlmInferenceResult> { result ->
-                val text = result.results.firstOrNull()?.outputText ?: ""
-                onToken(text)
+            val fullResult = llmInference?.generateResponse(prompt) ?: ""
+            
+            // Simulate streaming by sending chunks
+            val chunkSize = 10
+            var currentPos = 0
+            while (currentPos < fullResult.length) {
+                val endPos = minOf(currentPos + chunkSize, fullResult.length)
+                val chunk = fullResult.substring(currentPos, endPos)
+                onToken(chunk)
+                currentPos = endPos
+                delay(50) // Small delay to simulate streaming
             }
             
-            llmInference?.generateResponseAsync(prompt, outputHandler)
+            Log.d(TAG, "✅ Streaming completed")
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Streaming generation failed: ${e.message}")

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/place_service.dart';
@@ -15,7 +14,7 @@ import '../services/place_service.dart';
 
 class LocationPickerWidget extends StatefulWidget {
   final LatLng? initialLocation;
-  final Function(LatLng location, String? placeName)? onLocationSelected;
+  final void Function(LatLng location, String? placeName)? onLocationSelected;
   final bool showSearch;
   final bool showSavedPlaces;
   final double height;
@@ -190,8 +189,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme) {
-    return Padding(
+  Widget _buildSearchBar(ThemeData theme) => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: TextField(
         controller: _searchController,
@@ -226,10 +224,8 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
         onSubmitted: _searchPlaces,
       ),
     );
-  }
 
-  Widget _buildSearchResults(ThemeData theme) {
-    return Container(
+  Widget _buildSearchResults(ThemeData theme) => Container(
       margin: const EdgeInsets.only(top: 8),
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
@@ -263,7 +259,6 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
         },
       ),
     );
-  }
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
@@ -414,29 +409,27 @@ class LocationPickerScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('เลือกสถานที่'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ยกเลิก'),
-          ),
-        ],
-      ),
-      body: LocationPickerWidget(
-        initialLocation: initialLocation,
-        height: MediaQuery.of(context).size.height - 150,
-        onLocationSelected: (location, name) {
-          Navigator.pop(context, {
-            'location': location,
-            'name': name,
-          });
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          title: const Text('เลือกสถานที่'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ยกเลิก'),
+            ),
+          ],
+        ),
+        body: LocationPickerWidget(
+          initialLocation: initialLocation,
+          height: MediaQuery.of(context).size.height - 150,
+          onLocationSelected: (location, name) {
+            Navigator.pop(context, {
+              'location': location,
+              'name': name,
+            });
+          },
+        ),
+      );
 }
 
 /// 🗺️ Mini Map Preview
