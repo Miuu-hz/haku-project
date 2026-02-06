@@ -548,7 +548,138 @@ OUTPUT RULES:
   }) {
     final preset = presetContext != null ? '\nMode: $presetContext' : '';
     final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
-    
+
     return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now$preset$objective\n\nInput: $message\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai reply"\n}<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 🎬 Full Action Instructions - คำสั่งสำหรับ AI ทำ actions
+  static const String _actionInstructions = r'''
+AVAILABLE ACTIONS (use when needed):
+- Schedule event: [ACTION:SCHEDULE] title="...", date=YYYY-MM-DD, time=HH:MM, location="..."
+- Set reminder: [ACTION:REMINDER] message="...", minutes=15
+- Create objective: [ACTION:OBJECTIVE] title="...", due=YYYY-MM-DD
+- Search place: [ACTION:SEARCH_PLACE] query="ร้านกาแฟ ทองหล่อ", type=cafe
+- Save place: [ACTION:SAVE_PLACE] name="...", lat=13.XXX, lng=100.XXX
+- Web search: [ACTION:WEB_SEARCH] query="..."
+- Sync to Google Calendar: [ACTION:SYNC_CALENDAR] title="...", date=..., time=...
+- Open navigation: [ACTION:NAVIGATE] lat=..., lng=..., name="..."
+- Ask user for location: [ACTION:ASK_LOCATION] message="เลือกสถานที่นัดพบ"
+
+WHEN TO USE ACTIONS:
+- User mentions appointment/event → use SCHEDULE
+- User mentions place → offer to SEARCH_PLACE
+- User asks "what is..." or needs info → use WEB_SEARCH
+- User wants to save location → use SAVE_PLACE
+- User wants to navigate → use NAVIGATE
+''';
+
+  /// 💬 Chat with Actions - AI สามารถสั่งงานได้
+  static String forChatWithActions(
+    String message, {
+    String? presetContext,
+    String? objectiveContext,
+    String? chatHistory,
+    String? locationContext,
+  }) {
+    final preset = presetContext != null ? '\nMode: $presetContext' : '';
+    final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
+    final history = chatHistory != null ? '\n\nChat History:\n$chatHistory' : '';
+    final location = locationContext != null ? '\nCurrent Location: $locationContext' : '';
+
+    return '''<start_of_turn>user
+$_hakuIdentity
+
+$_actionInstructions
+
+Current Time: $_now$preset$objective$location$history
+
+Input: $message
+
+IMPORTANT:
+- If user mentions a meeting/event with location, ask if they want to search for place
+- If user needs information, use WEB_SEARCH
+- Always respond in Thai
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai message (include [ACTION:...] tags if needed)"
+}<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 🔍 Process Search Results - ให้ AI ประมวลผลผลลัพธ์
+  static String forProcessSearchResults(
+    String originalQuestion,
+    String searchResults,
+  ) {
+    return '''<start_of_turn>user
+$_hakuIdentity
+
+User asked: $originalQuestion
+
+Search Results:
+$searchResults
+
+Task: Summarize the search results and answer user's question in Thai.
+Be helpful and cite sources if available.
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai answer based on search results"
+}<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 📍 Process Place Results - ให้ AI แนะนำจากผลค้นหาสถานที่
+  static String forProcessPlaceResults(
+    String originalRequest,
+    String placeResults,
+  ) {
+    return '''<start_of_turn>user
+$_hakuIdentity
+
+User asked: $originalRequest
+
+Found Places:
+$placeResults
+
+Task: Recommend places from the results in a friendly way.
+Ask if user wants to:
+1. Save any place
+2. Navigate to a place
+3. Add to their schedule
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai recommendation with emoji"
+}<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 🗺️ Location Context - บอก AI ว่าผู้ใช้อยู่ที่ไหน
+  static String buildLocationContext({
+    String? currentPlace,
+    String? nearbyPlaces,
+    String? lastVisitInfo,
+  }) {
+    final buffer = StringBuffer();
+
+    if (currentPlace != null) {
+      buffer.writeln('📍 Current: $currentPlace');
+    }
+    if (nearbyPlaces != null) {
+      buffer.writeln('🏪 Nearby: $nearbyPlaces');
+    }
+    if (lastVisitInfo != null) {
+      buffer.writeln('📝 Last visit: $lastVisitInfo');
+    }
+
+    return buffer.toString();
   }
 }
