@@ -45,35 +45,34 @@ class MediaPipeLLMBridge(private val context: Context) {
     
     /**
      * 📥 โหลดโมเดล MediaPipe (.task file)
-     * 
+     *
      * @param modelPath Path ไปยังไฟล์ .task
      * @param maxTokens จำนวน token สูงสุด (default: 1024)
-     * @param temperature ค่าความสร้างสรรค์ (0.0 - 1.0, default: 0.7)
      * @return true ถ้าโหลดสำเร็จ
      */
     suspend fun loadModel(
         modelPath: String,
-        maxTokens: Int = 1024,
-        temperature: Float = 0.7f
+        maxTokens: Int = 1024
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
-            
+
             // ตรวจสอบไฟล์
             val modelFile = File(modelPath)
             if (!modelFile.exists()) {
                 Log.e(TAG, "❌ Model file not found: $modelPath")
                 return@withContext false
             }
-            
+
             // ปิดโมเดลเก่าถ้ามี
             unloadModel()
-            
+
             // สร้าง LlmInference
+            // Note: temperature ไม่สามารถตั้งค่าได้ใน LlmInferenceOptions
+            // ต้องใช้ค่า default ของโมเดล
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(maxTokens)
-                .setTemperature(temperature)
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
