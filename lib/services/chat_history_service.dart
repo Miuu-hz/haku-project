@@ -10,9 +10,14 @@ import 'llm_service.dart';
 /// 💬 Chat History Service - เก็บประวัติแชทและสรุปอัตโนมัติ
 ///
 /// Features:
-/// - เก็บ raw chat history ไว้ให้ AI อ่าน context
+/// - เก็บ raw chat history ไว้ให้ AI อ่าน context (100 ข้อความ)
 /// - สรุปอัตโนมัติหลัง 24 ชม. ตอนชาร์จ (Defer to Charging)
+/// - Reply Reference: อ้างอิงข้อความเก่า ±2 messages
 /// - รักษา context ล่าสุดไว้เสมอ
+///
+/// Haku Engine Integration:
+/// - The Face: ใช้ getReplyContext() สำหรับ reply
+/// - The Worker: ใช้ forceSummarize() ตอนชาร์จ
 
 class ChatHistoryService {
   static final ChatHistoryService _instance = ChatHistoryService._internal();
@@ -115,10 +120,11 @@ class ChatHistoryService {
   }
 
   /// ➕ เพิ่มข้อความใหม่
-  Future<void> addMessage({
+  Future<ChatEntry> addMessage({
     required String role,
     required String content,
     List<String>? actions,
+    String? replyToId,
   }) async {
     final entry = ChatEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -126,6 +132,7 @@ class ChatHistoryService {
       content: content,
       timestamp: DateTime.now(),
       actions: actions,
+      replyToId: replyToId,
     );
 
     _rawHistory.add(entry);
@@ -137,6 +144,50 @@ class ChatHistoryService {
     }
 
     await _saveToStorage();
+    return entry;
+  }
+
+  /// 🔍 ค้นหาข้อความด้วย ID
+  ChatEntry? getMessageById(String id) {
+    return _rawHistory.firstWhere(
+      (e) => e.id == id,
+      orElse: () => ChatEntry.empty(),
+    );
+  }
+
+  /// 🔍 ค้นหา index ของข้อความ
+  int getMessageIndex(String id) {
+    return _rawHistory.indexWhere((e) => e.id == id);
+  }
+
+  /// 📋 ดึง context สำหรับ Reply (±2 messages around target)
+  ///
+  /// Returns messages around the reply target for AI context
+  List<ChatEntry> getReplyContext(String replyToId, {int radius = 2}) {
+    final targetIndex = getMessageIndex(replyToId);
+    if (targetIndex < 0) return [];
+
+    final start = (targetIndex - radius).clamp(0, _rawHistory.length);
+    final end = (targetIndex + radius + 1).clamp(0, _rawHistory.length);
+
+    return _rawHistory.sublist(start, end);
+  }
+
+  /// 📋 ดึง context สำหรับ Reply (Lean format for AI)
+  String getReplyContextLean(String replyToId, {int radius = 2}) {
+    final messages = getReplyContext(replyToId, radius: radius);
+    if (messages.isEmpty) return '';
+
+    final targetId = replyToId;
+    final buffer = StringBuffer();
+
+    for (final msg in messages) {
+      final prefix = msg.role == 'user' ? 'U' : 'H';
+      final marker = msg.id == targetId ? '→' : ' ';
+      buffer.writeln('$marker$prefix:${msg.content}');
+    }
+
+    return buffer.toString();
   }
 
   /// 📝 ดึง context สำหรับ AI (รวม summaries + recent raw)
@@ -317,6 +368,7 @@ class ChatEntry {
   final String content;
   final DateTime timestamp;
   final List<String>? actions;
+  final String? replyToId; // ID of message being replied to
 
   ChatEntry({
     required this.id,
@@ -324,7 +376,22 @@ class ChatEntry {
     required this.content,
     required this.timestamp,
     this.actions,
+    this.replyToId,
   });
+
+  /// Empty entry for orElse
+  factory ChatEntry.empty() => ChatEntry(
+        id: '',
+        role: '',
+        content: '',
+        timestamp: DateTime.now(),
+      );
+
+  /// Is this a reply to another message?
+  bool get isReply => replyToId != null && replyToId!.isNotEmpty;
+
+  /// Is this an empty entry?
+  bool get isEmpty => id.isEmpty;
 
   factory ChatEntry.fromJson(Map<String, dynamic> json) {
     return ChatEntry(
@@ -335,6 +402,7 @@ class ChatEntry {
       actions: json['actions'] != null
           ? List<String>.from(json['actions'] as List)
           : null,
+      replyToId: json['replyToId'] as String?,
     );
   }
 
@@ -345,6 +413,7 @@ class ChatEntry {
       'content': content,
       'timestamp': timestamp.toIso8601String(),
       'actions': actions,
+      'replyToId': replyToId,
     };
   }
 }

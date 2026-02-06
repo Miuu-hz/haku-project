@@ -682,4 +682,147 @@ Output JSON:
 
     return buffer.toString();
   }
+
+  // ============================================================
+  // 🏛️ HAKU ENGINE PROMPTS (The Face)
+  // ============================================================
+
+  /// 🎭 The Face - Main chat prompt with full context
+  ///
+  /// Components:
+  /// - [Identity]: User profile (Lean format)
+  /// - [Status]: Time, location, battery
+  /// - [Mem]: RAG topic summaries (English)
+  /// - [Reply]: Referenced context (if replying)
+  /// - [Recent]: Recent messages (Thai)
+  static String forHakuEngine({
+    required String userInput,
+    required String identityCard,
+    required String statusBar,
+    String? memoryContext,
+    String? replyContext,
+    String? recentMessages,
+  }) {
+    final buffer = StringBuffer();
+
+    // System identity (short)
+    buffer.writeln('Role: Haku (Private Life OS)');
+    buffer.writeln('Style: Short Thai, emoji, proactive');
+
+    // Identity Card
+    if (identityCard.isNotEmpty) {
+      buffer.writeln(identityCard);
+    }
+
+    // Status Bar
+    buffer.writeln(statusBar);
+
+    // Memory (RAG)
+    if (memoryContext != null && memoryContext.isNotEmpty) {
+      buffer.writeln('[Mem]');
+      buffer.writeln(memoryContext);
+    }
+
+    // Reply context
+    if (replyContext != null && replyContext.isNotEmpty) {
+      buffer.writeln('[Reply]');
+      buffer.writeln(replyContext);
+    }
+
+    // Recent messages
+    if (recentMessages != null && recentMessages.isNotEmpty) {
+      buffer.writeln('[Recent]');
+      buffer.writeln(recentMessages);
+    }
+
+    // Actions
+    buffer.writeln(_actionInstructionsLean);
+
+    return '''<start_of_turn>user
+${buffer.toString()}
+Input: $userInput
+
+Reply in Thai (1-2 sentences). Use [ACTION:...] if needed.
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 🎬 Lean Action Instructions
+  static const String _actionInstructionsLean = r'''
+[Actions]
+SCHEDULE:title,date,time,location|REMINDER:msg,mins|OBJECTIVE:title,due
+SEARCH_PLACE:query,type|SAVE_PLACE:name,lat,lng|WEB_SEARCH:query
+SYNC_CALENDAR:title,date|NAVIGATE:lat,lng,name|ASK_LOCATION:msg''';
+
+  // ============================================================
+  // 👷 HAKU ENGINE PROMPTS (The Worker)
+  // ============================================================
+
+  /// 👷 Worker - Summarize Thai to English
+  static String forWorkerSummarize(List<String> messages) {
+    final joined = messages.join('\n');
+    return '''<start_of_turn>user
+Task: Summarize Thai conversation in English (2-3 sentences).
+Focus: topic, emotions, key facts/dates.
+
+$joined
+
+English summary:
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 👷 Worker - Generate topic name
+  static String forWorkerTopicName(String summary) {
+    return '''<start_of_turn>user
+Create short topic name (2-4 words) for:
+$summary
+
+Topic:
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 👷 Worker - Extract facts from message
+  static String forWorkerExtractFacts(String message) {
+    return '''<start_of_turn>user
+Extract personal facts from Thai message.
+Return: likes[], dislikes[], goals[], or empty.
+
+Message: $message
+
+JSON:
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  // ============================================================
+  // 🔔 PROACTIVE PROMPTS
+  // ============================================================
+
+  /// 🔔 Proactive greeting with context
+  static String forProactiveGreeting({
+    required String identityCard,
+    required String statusBar,
+    required String trigger,
+    String? relevantMemory,
+  }) {
+    final memory = relevantMemory != null ? '\n[Mem]\n$relevantMemory' : '';
+
+    return '''<start_of_turn>user
+Role: Haku (proactive assistant)
+$identityCard
+$statusBar$memory
+
+Trigger: $trigger
+
+Create friendly Thai greeting (1 sentence) based on trigger and context.
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
 }
