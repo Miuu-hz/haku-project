@@ -12,6 +12,8 @@ import '../services/rag_service.dart';
 import '../services/chat_summary_service.dart';
 import '../services/mediapipe_llm_service.dart';
 import '../services/prompt_builder.dart';
+import '../services/smart_preprocessor.dart';
+import '../services/user_profile_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 /// 
@@ -39,22 +41,53 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🤖 ส่งข้อความไปให้ AI พร้อม Context Retriever
+  /// 🤖 ส่งข้อความไปให้ AI พร้อม Smart Preprocessing
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
     debugPrint('🚀 ============================================');
     debugPrint('🚀 sendToAI called: $userMessage');
-    
+
+    final preprocessor = SmartPreprocessor();
+
+    // 🎯 ตรวจสอบ Quick Action ก่อน (ตอบได้เลยไม่ต้องผ่าน LLM)
+    final quickAction = preprocessor.detectQuickAction(userMessage);
+    if (quickAction != null) {
+      debugPrint('⚡ Quick Action detected: ${quickAction.type}');
+      addMessage(ChatMessage.user(userMessage));
+      addMessage(ChatMessage.assistant(quickAction.response));
+      debugPrint('✅ Quick Action completed');
+      debugPrint('🚀 ============================================');
+      return;
+    }
+
     // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
     addMessage(ChatMessage.user(userMessage));
-    
+
     // แสดง "กำลังพิมพ์..."
     addMessage(ChatMessage.loading());
 
     String? response;
-    
+
     try {
       String contextStr = '';
-      
+
+      // 🧠 Smart Preprocessing: ตรวจจับ intent และเสริม context
+      debugPrint('🧠 Running Smart Preprocessing...');
+
+      // สร้าง chat history จาก state ปัจจุบัน
+      final recentHistory = state
+          .where((m) => !m.isLoading && !m.isError && !m.isWelcome)
+          .take(10)
+          .map((m) => ChatHistoryItem(
+                content: m.content,
+                isUser: m.isUser,
+              ))
+          .toList();
+
+      final preprocessResult = await preprocessor.preprocess(
+        userMessage,
+        recentHistory: recentHistory,
+      );
+
       // 🧠 Context Retriever: ดึงข้อมูลจากหลายแหล่ง
       if (useContext) {
         debugPrint('🔄 Retrieving context...');
@@ -67,10 +100,15 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         } catch (e, stackTrace) {
           debugPrint('⚠️ Context retrieval failed: $e');
           debugPrint('Stack: $stackTrace');
-          // ยังคงทำต่อโดยไม่มี context
         }
       }
-      
+
+      // รวม context ทั้งหมด
+      final fullContext = [
+        preprocessResult.enrichedContext,
+        contextStr,
+      ].where((s) => s.isNotEmpty).join('\n\n');
+
       // 🎯 เรียก MediaPipe LLM แบบ Lazy Loading
       final llm = MediaPipeLLMService();
 
@@ -86,7 +124,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           // สร้าง prompt ที่มี system prompt + context + user message
           final prompt = PromptBuilder.buildGemmaPrompt(
             userMessage: userMessage,
-            context: contextStr.isNotEmpty ? contextStr : null,
+            context: fullContext.isNotEmpty ? fullContext : null,
           );
           response = await llm.generate(prompt);
           debugPrint('✅ LLM responded');
@@ -95,17 +133,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           response = null;
         }
       }
-      
+
       // Fallback ไป Mock ถ้า LLM ไม่พร้อม
       if (response == null || response.isEmpty) {
         debugPrint('🔄 Using mock response...');
         response = await AIService.getMockResponse(userMessage);
       }
-      
+
       debugPrint('🔄 Removing loading message...');
       // ลบ "กำลังพิมพ์..." ออก
       state = state.where((m) => !m.isLoading).toList();
-      
+
       debugPrint('🔄 Adding assistant message...');
       // เพิ่มคำตอบ
       addMessage(ChatMessage.assistant(
@@ -114,14 +152,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       ));
       debugPrint('✅ sendToAI completed successfully');
       debugPrint('🚀 ============================================');
-      
+
     } catch (e, stackTrace) {
       debugPrint('❌❌❌ CRITICAL ERROR in sendToAI: $e');
       debugPrint('Stack: $stackTrace');
-      
+
       // ลบ loading ถ้ายังมี
       state = state.where((m) => !m.isLoading).toList();
-      
+
       // แสดงข้อความ error ที่ user เข้าใจ
       addMessage(ChatMessage.error(
         'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
