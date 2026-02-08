@@ -53,9 +53,10 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // TODO: Re-enable minification after fixing ProGuard rules
+            minifyEnabled false
+            shrinkResources false
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             signingConfig signingConfigs.debug
@@ -91,4 +92,7 @@ dependencies {
     
     // Coroutines สำหรับ async operations
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
+    
+    // Google Play Core (สำหรับ deferred components)
+    implementation 'com.google.android.play:core:1.10.3'
 }
