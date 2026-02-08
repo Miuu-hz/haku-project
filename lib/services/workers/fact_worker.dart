@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../simple_vector_service.dart';
+import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 
 /// 📝 Fact Worker - ตรวจจับและบันทึกข้อมูลจากการสนทนา
@@ -21,7 +21,7 @@ class FactWorker {
   FactWorker._internal();
 
   final UserProfileService _userProfile = UserProfileService();
-  final SimpleVectorService _vectorService = SimpleVectorService();
+  final UnifiedVectorService _vectorService = UnifiedVectorService();
 
   // ============================================================
   // 🔍 DETECTION PATTERNS
@@ -344,19 +344,17 @@ class FactWorker {
   // 💾 RAG STORAGE
   // ============================================================
 
-  /// Save to RAG (Simple Vector)
+  /// Save to RAG (Unified Vector)
   Future<void> _saveToRAG(
     String category,
     String content,
     Map<String, dynamic> metadata,
   ) async {
     try {
-      await _vectorService.addEntry(
+      await _vectorService.addFact(
+        category: category,
         content: content,
-        metadata: {
-          'category': category,
-          ...metadata,
-        },
+        metadata: metadata,
       );
     } catch (e) {
       debugPrint('⚠️ Failed to save to RAG: $e');
