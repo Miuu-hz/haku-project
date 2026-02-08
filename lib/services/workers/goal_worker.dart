@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 
 /// 🎯 Goal Worker - ตรวจจับและติดตามเป้าหมาย
@@ -21,6 +22,7 @@ class GoalWorker {
 
   static const String _goalsKey = 'goals_data';
 
+  final UnifiedVectorService _vectorService = UnifiedVectorService();
   final UserProfileService _userProfile = UserProfileService();
   final List<Goal> _goals = [];
   bool _isInitialized = false;
@@ -187,6 +189,16 @@ class GoalWorker {
     // Also save to UserProfile
     await _userProfile.addGoal(goal.title);
 
+    // Save to RAG for long-term analysis
+    final targetStr = goal.target != null
+        ? '${goal.target!.amount} ${goal.target!.unit}/${goal.target!.period}'
+        : 'no target';
+    await _vectorService.addFact(
+      category: 'goal',
+      content: '${goal.category.name}: ${goal.title} ($targetStr)',
+      metadata: goal.toJson(),
+    );
+
     debugPrint('🎯 GoalWorker: Added - ${goal.title}');
   }
 
@@ -227,6 +239,13 @@ class GoalWorker {
 
       // Update UserProfile
       await _userProfile.completeGoal(_goals[index].title);
+
+      // Log completion to RAG for long-term analysis
+      await _vectorService.addFact(
+        category: 'goal_completed',
+        content: 'Completed goal: ${_goals[index].title}',
+        metadata: _goals[index].toJson(),
+      );
 
       debugPrint('✅ GoalWorker: Completed - ${_goals[index].title}');
     }

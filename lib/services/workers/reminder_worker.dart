@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../unified_vector_service.dart';
+
 /// 🔔 Reminder Worker - ตรวจจับและจัดการการเตือน
 ///
 /// ตรวจจับ:
@@ -19,6 +21,7 @@ class ReminderWorker {
 
   static const String _remindersKey = 'reminders';
 
+  final UnifiedVectorService _vectorService = UnifiedVectorService();
   final List<Reminder> _reminders = [];
   bool _isInitialized = false;
 
@@ -161,6 +164,14 @@ class ReminderWorker {
   Future<void> addReminder(Reminder reminder) async {
     _reminders.add(reminder);
     await _saveReminders();
+
+    // Save to RAG for long-term analysis
+    await _vectorService.addFact(
+      category: 'reminder',
+      content: '${reminder.content} at ${reminder.time?.toString() ?? "unspecified"} (${reminder.frequency.name})',
+      metadata: reminder.toJson(),
+    );
+
     debugPrint('🔔 ReminderWorker: Added - ${reminder.content}');
   }
 
