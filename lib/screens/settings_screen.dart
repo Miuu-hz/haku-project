@@ -9,6 +9,7 @@ import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/llm_service.dart';
 import '../utils/constants.dart';
+import '../widgets/profile_editor_widget.dart';
 
 /// ⚙️ หน้าตั้งค่า
 /// 
@@ -231,6 +232,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             onTap: () => _showLlmPathOptions(),
+          ),
+
+          const Divider(),
+
+          // 🪪 ส่วนโปรไฟล์ผู้ใช้
+          _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
+
+          ListTile(
+            leading: const Icon(Icons.person_outline, color: Color(0xFF9B7CB6)),
+            title: const Text(
+              'แก้ไขข้อมูลส่วนตัว',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              'ชื่อ, นิสัย, ความชอบ - AI จะจำและเรียนรู้',
+              style: TextStyle(color: Colors.white.withAlpha(150)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const ProfileEditorWidget(),
+                ),
+              );
+            },
           ),
 
           const Divider(),
