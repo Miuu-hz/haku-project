@@ -72,6 +72,16 @@ class WorkerService {
     _deferredService.registerHandler('process_topics', _handleProcessTopics);
     _deferredService.registerHandler('extract_facts', _handleExtractFacts);
     _deferredService.registerHandler('vectorize_topics', _handleVectorizeTopics);
+    _deferredService.registerHandler('health_analysis', _handleHealthAnalysis);
+  }
+
+  /// 💊 Handle health analysis task
+  Future<void> _handleHealthAnalysis(Map<String, dynamic> payload) async {
+    debugPrint('💊 Running health analysis...');
+    // TODO: Implement health analysis logic
+    // - Analyze health patterns from entries
+    // - Check for period tracking
+    // - Generate health insights
   }
 
   /// 🔌 On charging started
@@ -362,6 +372,14 @@ JSON:''';
     _deferredService.enqueue(
       taskType: 'vectorize_topics',
       priority: TaskPriority.low,
+    );
+  }
+
+  /// ➕ Queue health analysis
+  void queueHealthAnalysis() {
+    _deferredService.enqueue(
+      taskType: 'health_analysis',
+      priority: TaskPriority.normal,
     );
   }
 

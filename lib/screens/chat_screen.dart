@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +15,7 @@ import '../services/rag_service.dart';
 import '../services/chat_summary_service.dart';
 import '../services/mediapipe_llm_service.dart';
 import '../services/prompt_builder.dart';
-import 'dart:convert';
+import '../services/smart_preprocessor.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 /// 
@@ -70,34 +72,57 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🤖 ส่งข้อความไปให้ AI พร้อม Context Retriever
+  /// 🤖 ส่งข้อความไปให้ AI พร้อม Smart Preprocessing
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
-    debugPrint('🤖 AI: $userMessage');
+    debugPrint('🚀 ============================================');
+    debugPrint('🚀 sendToAI called: $userMessage');
     
     // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
     addMessage(ChatMessage.user(userMessage));
-    
+
     // แสดง "กำลังพิมพ์..."
     addMessage(ChatMessage.loading());
 
     String? response;
-    
+
     try {
       String contextStr = '';
+      PreprocessResult? preprocessResult;
       
-      // 🧠 Context Retriever
+      // 🧠 Smart Preprocessor: วิเคราะห์ intent + ดึง context (NEW)
       if (useContext) {
         try {
-          final contextData = await ContextRetriever().retrieveFullContext(
-            userQuery: userMessage,
+          debugPrint('🧠 Running SmartPreprocessor...');
+          final preprocessor = SmartPreprocessor();
+          preprocessResult = await preprocessor.preprocess(
+            userMessage,
+            useLeanContext: true, // ใช้ Lean Context ประหยัด token
           );
-          contextStr = ContextRetriever().buildContextString(contextData);
-        } catch (e) {
-          // Continue without context
+          contextStr = preprocessResult.enrichedContext;
+          debugPrint('✅ Preprocessing complete:');
+          debugPrint('   - Intent: ${preprocessResult.detectedIntent}');
+          debugPrint('   - Context length: ${contextStr.length}');
+          debugPrint('   - Worker results: ${preprocessResult.workerResults.getSummary()}');
+          
+          // บันทึก message เข้า LeanContext สำหรับใช้ใน session ต่อไป
+          await preprocessor.addToLeanContext(userMessage, isUser: true);
+        } catch (e, stackTrace) {
+          debugPrint('⚠️ SmartPreprocessor failed: $e');
+          debugPrint('Stack: $stackTrace');
+          // Fallback to ContextRetriever
+          try {
+            final contextData = await ContextRetriever().retrieveFullContext(
+              userQuery: userMessage,
+            );
+            contextStr = ContextRetriever().buildContextString(contextData);
+            debugPrint('✅ Fallback: ContextRetriever succeeded');
+          } catch (e2) {
+            debugPrint('⚠️ Fallback also failed: $e2');
+          }
         }
       }
       
-      // 🎯 เรียก MediaPipe LLM
+      // 🎯 เรียก MediaPipe LLM แบบ Lazy Loading
       final llm = MediaPipeLLMService();
 
       // 🔋 Lazy Loading
@@ -114,11 +139,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             context: contextStr.isNotEmpty ? contextStr : null,
           );
           response = await llm.generate(prompt);
+          
+          // บันทึก AI response เข้า LeanContext
+          if (response.isNotEmpty) {
+            final displayResponse = _extractResponseText(response);
+            await SmartPreprocessor().addToLeanContext(displayResponse, isUser: false);
+          }
         } catch (e) {
           response = null;
         }
       }
-      
+
       // Fallback ไป Mock ถ้า LLM ไม่พร้อม
       if (response == null || response.isEmpty) {
         response = await AIService.getMockResponse(userMessage);
@@ -158,9 +189,11 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         }
       }
       
+      debugPrint('🔄 Removing loading message...');
       // ลบ "กำลังพิมพ์..." ออก
       state = state.where((m) => !m.isLoading).toList();
       
+      debugPrint('🔄 Adding assistant message...');
       // 🔧 Parse JSON response แล้ว extract แค่ response field
       final displayText = _extractResponseText(response);
       
@@ -169,14 +202,22 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         displayText,
         sources: useContext ? _extractSources(contextStr) : null,
       ));
-      debugPrint('✅ Response sent');
+      debugPrint('✅ sendToAI completed successfully');
+      debugPrint('🚀 ============================================');
       
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌❌❌ CRITICAL ERROR in sendToAI: $e');
+      debugPrint('Stack: $stackTrace');
+      
       // ลบ loading ถ้ายังมี
       state = state.where((m) => !m.isLoading).toList();
       
-      // แสดงข้อความ error
-      addMessage(ChatMessage.error('ขอโทษค่ะ เกิดข้อผิดพลาด กรุณาลองใหม่'));
+      // แสดงข้อความ error ที่ user เข้าใจ
+      addMessage(ChatMessage.error(
+        'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
+        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ'
+      ));
+      debugPrint('🚀 ============================================');
     }
   }
 

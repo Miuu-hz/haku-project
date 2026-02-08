@@ -10,6 +10,7 @@ import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
 import '../services/llm_service.dart';
 import '../utils/constants.dart';
+import '../widgets/profile_editor_widget.dart';
 
 /// ⚙️ หน้าตั้งค่า
 /// 
@@ -283,15 +284,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             value: _isMockMode,
             onChanged: (value) async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               GoogleAuthService.setMockMode(value);
-              setState(() => _isMockMode = value);
+              if (mounted) {
+                setState(() => _isMockMode = value);
+              }
               if (value && _googleAuth.isSignedIn) {
                 // ถ้าเปิด mock ตอน signed in ให้ reload
                 await _googleAuth.signOut();
-                setState(() => _googleSignedIn = false);
+                if (mounted) {
+                  setState(() => _googleSignedIn = false);
+                }
               }
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
+              scaffoldMessenger.showSnackBar(
                 SnackBar(
                   content: Text(value ? '🎭 Demo Mode เปิดแล้ว' : '🔰 Real Mode'),
                   duration: const Duration(seconds: 2),
@@ -473,6 +478,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
           ],
+          // 🪪 ส่วนโปรไฟล์ผู้ใช้
+          _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
+
+          ListTile(
+            leading: const Icon(Icons.person_outline, color: Color(0xFF9B7CB6)),
+            title: const Text(
+              'แก้ไขข้อมูลส่วนตัว',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              'ชื่อ, นิสัย, ความชอบ - AI จะจำและเรียนรู้',
+              style: TextStyle(color: Colors.white.withAlpha(150)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const ProfileEditorWidget(),
+                ),
+              );
+            },
+          ),
 
           const Divider(),
 

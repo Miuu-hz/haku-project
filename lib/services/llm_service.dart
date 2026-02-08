@@ -613,8 +613,7 @@ Output JSON:
   static String forProcessSearchResults(
     String originalQuestion,
     String searchResults,
-  ) {
-    return '''<start_of_turn>user
+  ) => '''<start_of_turn>user
 $_hakuIdentity
 
 User asked: $originalQuestion
@@ -632,14 +631,12 @@ Output JSON:
 }<end_of_turn>
 <start_of_turn>model
 ''';
-  }
 
   /// 📍 Process Place Results - ให้ AI แนะนำจากผลค้นหาสถานที่
   static String forProcessPlaceResults(
     String originalRequest,
     String placeResults,
-  ) {
-    return '''<start_of_turn>user
+  ) => '''<start_of_turn>user
 $_hakuIdentity
 
 User asked: $originalRequest
@@ -660,7 +657,6 @@ Output JSON:
 }<end_of_turn>
 <start_of_turn>model
 ''';
-  }
 
   /// 🗺️ Location Context - บอก AI ว่าผู้ใช้อยู่ที่ไหน
   static String buildLocationContext({
@@ -775,8 +771,7 @@ English summary:
   }
 
   /// 👷 Worker - Generate topic name
-  static String forWorkerTopicName(String summary) {
-    return '''<start_of_turn>user
+  static String forWorkerTopicName(String summary) => '''<start_of_turn>user
 Create short topic name (2-4 words) for:
 $summary
 
@@ -784,11 +779,9 @@ Topic:
 <end_of_turn>
 <start_of_turn>model
 ''';
-  }
 
   /// 👷 Worker - Extract facts from message
-  static String forWorkerExtractFacts(String message) {
-    return '''<start_of_turn>user
+  static String forWorkerExtractFacts(String message) => '''<start_of_turn>user
 Extract personal facts from Thai message.
 Return: likes[], dislikes[], goals[], or empty.
 
@@ -798,7 +791,6 @@ JSON:
 <end_of_turn>
 <start_of_turn>model
 ''';
-  }
 
   // ============================================================
   // 🔔 PROACTIVE PROMPTS
