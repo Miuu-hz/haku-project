@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-import 'web_search_service.dart';
+import 'lean_context_service.dart';
 import 'user_profile_service.dart';
+import 'web_search_service.dart';
+import 'workers/fact_worker.dart';
+
+// Re-export for convenience
+export 'workers/fact_worker.dart' show ExtractedFact, FactType;
 
 /// 🧠 Smart Preprocessor - ตรวจจับ Intent และเสริม Context
 ///
@@ -12,6 +17,8 @@ import 'user_profile_service.dart';
 /// - ตรวจจับคำค้นหา → เรียก Web Search อัตโนมัติ
 /// - ตรวจจับชื่อผู้ใช้ → บันทึกลง UserProfile
 /// - สร้าง Chat History สำหรับส่งให้ LLM
+/// - Lean Context → ประหยัด Token (25 chats แทน 5)
+/// - Fact Extraction → บันทึกข้อมูลลง RAG
 
 class SmartPreprocessor {
   static final SmartPreprocessor _instance = SmartPreprocessor._internal();
@@ -20,6 +27,8 @@ class SmartPreprocessor {
 
   final WebSearchService _webSearch = WebSearchService();
   final UserProfileService _userProfile = UserProfileService();
+  final LeanContextService _leanContext = LeanContextService();
+  final FactWorker _factWorker = FactWorker();
 
   // ============================================================
   // 🔍 KEYWORD PATTERNS
@@ -61,14 +70,24 @@ class SmartPreprocessor {
   Future<PreprocessResult> preprocess(
     String userMessage, {
     List<ChatHistoryItem>? recentHistory,
+    bool useLeanContext = true,
   }) async {
     debugPrint('🧠 SmartPreprocessor: Processing "$userMessage"');
 
     String enrichedContext = '';
     DetectedIntent intent = DetectedIntent.general;
+    List<ExtractedFact> extractedFacts = [];
 
-    // 1. ตรวจจับและบันทึกชื่อผู้ใช้
-    await _detectAndSaveName(userMessage);
+    // 0. Initialize Lean Context
+    await _leanContext.initialize();
+
+    // 1. 📝 Fact Extraction (Background - ไม่รอผล)
+    _factWorker.processMessage(userMessage).then((facts) {
+      extractedFacts = facts;
+      if (facts.isNotEmpty) {
+        debugPrint('📝 Extracted ${facts.length} facts');
+      }
+    });
 
     // 2. ตรวจจับว่าต้องการค้นหาข้อมูลไหม
     final searchQuery = _detectSearchIntent(userMessage);
@@ -88,16 +107,22 @@ class SmartPreprocessor {
       }
     }
 
-    // 3. เพิ่ม User Identity
-    final identity = _userProfile.getIdentityCard();
-    if (identity.isNotEmpty) {
-      enrichedContext = '👤 ผู้ใช้: $identity\n$enrichedContext';
-    }
+    // 3. 📦 Build Context (Lean หรือ Full)
+    if (useLeanContext) {
+      // ใช้ Lean Context (25 chats, ประหยัด token)
+      enrichedContext = '${_leanContext.buildContextForAI()}\n$enrichedContext';
+      debugPrint('📦 Using Lean Context: ~${_leanContext.getEstimatedTokenCount()} tokens');
+    } else {
+      // ใช้แบบเดิม
+      final identity = _userProfile.getIdentityCard();
+      if (identity.isNotEmpty) {
+        enrichedContext = '👤 ผู้ใช้: $identity\n$enrichedContext';
+      }
 
-    // 4. เพิ่ม Chat History
-    if (recentHistory != null && recentHistory.isNotEmpty) {
-      final historyStr = _buildChatHistory(recentHistory);
-      enrichedContext = '$historyStr\n$enrichedContext';
+      if (recentHistory != null && recentHistory.isNotEmpty) {
+        final historyStr = _buildChatHistory(recentHistory);
+        enrichedContext = '$historyStr\n$enrichedContext';
+      }
     }
 
     debugPrint('✅ Preprocessing complete, context length: ${enrichedContext.length}');
@@ -106,8 +131,22 @@ class SmartPreprocessor {
       enrichedContext: enrichedContext.trim(),
       detectedIntent: intent,
       searchQuery: searchQuery,
+      extractedFacts: extractedFacts,
     );
   }
+
+  /// ➕ Add message to Lean Context
+  Future<void> addToLeanContext(String content, {required bool isUser}) async {
+    await _leanContext.initialize();
+    if (isUser) {
+      await _leanContext.addUserMessage(content);
+    } else {
+      await _leanContext.addAIMessage(content);
+    }
+  }
+
+  /// 📊 Get Lean Context stats
+  Map<String, dynamic> getLeanContextStats() => _leanContext.getSessionInfo();
 
   // ============================================================
   // 🔍 DETECTION METHODS
@@ -229,11 +268,13 @@ class PreprocessResult {
   final String enrichedContext;
   final DetectedIntent detectedIntent;
   final String? searchQuery;
+  final List<ExtractedFact> extractedFacts;
 
   PreprocessResult({
     required this.enrichedContext,
     required this.detectedIntent,
     this.searchQuery,
+    this.extractedFacts = const [],
   });
 }
 
