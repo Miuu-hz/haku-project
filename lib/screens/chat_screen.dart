@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
+import '../services/ai_action_service.dart';
 import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
 import '../services/mvp_trigger_service.dart';
@@ -12,6 +13,7 @@ import '../services/rag_service.dart';
 import '../services/chat_summary_service.dart';
 import '../services/mediapipe_llm_service.dart';
 import '../services/prompt_builder.dart';
+import 'dart:convert';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 /// 
@@ -39,10 +41,38 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
+  /// 🔧 Extract response text from JSON or plain text
+  String _extractResponseText(String response) {
+    try {
+      // ลบ Markdown code block ถ้ามี
+      var cleanResponse = response.trim();
+      if (cleanResponse.startsWith('```json')) {
+        cleanResponse = cleanResponse.substring(7);
+      }
+      if (cleanResponse.endsWith('```')) {
+        cleanResponse = cleanResponse.substring(0, cleanResponse.length - 3);
+      }
+      cleanResponse = cleanResponse.trim();
+      
+      // ลอง parse JSON
+      final json = jsonDecode(cleanResponse) as Map<String, dynamic>;
+      
+      // ถ้ามี response field ให้ return ค่านั้น
+      if (json.containsKey('response')) {
+        return json['response'] as String;
+      }
+      
+      // ถ้าไม่มี response field ให้ return ทั้งก้อน
+      return response;
+    } catch (e) {
+      // ถ้า parse ไม่ได้ แสดงว่าเป็น plain text อยู่แล้ว
+      return response;
+    }
+  }
+
   /// 🤖 ส่งข้อความไปให้ AI พร้อม Context Retriever
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
-    debugPrint('🚀 ============================================');
-    debugPrint('🚀 sendToAI called: $userMessage');
+    debugPrint('🤖 AI: $userMessage');
     
     // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
     addMessage(ChatMessage.user(userMessage));
@@ -55,28 +85,23 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     try {
       String contextStr = '';
       
-      // 🧠 Context Retriever: ดึงข้อมูลจากหลายแหล่ง
+      // 🧠 Context Retriever
       if (useContext) {
-        debugPrint('🔄 Retrieving context...');
         try {
           final contextData = await ContextRetriever().retrieveFullContext(
             userQuery: userMessage,
           );
           contextStr = ContextRetriever().buildContextString(contextData);
-          debugPrint('✅ Context retrieved, length: ${contextStr.length}');
-        } catch (e, stackTrace) {
-          debugPrint('⚠️ Context retrieval failed: $e');
-          debugPrint('Stack: $stackTrace');
-          // ยังคงทำต่อโดยไม่มี context
+        } catch (e) {
+          // Continue without context
         }
       }
       
-      // 🎯 เรียก MediaPipe LLM แบบ Lazy Loading
+      // 🎯 เรียก MediaPipe LLM
       final llm = MediaPipeLLMService();
 
-      // 🔋 Lazy Loading: พยายามโหลด LLM เมื่อใช้งานจริง
+      // 🔋 Lazy Loading
       if (!llm.isInitialized && !llm.isLoading) {
-        debugPrint('🔄 Lazy Loading: Initializing LLM...');
         await llm.initialize();
       }
 
@@ -89,47 +114,88 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             context: contextStr.isNotEmpty ? contextStr : null,
           );
           response = await llm.generate(prompt);
-          debugPrint('✅ LLM responded');
         } catch (e) {
-          debugPrint('⚠️ LLM failed: $e');
           response = null;
         }
       }
       
       // Fallback ไป Mock ถ้า LLM ไม่พร้อม
       if (response == null || response.isEmpty) {
-        debugPrint('🔄 Using mock response...');
         response = await AIService.getMockResponse(userMessage);
       }
       
-      debugPrint('🔄 Removing loading message...');
+      // 🔍 Parse AI Actions (WEB_SEARCH, etc.)
+      final actionService = AIActionService();
+      final parseResult = actionService.parseResponse(response);
+      
+      // Execute actions ถ้ามี
+      String? actionResult;
+      if (parseResult.hasActions) {
+        debugPrint('🎯 Found ${parseResult.actions.length} actions');
+        for (final action in parseResult.actions) {
+          debugPrint('  - Executing: ${action.displayName}');
+          final result = await actionService.executeAction(action);
+          if (result.hasDataForAI) {
+            actionResult = result.data;
+            debugPrint('  - Action result: ${actionResult?.substring(0, actionResult.length > 100 ? 100 : actionResult.length)}...');
+          }
+        }
+      }
+      
+      // ถ้ามี action result (เช่น ผลค้นหาเว็บ) ส่งกลับไปให้ AI สรุป
+      if (actionResult != null && actionResult.isNotEmpty) {
+        debugPrint('🔄 Sending action result back to AI for summary...');
+        try {
+          final followUpPrompt = _buildFollowUpPrompt(userMessage, actionResult);
+          final followUpResponse = await llm.generate(followUpPrompt);
+          if (followUpResponse.isNotEmpty) {
+            response = followUpResponse;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Follow-up generation failed: $e');
+          // ถ้าไม่สำเร็จ ใช้ action result ตรงๆ
+          response = actionResult;
+        }
+      }
+      
       // ลบ "กำลังพิมพ์..." ออก
       state = state.where((m) => !m.isLoading).toList();
       
-      debugPrint('🔄 Adding assistant message...');
+      // 🔧 Parse JSON response แล้ว extract แค่ response field
+      final displayText = _extractResponseText(response);
+      
       // เพิ่มคำตอบ
       addMessage(ChatMessage.assistant(
-        response,
+        displayText,
         sources: useContext ? _extractSources(contextStr) : null,
       ));
-      debugPrint('✅ sendToAI completed successfully');
-      debugPrint('🚀 ============================================');
+      debugPrint('✅ Response sent');
       
-    } catch (e, stackTrace) {
-      debugPrint('❌❌❌ CRITICAL ERROR in sendToAI: $e');
-      debugPrint('Stack: $stackTrace');
-      
+    } catch (e) {
       // ลบ loading ถ้ายังมี
       state = state.where((m) => !m.isLoading).toList();
       
-      // แสดงข้อความ error ที่ user เข้าใจ
-      addMessage(ChatMessage.error(
-        'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
-        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ'
-      ));
-      debugPrint('🚀 ============================================');
+      // แสดงข้อความ error
+      addMessage(ChatMessage.error('ขอโทษค่ะ เกิดข้อผิดพลาด กรุณาลองใหม่'));
     }
   }
+
+  /// 🔨 สร้าง prompt สำหรับส่งผลลัพธ์ action กลับไปให้ AI
+  String _buildFollowUpPrompt(String originalQuestion, String actionResult) => '''<start_of_turn>user
+You are Haku, a helpful Thai-speaking AI assistant.
+
+User asked: "$originalQuestion"
+
+Search Results:
+$actionResult
+
+Task: Answer the user's question naturally in Thai based on the search results above.
+Be helpful, concise, and friendly. Use emoji if appropriate.
+
+Reply in Thai (1-2 sentences):
+<end_of_turn>
+<start_of_turn>model
+''';
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive)
   Future<void> respondToTrigger(TriggerEvent trigger) async {
@@ -149,6 +215,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
+        response = _extractResponseText(response);
       } else {
         response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
       }
@@ -238,6 +305,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
+        response = _extractResponseText(response);
       } else {
         // Mock response เมื่อ LLM ไม่พร้อม
         response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';

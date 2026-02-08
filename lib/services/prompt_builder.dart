@@ -1,53 +1,107 @@
-// 🎯 Prompt Builder สำหรับ Haku AI (MediaPipe / Gemma-3)
+// 🎯 Prompt Builder สำหรับ Haku AI (Split Roles Architecture)
 //
-// ⚡ Tip: ใช้ภาษาอังกฤษใน System Instruction หลักจะช่วยลด Token และ Model เข้าใจ Logic ได้ดีกว่า
-// แต่เราสั่งให้ตอบกลับ (Response) เป็นภาษาไทย
+// 🎭 THE FACE (Realtime): ตอบสนทนาไทยธรรมชาติ (ไม่ใช่ JSON!)
+// 👷 THE WORKER (Batch): สร้าง structured data สำหรับ RAG
 
 class PromptBuilder {
-  /// 🧬 System Prompt หลักของ Haku (English = better token efficiency)
-  static const String hakuSystemPrompt = r'''
-You are "Haku", a Private Life OS on the user's phone.
-Role: Smart, Minimalist, Empathetic, Proactive. Offline-first privacy.
+  // ═══════════════════════════════════════════════════════════
+  // 🎭 THE FACE - Realtime Chat (ตอบเป็นภาษาไทยธรรมชาติ)
+  // ═══════════════════════════════════════════════════════════
+  
+  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทย)
+  static const String hakuFacePrompt = r'''
+You are "Haku" (箱), a Thai-speaking AI assistant on the user's phone.
+
+PERSONALITY:
+- Smart, empathetic, proactive but not intrusive
+- Minimalist responses (1-2 sentences usually)
+- Uses Thai language naturally with occasional emoji
+- Remembers context from previous messages
 
 RULES:
-1. Analyze user input.
-2. Output ONLY raw JSON. NO Markdown blocks (```json). NO introductory text.
-3. If user shares an event -> "type": "log"
-4. If user asks to schedule -> "type": "schedule"
-5. If casual talk -> "type": "chat"
-6. "response" field MUST be in Thai (Short, Natural, Friendly).
+1. Reply in NATURAL Thai (conversational, NOT JSON)
+2. Be concise but warm
+3. If user shares personal info (name, preferences), acknowledge it
+4. If user mentions events/locations, show you remember
+5. NEVER output JSON format - just chat naturally
+6. Use ACTIONS when needed (see below)
 
-JSON SCHEMA:
-{
-  "type": "log" | "schedule" | "chat",
-  "data": {
-    "activity": "String?",
-    "location": "String?",
-    "mood": "int (1-10)?",
-    "tags": ["String"],
-    "summary": "String",
-    "schedule_time": "YYYY-MM-DD HH:MM"
-  },
-  "response": "Thai string"
-}
+AVAILABLE ACTIONS (use when appropriate):
+- [ACTION:WEB_SEARCH]query="..." - When user asks about current info, weather, news, facts
+- [ACTION:SCHEDULE]title="...",date=YYYY-MM-DD,time=HH:MM - When user mentions appointments
+- [ACTION:REMINDER]message="...",minutes=15 - When user wants to be reminded
+- [ACTION:SEARCH_PLACE]query="..." - When user looks for places
+
+WHEN TO USE ACTIONS:
+- Weather questions → use WEB_SEARCH
+- "What is..." / "How to..." → use WEB_SEARCH
+- Appointments with date/time → use SCHEDULE
+- Looking for restaurants/cafes → use SEARCH_PLACE
+
+EXAMPLE RESPONSES:
+- "สวัสดีค่ะ วันนี้เป็นยังไงบ้างคะ? 😊"
+- "เข้าใจค่ะ จะจำไว้ว่าคุณชื่อ Arm"
+- "[ACTION:WEB_SEARCH]query=พยากรณ์อากาศ กรุงเทพ วันนี้" (for weather questions)
 ''';
 
   /// 🔨 Helper ดึงเวลาปัจจุบัน (จำเป็นมากสำหรับ AI)
   static String get _currentDateTime => DateTime.now().toString().substring(0, 16);
 
-  /// 🗣️ General Chat & Log (Main Loop)
+  /// 🗣️ THE FACE: General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
   }) {
-    // Inject เวลาปัจจุบันเสมอ เพื่อให้ AI รู้ว่า "เย็นนี้", "พรุ่งนี้" คือเมื่อไหร่
     final timeContext = 'Current DateTime: $_currentDateTime';
     
     final contextSection = context != null && context.isNotEmpty
         ? '\nContext (Retrieval):\n$context\n(Use this context ONLY if relevant)'
         : '';
 
-    return '<start_of_turn>user\n$hakuSystemPrompt\n$timeContext$contextSection\n\nInput: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+    return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 👷 THE WORKER - Batch Processing (สร้าง structured data)
+  // ═══════════════════════════════════════════════════════════
+  
+  /// 👷 Worker: Extract structured data จาก chat (สำหรับ RAG)
+  static String buildWorkerExtractPrompt(String userMessage, String aiResponse) {
+    return '''<start_of_turn>user
+You are a data extraction worker. Extract structured information from this conversation.
+
+User said: "$userMessage"
+AI replied: "$aiResponse"
+
+Output JSON ONLY:
+{
+  "intent": "log|schedule|query|chat",
+  "extracted_data": {
+    "activity": "what user did/will do",
+    "location": "where",
+    "time": "when",
+    "mood": 1-10,
+    "tags": ["tag1", "tag2"],
+    "entities": ["names", "places"]
+  },
+  "summary_en": "Brief English summary for RAG (max 20 words)"
+}<end_of_turn>
+<start_of_turn>model
+''';
+  }
+  
+  /// 👷 Worker: Summarize chat to English (สำหรับ Vector DB)
+  static String buildWorkerSummarizePrompt(String chatContent) {
+    return '''<start_of_turn>user
+Summarize this chat in English (max 30 words) for vector search.
+Focus on: what, when, where, mood.
+
+Chat:
+$chatContent
+
+Output ONLY the summary text, no JSON.<end_of_turn>
+<start_of_turn>model
+''';
   }
 
   /// 📅 Scheduler (ต้องเพิ่ม now เพื่อคำนวณ relative date)

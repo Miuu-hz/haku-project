@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/entry.dart';
 import 'battery_aware_service.dart';
 import 'chat_history_service.dart';
 import 'deferred_task_service.dart';
 import 'llm_service.dart';
+import 'rag_service.dart';
 import 'topic_service.dart';
 import 'user_profile_service.dart';
 import 'vector_service.dart';
@@ -34,6 +36,7 @@ class WorkerService {
   final UserProfileService _profileService = UserProfileService();
   final DeferredTaskService _deferredService = DeferredTaskService();
   final LLMService _llmService = LLMService();
+  final RAGService _ragService = RAGService();
 
   bool _isInitialized = false;
   bool _isProcessing = false;
@@ -51,6 +54,7 @@ class WorkerService {
     await _profileService.initialize();
     await _chatHistory.initialize();
     await _deferredService.initialize();
+    await _ragService.initialize(); // 🔍 Initialize RAG for vector search
 
     // Register task handlers
     _registerTaskHandlers();
@@ -286,19 +290,38 @@ JSON:''';
   // 🔢 VECTORIZATION
   // ============================================================
 
-  /// 🔢 Vectorize all topics
+  /// 🔢 Vectorize all topics (Store in BOTH VectorService + RAG SQLite)
   Future<void> _vectorizeTopics() async {
     final topics = _topicService.topics.where((t) => !t.isPending).toList();
 
     for (final topic in topics) {
-      // Check if already vectorized
-      if (_vectorService.getVector(topic.id) != null) continue;
+      // 1. Store in VectorService (SharedPreferences) - for quick lookup
+      if (_vectorService.getVector(topic.id) == null) {
+        await _vectorService.storeTopicVector(topic.id, topic.summary);
+      }
 
-      // Vectorize using English summary
-      await _vectorService.storeTopicVector(topic.id, topic.summary);
+      // 2. Store in RAG Database (SQLite) - for semantic search 🔍
+      await _indexTopicInRAG(topic);
     }
 
-    debugPrint('📊 Vectorized ${topics.length} topics');
+    debugPrint('📊 Vectorized ${topics.length} topics to VectorService + RAG');
+  }
+
+  /// 🔍 Index topic in RAG database (SQLite)
+  Future<void> _indexTopicInRAG(dynamic topic) async {
+    try {
+      // Convert topic to Entry for RAG indexing
+      final entry = Entry(
+        id: int.tryParse(topic.id.toString()) ?? 0,
+        content: '${topic.name}\n${topic.summary}',
+        createdAt: topic.createdAt as DateTime,
+      );
+
+      // Index in RAG (HybridVectorSearch SQLite)
+      await _ragService.indexEntry(entry);
+    } catch (e) {
+      debugPrint('⚠️ Failed to index topic in RAG: $e');
+    }
   }
 
   /// 🔢 Handle vectorize task
@@ -347,13 +370,12 @@ JSON:''';
   // ============================================================
 
   /// 📊 Get worker status
-  Map<String, dynamic> getStatus() {
-    return {
-      'isProcessing': _isProcessing,
-      'pendingTasks': _deferredService.pendingCount,
-      'topics': _topicService.topicCount,
-      'vectors': _vectorService.getStats(),
-      'hasProfile': _profileService.hasProfile,
-    };
-  }
+  Map<String, dynamic> getStatus() => {
+    'isProcessing': _isProcessing,
+    'pendingTasks': _deferredService.pendingCount,
+    'topics': _topicService.topicCount,
+    'vectors': _vectorService.getStats(),
+    'ragInitialized': _ragService.isInitialized,
+    'hasProfile': _profileService.hasProfile,
+  };
 }

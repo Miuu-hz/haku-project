@@ -87,7 +87,7 @@ dependencies {
     
     // 🤖 MediaPipe GenAI LLM
     // Gemma 3 requires 0.10.24+, using 0.10.30 for stability
-    implementation 'com.google.mediapipe:tasks-genai:0.10.30'
+    implementation 'com.google.mediapipe:tasks-genai:0.10.32'
     
     // Coroutines สำหรับ async operations
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
