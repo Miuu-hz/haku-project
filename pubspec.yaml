@@ -60,10 +60,31 @@ dependencies:
   # 🔔 Local Notifications
   flutter_local_notifications: ^17.2.3
 
+  # 🌐 HTTP Client สำหรับดาวน์โหลดโมเดล
+  http: ^1.2.0
+
+  # 🔋 Battery Monitoring (สำหรับ Defer to Charging)
+  battery_plus: ^6.0.0
+
+  # 🌐 URL Launcher (สำหรับเปิด Maps, Browser)
+  url_launcher: ^6.2.5
+
+  # 🗺️ Map Widgets (Flutter Map + LatLong)
+  flutter_map: ^7.0.0
+  latlong2: ^0.9.1
+
+  # 🌐 HTML Parser (สำหรับ Web Scraping)
+  html: ^0.15.4
+
+  # 🔑 Google Sign-In (สำหรับ Calendar Sync)
+  google_sign_in: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true

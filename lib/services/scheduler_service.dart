@@ -25,7 +25,6 @@ class SchedulerService {
   /// 🔋 Battery Optimized: ใช้ lazy loading - LLM จะโหลดเมื่อใช้งานจริง
   Future<EventInfo?> extractEvent(String text) async {
     try {
-<<<<<<< HEAD
       // ใช้ LLM ดึงข้อมูล (Gemma-3 format)
       final prompt = PromptBuilder.buildSchedulerPrompt(text);
 
@@ -34,16 +33,6 @@ class SchedulerService {
         response = await MediaPipeLLMService().generate(prompt);
       } else {
         // Simple regex fallback
-=======
-      // 🔋 ใช้ HakuPrompts (Private Life OS concept)
-      final prompt = HakuPrompts.forEventExtraction(text);
-
-      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
-      final response = await LLMService().generate(prompt, temperature: 0.1);
-
-      if (response.isEmpty) {
-        // LLM ไม่พร้อม ใช้ fallback
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
         return _fallbackExtract(text);
       }
 

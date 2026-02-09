@@ -53,7 +53,7 @@ class ObjectiveService {
       final jsonStr = prefs.getString(_prefsKey);
 
       if (jsonStr != null) {
-        final List<dynamic> jsonList = jsonDecode(jsonStr);
+        final List<dynamic> jsonList = jsonDecode(jsonStr) as List<dynamic>;
         _objectives = jsonList
             .map((j) => Objective.fromJson(j as Map<String, dynamic>))
             .toList();

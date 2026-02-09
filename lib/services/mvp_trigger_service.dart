@@ -18,9 +18,7 @@ import 'location_service.dart';
 /// Trigger types:
 /// - GPS: ถึงที่ทำงาน / ออกจากที่ทำงาน / ถึงบ้าน
 /// - Time: 09:00 (เริ่มงาน), 12:00 (พักเที่ยง), 17:00 (เลิกงาน), 22:00 (ก่อนนอน)
-/// - Weekend: วันเสาร์-อาทิตย์ (โหมดพักผ่อน)
-/// - Inactivity: ไม่มีบันทึกนานเกินไป
-/// - Mood Swing: อารมณ์แย่ติดต่อกัน
+/// - Pattern: วันที่ไม่มีบันทึกนานเกินไป
 
 class MVPTriggerService {
   static final MVPTriggerService _instance = MVPTriggerService._internal();
@@ -39,16 +37,8 @@ class MVPTriggerService {
 
   // เก็บ state เพื่อป้องกัน trigger ซ้ำ
   final Set<String> _triggeredToday = {};
-  final Set<String> _triggeredThisWeek = {};
   DateTime? _lastTriggerDate;
-<<<<<<< HEAD
-  
-  // เก็บประวัติการ trigger สถานที่
-  final Map<String, DateTime> _lastLocationTrigger = {};
-  
-=======
 
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
   // Callback เมื่อมี Trigger
   void Function(TriggerEvent)? onTrigger;
 
@@ -99,7 +89,7 @@ class MVPTriggerService {
   void _startTimeChecker() {
     // 🔋 เช็คทุก 5 นาที (ประหยัดแบตกว่า 1 นาที)
     _timeCheckTimer =
-        Timer.periodic(Duration(minutes: timeCheckIntervalMinutes), (_) {
+        Timer.periodic(const Duration(minutes: timeCheckIntervalMinutes), (_) {
       _checkTimeTriggers();
     });
 
@@ -107,7 +97,7 @@ class MVPTriggerService {
     _checkTimeTriggers();
   }
 
-  void _checkTimeTriggers() async {
+  void _checkTimeTriggers() {
     final now = DateTime.now();
 
     // เคลียร์ state ถ้าเปลี่ยนวัน
@@ -115,79 +105,6 @@ class MVPTriggerService {
       _triggeredToday.clear();
       _lastTriggerDate = now;
     }
-<<<<<<< HEAD
-    
-    // เคลียร์ weekly state ถ้าเปลี่ยนสัปดาห์
-    if (now.weekday == DateTime.monday && 
-        _lastTriggerDate != null && 
-        !_isSameDay(_lastTriggerDate!, now)) {
-      _triggeredThisWeek.clear();
-    }
-    
-    final hour = now.hour;
-    final minute = now.minute;
-    final isWeekend = now.weekday == DateTime.saturday || now.weekday == DateTime.sunday;
-    
-    // Trigger ตามช่วงเวลา (เช็คแค่ช่วงนาทีแรกของชั่วโมง)
-    if (minute > 5) {
-      // เช็ค Inactivity ตอน 20:00 (ไม่จำกัดนาทีแรก)
-      if (hour == 20) {
-        await _checkInactivityTrigger(now);
-      }
-      return;
-    }
-    
-    // เช็ค Mood Swing ทุกชั่วโมง (แต่ไม่บ่อยเกินไป)
-    await _checkMoodSwingTrigger(now);
-    
-    TriggerType? triggerType;
-    String? message;
-    String triggerKey = '';
-    
-    // 🏖️ Weekend Mode
-    if (isWeekend) {
-      switch (hour) {
-        case 9:
-          triggerType = TriggerType.weekendMorning;
-          message = 'สุขสันต์วันหยุด! วันนี้มีแผนไปเที่ยวไหนไหมคะ? 🌿';
-          triggerKey = 'weekend_morning_${now.year}${now.month}${now.day}';
-          break;
-        case 14:
-          triggerType = TriggerType.weekendAfternoon;
-          message = 'บ่ายๆ แบบนี้ มีอะไรสนุกๆ ทำไหมคะ? ☕';
-          triggerKey = 'weekend_afternoon_${now.year}${now.month}${now.day}';
-          break;
-        case 20:
-          triggerType = TriggerType.weekendEvening;
-          message = 'วันหยุดวันนี้เป็นยังไงบ้างคะ? มาสรุปกันหน่อยไหม? 🌙';
-          triggerKey = 'weekend_evening_${now.year}${now.month}${now.day}';
-          break;
-      }
-    } else {
-      // 💼 Weekday Mode
-      switch (hour) {
-        case 9:
-          triggerType = TriggerType.morningStart;
-          message = 'สวัสดีตอนเช้า! พร้อมเริ่มวันใหม่ไหมคะ? ☀️';
-          triggerKey = 'morning_${now.year}${now.month}${now.day}';
-          break;
-        case 12:
-          triggerType = TriggerType.lunchTime;
-          message = 'ถึงเวลาพักเที่ยงแล้ว วันนี้กินอะไรดีนะ? 🍜';
-          triggerKey = 'lunch_${now.year}${now.month}${now.day}';
-          break;
-        case 17:
-          triggerType = TriggerType.eveningEnd;
-          message = 'เลิกงานแล้ว! วันนี้เป็นยังไงบ้างคะ? 🌆';
-          triggerKey = 'evening_${now.year}${now.month}${now.day}';
-          break;
-        case 22:
-          triggerType = TriggerType.bedtime;
-          message = 'ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ 🌙';
-          triggerKey = 'bedtime_${now.year}${now.month}${now.day}';
-          break;
-      }
-=======
 
     final hour = now.hour;
     final minute = now.minute;
@@ -221,86 +138,12 @@ class MVPTriggerService {
         message = 'ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ';
         triggerKey = 'bedtime_${now.year}${now.month}${now.day}';
         break;
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
     }
 
     // Deduplication: ตรวจสอบว่า trigger นี้ยิงไปแล้วหรือยัง
     if (triggerType != null && !_triggeredToday.contains(triggerKey)) {
       _triggeredToday.add(triggerKey);
       _fireTrigger(triggerType, message: message);
-    }
-  }
-
-  /// 🕸️ Check Inactivity (ไม่มีบันทึกนาน)
-  Future<void> _checkInactivityTrigger(DateTime now) async {
-    final triggerKey = 'inactivity_${now.year}${now.month}${now.day}';
-    if (_triggeredToday.contains(triggerKey)) return;
-    
-    try {
-      final entries = await DatabaseHelper.instance.getAllEntries();
-      if (entries.isEmpty) return;
-      
-      // หาบันทึกล่าสุด
-      entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      final lastEntry = entries.first;
-      
-      final daysDiff = now.difference(lastEntry.createdAt).inDays;
-      
-      if (daysDiff >= 3) {
-        _triggeredToday.add(triggerKey);
-        
-        String message;
-        if (daysDiff >= 7) {
-          message = 'ไม่ได้เจอกันเป็นสัปดาห์แล้ว คิดถึงนะ... วันนี้มีอะไรเล่าให้ฟังไหม? 🥺';
-        } else if (daysDiff >= 5) {
-          message = 'หายไปหลายวันเลย เป็นห่วงนะคะ วันนี้เป็นยังไงบ้าง? 💭';
-        } else {
-          message = 'ไม่ได้เจอกันนานเลย คิดถึงนะ... วันนี้มีอะไรเล่าให้ฟังไหม? 📝';
-        }
-        
-        _fireTrigger(
-          TriggerType.inactivityReminder,
-          message: message,
-          extraData: {'daysSinceLastEntry': daysDiff},
-        );
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error checking inactivity: $e');
-    }
-  }
-
-  /// 🎭 Check Mood Swing (อารมณ์แย่ติดต่อกัน)
-  Future<void> _checkMoodSwingTrigger(DateTime now) async {
-    final triggerKey = 'moodswing_${now.year}${now.month}${now.day}';
-    if (_triggeredToday.contains(triggerKey)) return;
-    
-    try {
-      final entries = await DatabaseHelper.instance.getAllEntries();
-      if (entries.length < 3) return;
-      
-      // เรียงล่าสุดก่อน
-      entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      
-      // เช็ค 3 บันทึกล่าสุด
-      final recent3 = entries.take(3).toList();
-      final allHaveMood = recent3.every((e) => e.mood != null);
-      
-      if (!allHaveMood) return;
-      
-      final moods = recent3.map((e) => e.mood!).toList();
-      final allLowMood = moods.every((m) => m <= 2);
-      
-      if (allLowMood) {
-        _triggeredToday.add(triggerKey);
-        
-        _fireTrigger(
-          TriggerType.moodSwingSupport,
-          message: 'เห็นว่าช่วงนี้อารมณ์ไม่ค่อยดี... อยากให้รู้ว่าฮาคุอยู่ตรงนี้นะคะ 💜 อยากเล่าอะไรให้ฟังไหม?',
-          extraData: {'moods': moods},
-        );
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error checking mood swing: $e');
     }
   }
 
@@ -337,6 +180,7 @@ class MVPTriggerService {
       },
       onError: (Object error) {
         debugPrint('⚠️ Location stream error: $error');
+        // ไม่ throw error ออกไป ให้ทำงานต่อโดยไม่มี location trigger
       },
     );
 
@@ -346,87 +190,67 @@ class MVPTriggerService {
   Future<void> _checkLocationTriggers(double lat, double lng) async {
     // ดึงบันทึกที่มีพิกัดใกล้เคียง (รัศมี ~100 เมตร)
     final entries = await DatabaseHelper.instance.getAllEntries();
+    if (entries.isEmpty) return;
     
-    // หาสถานที่ใกล้เคียง
+    // หาบันทึกที่มีพิกัดใกล้เคียง
     final nearbyEntries = entries.where((e) {
       if (e.latitude == null || e.longitude == null) return false;
-      final distance = _calculateDistance(lat, lng, e.latitude!, e.longitude!);
-      return distance < 100; // 100 เมตร
+      return _calculateDistance(lat, lng, e.latitude!, e.longitude!) <= 0.1; // 0.1 km = 100m
     }).toList();
     
     if (nearbyEntries.isEmpty) return;
     
-    // หาชื่อสถานที่ที่พบบ่อยที่สุด
-    final locationNames = nearbyEntries
-        .where((e) => e.locationName != null)
-        .map((e) => e.locationName!)
-        .toList();
-    
-    if (locationNames.isEmpty) return;
-    
-    // นับความถี่
-    final frequency = <String, int>{};
-    for (final name in locationNames) {
-      frequency[name] = (frequency[name] ?? 0) + 1;
+    // หาสถานที่ที่เคยมาบ่อยที่สุดในบริเวณนี้
+    final locationCounts = <String, int>{};
+    for (final entry in nearbyEntries) {
+      if (entry.locationName != null) {
+        locationCounts[entry.locationName!] = (locationCounts[entry.locationName!] ?? 0) + 1;
+      }
     }
     
-    final mostFrequent = frequency.entries
-        .toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
+    if (locationCounts.isEmpty) return;
     
-    final locationName = mostFrequent.first.key;
+    // หาสถานที่ที่มี count สูงสุด
+    final mostFrequentLocation = locationCounts.entries
+      .reduce((a, b) => a.value > b.value ? a : b)
+      .key;
     
-    // 🏠 Smart Location: Ignore Home/Work (แจ้งเตือนแค่สัปดาห์ละครั้ง)
-    final isCommonPlace = _isCommonPlace(locationName);
+    // ตรวจสอบว่าเคย trigger ที่นี่วันนี้หรือยัง
     final now = DateTime.now();
-    final weekKey = '${locationName}_${now.year}_W${now.day ~/ 7}';
+    final triggerKey = 'location_${mostFrequentLocation}_${now.year}${now.month}${now.day}';
     
-    if (isCommonPlace && _triggeredThisWeek.contains(weekKey)) {
-      return; // ข้ามถ้าเคยแจ้งเตือนไปแล้ว this week
-    }
+    if (_triggeredToday.contains(triggerKey)) return;
     
-    // เช็คว่าเคย trigger ที่นี่ไปแล้วยัง (ภายใน 2 ชั่วโมง)
-    final lastTrigger = _lastLocationTrigger[locationName];
-    if (lastTrigger != null) {
-      final diff = DateTime.now().difference(lastTrigger);
-      if (diff.inHours < 2) return;
-    }
+    // ตรวจสอบว่าไม่ได้อยู่ที่นี่นานเกินไป (เว้นอย่างน้อย 2 ชั่วโมง)
+    final recentVisit = nearbyEntries
+      .where((e) => e.locationName == mostFrequentLocation)
+      .map((e) => e.createdAt)
+      .reduce((a, b) => a.isAfter(b) ? a : b);
     
-    // บันทึกเวลา trigger
-    _lastLocationTrigger[locationName] = DateTime.now();
-    if (isCommonPlace) {
-      _triggeredThisWeek.add(weekKey);
-    }
+    final timeSinceLastVisit = now.difference(recentVisit);
+    if (timeSinceLastVisit.inHours < 2) return; // ยังอยู่ที่นี่หรือเพิ่งออกไป
     
-    // Fire trigger
+    // Trigger
+    _triggeredToday.add(triggerKey);
     _fireTrigger(
       TriggerType.locationRevisit,
-      message: 'คุณมาที่ $locationName อีกแล้ว! มีอะไรใหม่ๆ เกิดขึ้นที่นี่ไหมคะ? 📍',
-      location: locationName,
+      location: mostFrequentLocation,
+      message: 'คุณมาที่ $mostFrequentLocation อีกแล้ว! ครั้งที่แล้วทำอะไรไว้นะ?',
     );
   }
 
-  /// 🏠 ตรวจสอบว่าเป็นสถานที่ทั่วไป (บ้าน/ที่ทำงาน) หรือไม่
-  bool _isCommonPlace(String locationName) {
-    final commonNames = [
-      'home', 'บ้าน', 'ที่บ้าน', 'my home',
-      'work', 'office', 'ที่ทำงาน', 'ออฟฟิศ', 'office',
-      'school', 'โรงเรียน', 'มหาลัย', 'university',
-    ];
-    
-    final lowerName = locationName.toLowerCase();
-    return commonNames.any((common) => lowerName.contains(common));
-  }
-
-  /// 📐 คำนวณระยะทาง (Haversine formula)
+  /// 📏 คำนวณระยะทางระหว่างพิกัด (Haversine formula) คืนค่าเป็น km
   double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-    const R = 6371000; // Earth's radius in meters
+    const R = 6371; // รัศมีโลก km
     final dLat = _toRadians(lat2 - lat1);
     final dLng = _toRadians(lng2 - lng1);
+    final radLat1 = _toRadians(lat1);
+    final radLat2 = _toRadians(lat2);
     
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
-        sin(dLng / 2) * sin(dLng / 2);
+    final a = 
+      sin(dLat / 2) * sin(dLat / 2) +
+      cos(radLat1) * cos(radLat2) *
+      sin(dLng / 2) * sin(dLng / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return R * c;
   }
@@ -438,7 +262,6 @@ class MVPTriggerService {
     TriggerType type, {
     String? message,
     String? location,
-    Map<String, dynamic>? extraData,
   }) async {
     // ดึง Context สำหรับ trigger นี้
     final context = await ContextRetriever().retrieveFullContext(
@@ -446,18 +269,39 @@ class MVPTriggerService {
       currentLocation: location,
     );
     
+    // Quick reply options based on trigger type
+    final quickReplyOptions = _getQuickReplyOptions(type);
+    
     final event = TriggerEvent(
       type: type,
       timestamp: DateTime.now(),
       suggestedMessage: message,
       context: context,
-      extraData: extraData,
+      quickReplyOptions: quickReplyOptions,
     );
     
     // เรียก callback
     onTrigger?.call(event);
     
     debugPrint('🔔 Trigger fired: ${type.name} - $message');
+  }
+
+  /// 💬 ดึง Quick Reply Options ตาม Trigger Type
+  List<String> _getQuickReplyOptions(TriggerType type) {
+    switch (type) {
+      case TriggerType.morningStart:
+        return ['พร้อมมาก!', 'ยังง่วง', 'วันนี้มีอะไร?'];
+      case TriggerType.lunchTime:
+        return ['กินแล้ว', 'ยังไม่กิน', 'ไปกินข้าวข้างนอก'];
+      case TriggerType.eveningEnd:
+        return ['เหนื่อยมาก', 'สบายดี', 'เลิกงานแล้ว!'];
+      case TriggerType.bedtime:
+        return ['วันนี้ดีมาก', 'เหนื่อย', 'พรุ่งนี้สู้ๆ'];
+      case TriggerType.locationRevisit:
+        return ['มาที่เดิม', 'มีเรื่องใหม่', 'ยังไม่ได้บันทึก'];
+      case TriggerType.noEntryReminder:
+        return ['บันทึกเลย', 'ไม่มีไร', 'เดี๋ยวบันทึก'];
+    }
   }
 
   /// 🎯 สร้าง Prompt จาก Trigger
@@ -514,16 +358,12 @@ class MVPTriggerService {
 
 /// 🔔 Trigger Types
 enum TriggerType {
-  morningStart,       // 09:00 วันธรรดา - เริ่มวัน
-  lunchTime,          // 12:00 วันธรรดา - พักเที่ยง
-  eveningEnd,         // 17:00 วันธรรดา - เลิกงาน
-  bedtime,            // 22:00 - ก่อนนอน
-  weekendMorning,     // 09:00 วันหยุด - สุขสันต์วันหยุด
-  weekendAfternoon,   // 14:00 วันหยุด - บ่ายวันหยุด
-  weekendEvening,     // 20:00 วันหยุด - เย็นวันหยุด
-  locationRevisit,    // กลับมาที่เดิม
-  inactivityReminder, // ไม่มีบันทึกนานเกินไป
-  moodSwingSupport,   // อารมณ์แย่ติดต่อกัน
+  morningStart,    // 09:00 - เริ่มวัน
+  lunchTime,       // 12:00 - พักเที่ยง
+  eveningEnd,      // 17:00 - เลิกงาน
+  bedtime,         // 22:00 - ก่อนนอน
+  locationRevisit, // กลับมาที่เดิม
+  noEntryReminder, // ไม่มีบันทึกนานเกินไป
 }
 
 /// 📦 Trigger Event
@@ -532,14 +372,14 @@ class TriggerEvent {
   final DateTime timestamp;
   final String? suggestedMessage;
   final ContextData context;
-  final Map<String, dynamic>? extraData;
+  final List<String> quickReplyOptions;
 
   TriggerEvent({
     required this.type,
     required this.timestamp,
     this.suggestedMessage,
     required this.context,
-    this.extraData,
+    this.quickReplyOptions = const [],
   });
 
   String get displayTitle {
@@ -552,45 +392,10 @@ class TriggerEvent {
         return 'เลิกงานแล้ว 🌆';
       case TriggerType.bedtime:
         return 'ก่อนนอน 🌙';
-      case TriggerType.weekendMorning:
-        return 'สุขสันต์วันหยุด 🌿';
-      case TriggerType.weekendAfternoon:
-        return 'บ่ายวันหยุด ☕';
-      case TriggerType.weekendEvening:
-        return 'เย็นวันหยุด 🌅';
       case TriggerType.locationRevisit:
         return 'มาที่เดิมอีกแล้ว 📍';
-      case TriggerType.inactivityReminder:
-        return 'คิดถึงนะ 🥺';
-      case TriggerType.moodSwingSupport:
-        return 'อยู่ตรงนี้นะ 💜';
-    }
-  }
-
-  /// รองรับ Quick Reply หรือไม่
-  bool get supportsQuickReply => true;
-
-  /// ข้อความเริ่มต้นสำหรับ Quick Reply
-  List<String> get quickReplyOptions {
-    switch (type) {
-      case TriggerType.morningStart:
-      case TriggerType.weekendMorning:
-        return ['พร้อมเลย!', 'ยังง่วงอยู่ 😴', 'วันนี้มีแผนอะไรดี?'];
-      case TriggerType.lunchTime:
-        return ['กำลังหิวเลย', 'กินอะไรดีนะ?', 'ข้าวเที่ยงวันนี้ 🍱'];
-      case TriggerType.eveningEnd:
-      case TriggerType.weekendEvening:
-        return ['วันนี้เหนื่อยมาก', 'สบายดีค่ะ', 'เล่าเรื่องวันนี้หน่อย'];
-      case TriggerType.bedtime:
-        return ['สรุปวันนี้หน่อย', 'วันนี้ดีมาก', 'นอนหลับฝันดีนะ'];
-      case TriggerType.locationRevisit:
-        return ['ที่นี่เหมือนเดิมเลย', 'มีอะไรใหม่ที่นี่', 'มาทำธุระค่ะ'];
-      case TriggerType.inactivityReminder:
-        return ['คิดถึงเหมือนกัน!', 'ช่วงนี้ยุ่งมาก', 'วันนี้มีเรื่องเล่าเยอะเลย'];
-      case TriggerType.moodSwingSupport:
-        return ['ขอบคุณนะ...', 'อยากเล่าให้ฟัง', 'ช่วงนี้เหนื่อยจริงๆ'];
-      default:
-        return ['ตอบกลับ...', '👍', '💬'];
+      case TriggerType.noEntryReminder:
+        return 'อย่าลืมบันทึก 📝';
     }
   }
 }

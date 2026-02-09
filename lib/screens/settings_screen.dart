@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/biometric_service.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
-import '../services/mediapipe_llm_service.dart';
+import '../services/google_auth_service.dart';
+import '../services/llm_service.dart';
 import '../utils/constants.dart';
+import '../widgets/profile_editor_widget.dart';
 
 /// ⚙️ หน้าตั้งค่า
 /// 
@@ -32,6 +34,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isPickingModel = false;
   String? _customLlmPath;
   Map<String, dynamic>? _modelValidation;
+  
+  // Google Calendar
+  final _googleAuth = GoogleAuthService();
+  bool _googleSignedIn = false;
+  bool _isGoogleLoading = false;
+  bool _autoSyncEnabled = true;
+  List<CalendarEvent> _upcomingEvents = [];
+  bool _isMockMode = false;
 
   @override
   void initState() {
@@ -42,22 +52,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPath = prefs.getString(StorageKeys.customLlmModelPath);
-
+    
     // ตรวจสอบสถานะไฟล์ถ้ามี custom path
     Map<String, dynamic>? validation;
     if (savedPath != null && savedPath.isNotEmpty) {
-      validation = await MediaPipeLLMService().validateCustomModel();
+      validation = await LLMService().validateCustomModel();
     }
-
+    
+    // Load Google Calendar settings
+    await _googleAuth.initialize();
+    _autoSyncEnabled = prefs.getBool('google_auto_sync') ?? true;
+    _isMockMode = GoogleAuthService.isMockMode;
+    
+    if (_googleAuth.isSignedIn) {
+      await _loadCalendarEvents();
+    }
+    
     setState(() {
       _customLlmPath = savedPath;
       _modelValidation = validation;
+      _googleSignedIn = _googleAuth.isSignedIn;
       _isLoading = false;
     });
   }
+  
+  Future<void> _loadCalendarEvents() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final events = await _googleAuth.getUpcomingEvents(maxResults: 5);
+      setState(() => _upcomingEvents = events);
+    } catch (e) {
+      debugPrint('⚠️ Load calendar events error: $e');
+    } finally {
+      setState(() => _isGoogleLoading = false);
+    }
+  }
 
   Future<void> _validateModelFile() async {
-    final validation = await MediaPipeLLMService().validateCustomModel();
+    final validation = await LLMService().validateCustomModel();
     setState(() => _modelValidation = validation);
     
     if (!mounted) return;
@@ -235,6 +267,243 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(),
 
+          // 📅 ส่วน Google Calendar
+          _buildSectionHeader('📅 Google Calendar'),
+          
+          // Mock Mode Toggle
+          SwitchListTile(
+            title: const Text(
+              'Demo Mode',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              _isMockMode 
+                  ? 'ใช้ข้อมูลจำลอง (ไม่ต้อง Login)'
+                  : 'ใช้งานจริง (ต้องตั้งค่า Google Cloud)',
+              style: TextStyle(color: Colors.white.withAlpha(150)),
+            ),
+            value: _isMockMode,
+            onChanged: (value) async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              GoogleAuthService.setMockMode(value);
+              if (mounted) {
+                setState(() => _isMockMode = value);
+              }
+              if (value && _googleAuth.isSignedIn) {
+                // ถ้าเปิด mock ตอน signed in ให้ reload
+                await _googleAuth.signOut();
+                if (mounted) {
+                  setState(() => _googleSignedIn = false);
+                }
+              }
+              scaffoldMessenger.showSnackBar(
+                SnackBar(
+                  content: Text(value ? '🎭 Demo Mode เปิดแล้ว' : '🔰 Real Mode'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            activeThumbColor: const Color(0xFF9B7CB6),
+            secondary: Icon(
+              _isMockMode ? Icons.theater_comedy : Icons.cloud_off,
+              color: _isMockMode ? Colors.orange : Colors.grey,
+            ),
+          ),
+          
+          if (!_googleSignedIn) ...[
+            // Not signed in - Show Sign In button
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Center(
+                  child: Text(
+                    'G',
+                    style: TextStyle(
+                      color: Color(0xFF4285F4),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              title: const Text(
+                'Sign in with Google',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                _isMockMode 
+                    ? 'ทดลองใช้งานด้วย Demo Account'
+                    : 'Sync กับ Google Calendar',
+                style: TextStyle(color: Colors.white.withAlpha(150)),
+              ),
+              trailing: _isGoogleLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                    )
+                  : const Icon(Icons.login, color: Color(0xFF9B7CB6)),
+              onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
+            ),
+          ] else ...[
+            // Signed in - Show user info
+            ListTile(
+              leading: _googleAuth.userPhoto != null
+                  ? CircleAvatar(
+                      backgroundImage: NetworkImage(_googleAuth.userPhoto!),
+                      radius: 20,
+                    )
+                  : Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF9B7CB6),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Center(
+                        child: Text(
+                          (_googleAuth.userName ?? 'U')[0].toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+              title: Text(
+                _googleAuth.userName ?? 'User',
+                style: const TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                '${_googleAuth.userEmail ?? ''} ${_isMockMode ? "(Demo)" : ""}',
+                style: TextStyle(color: Colors.white.withAlpha(150)),
+              ),
+              trailing: TextButton(
+                onPressed: _isGoogleLoading ? null : _handleGoogleSignOut,
+                child: _isGoogleLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
+                      )
+                    : const Text('Sign Out'),
+              ),
+            ),
+            
+            // Auto-sync toggle
+            SwitchListTile(
+              title: const Text(
+                'Auto-sync Objectives',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Text(
+                'Sync objectives ไป Calendar อัตโนมัติ',
+                style: TextStyle(color: Colors.white.withAlpha(150)),
+              ),
+              value: _autoSyncEnabled,
+              onChanged: (value) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('google_auto_sync', value);
+                setState(() => _autoSyncEnabled = value);
+              },
+              activeThumbColor: const Color(0xFF9B7CB6),
+            ),
+            
+            // Upcoming events
+            if (_isGoogleLoading)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                  ),
+                ),
+              )
+            else if (_upcomingEvents.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'นัดหมายที่กำลังจะมาถึง (${_upcomingEvents.length})',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(180),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _loadCalendarEvents,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('รีเฟรช'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF9B7CB6),
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(60, 30),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ..._upcomingEvents.take(3).map((event) => _buildEventTile(event)),
+              if (_upcomingEvents.length > 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Text(
+                    '+ ${_upcomingEvents.length - 3} รายการอื่น',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(100),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'ไม่มีนัดหมายใน 7 วันนี้',
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(100),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+          ],
+          // 🪪 ส่วนโปรไฟล์ผู้ใช้
+          _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
+
+          ListTile(
+            leading: const Icon(Icons.person_outline, color: Color(0xFF9B7CB6)),
+            title: const Text(
+              'แก้ไขข้อมูลส่วนตัว',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              'ชื่อ, นิสัย, ความชอบ - AI จะจำและเรียนรู้',
+              style: TextStyle(color: Colors.white.withAlpha(150)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const ProfileEditorWidget(),
+                ),
+              );
+            },
+          ),
+
+          const Divider(),
+
           // 📤 ส่วนข้อมูล
           _buildSectionHeader('📤 ข้อมูลของคุณ'),
           
@@ -396,7 +665,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : const Icon(Icons.file_open, color: Color(0xFF9B7CB6)),
               title: const Text('เลือกไฟล์ .task', style: TextStyle(color: Colors.white)),
               subtitle: Text(
-                _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกโมเดล MediaPipe (.task)',
+                _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกไฟล์โมเดลจากเครื่อง',
                 style: TextStyle(color: Colors.white.withAlpha(150)),
               ),
               onTap: _isPickingModel 
@@ -443,7 +712,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (!filePath.endsWith('.task')) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('กรุณาเลือกไฟล์ .task เท่านั้น (MediaPipe)')),
+            const SnackBar(content: Text('กรุณาเลือกไฟล์ .task เท่านั้น')),
           );
           return;
         }
@@ -458,10 +727,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return;
         }
 
-        await MediaPipeLLMService().setCustomModelPath(filePath);
-
+        await LLMService().setCustomModelPath(filePath);
+        
         // ตรวจสอบไฟล์ทันทีหลังเลือก
-        final validation = await MediaPipeLLMService().validateCustomModel();
+        final validation = await LLMService().validateCustomModel();
         
         setState(() {
           _customLlmPath = filePath;
@@ -489,7 +758,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _clearCustomLlmPath() async {
-    await MediaPipeLLMService().setCustomModelPath(null);
+    await LLMService().setCustomModelPath(null);
     setState(() {
       _customLlmPath = null;
       _modelValidation = null;
@@ -629,6 +898,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('เข้าใจแล้ว'),
           ),
         ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 📅 Google Calendar Methods
+  // ═══════════════════════════════════════════════════════════
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final success = await _googleAuth.signIn();
+      if (success) {
+        await _loadCalendarEvents();
+        setState(() => _googleSignedIn = true);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isMockMode 
+                ? '🎭 Demo Mode: Signed in as demo@haku.app' 
+                : '✅ Signed in as ${_googleAuth.userEmail}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Sign in failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: $e')),
+      );
+    } finally {
+      setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignOut() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      await _googleAuth.signOut();
+      setState(() {
+        _googleSignedIn = false;
+        _upcomingEvents = [];
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Signed out')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: $e')),
+      );
+    } finally {
+      setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  Widget _buildEventTile(CalendarEvent event) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: Colors.white.withAlpha(20),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4285F4).withAlpha(30),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    event.displayDate.split('/')[0],
+                    style: const TextStyle(
+                      color: Color(0xFF4285F4),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '/${event.displayDate.split('/')[1]}',
+                    style: TextStyle(
+                      color: const Color(0xFF4285F4).withAlpha(180),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '🕐 ${event.displayTime}${event.location != null ? ' • 📍 ${event.location}' : ''}',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(150),
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

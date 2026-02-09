@@ -2,132 +2,233 @@ package com.example.haku
 
 import android.content.Context
 import android.util.Log
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import java.io.File
+import java.io.FileNotFoundException
 
 /**
- * 🤖 MediaPipe LLM Bridge - ใช้ MediaPipe GenAI (LiteRT)
- * 
- * ✅ ข้อดี:
- * - All-in-One (มี tokenizer ในตัว)
- * - ไม่ต้องจัดการ native library เอง
- * - Google official support
- * - รองรับ Gemma-3, Qwen, Llama ผ่าน LiteRT
+ * 🤖 MediaPipe GenAI LLM Bridge
+ *
+ * ใช้ MediaPipe Tasks GenAI สำหรับรันโมเดล LiteRT (.task)
+ * รองรับโมเดล: Gemma-3, Phi-4, Qwen ผ่าน LiteRT format
+ *
+ * ⚠️ หมายเหตุ: MediaPipe LLM Inference ต้องการ native library
+ * ที่อาจไม่พร้อมใช้งานบนทุกอุปกรณ์ ระบบจะ fallback อัตโนมัติ
  */
-object MediaPipeLLMBridge {
+class MediaPipeLLMBridge(private val context: Context) {
 
-    private const val TAG = "HakuMediaPipeLLM"
+    companion object {
+        private const val TAG = "MediaPipeLLM"
 
-    private var llmInference: LlmInference? = null
-    private var isInitialized = false
+        @Volatile
+        private var instance: MediaPipeLLMBridge? = null
+
+        // ตรวจสอบว่า native library พร้อมใช้งานหรือไม่
+        @Volatile
+        private var isNativeAvailable: Boolean? = null
+
+        fun getInstance(context: Context): MediaPipeLLMBridge {
+            return instance ?: synchronized(this) {
+                instance ?: MediaPipeLLMBridge(context.applicationContext).also {
+                    instance = it
+                }
+            }
+        }
+
+        /**
+         * ตรวจสอบว่า MediaPipe LLM พร้อมใช้งานหรือไม่
+         * เรียกก่อนใช้งานเพื่อป้องกัน crash
+         */
+        fun checkAvailability(): Boolean {
+            if (isNativeAvailable != null) return isNativeAvailable!!
+
+            return try {
+                // พยายามโหลด class เพื่อ trigger static initializer
+                Class.forName("com.google.mediapipe.tasks.genai.llminference.LlmInference")
+                isNativeAvailable = true
+                Log.i(TAG, "✅ MediaPipe LLM native library is available")
+                true
+            } catch (e: UnsatisfiedLinkError) {
+                isNativeAvailable = false
+                Log.w(TAG, "⚠️ MediaPipe LLM native library not available: ${e.message}")
+                false
+            } catch (e: ClassNotFoundException) {
+                isNativeAvailable = false
+                Log.w(TAG, "⚠️ MediaPipe LLM class not found: ${e.message}")
+                false
+            } catch (e: ExceptionInInitializerError) {
+                isNativeAvailable = false
+                Log.w(TAG, "⚠️ MediaPipe LLM init failed: ${e.message}")
+                false
+            } catch (e: Exception) {
+                isNativeAvailable = false
+                Log.w(TAG, "⚠️ MediaPipe LLM check failed: ${e.message}")
+                false
+            }
+        }
+    }
+
+    private var llmInference: Any? = null  // Use Any to avoid class loading
     private var currentModelPath: String? = null
+    private var _isAvailable: Boolean = false
+
+    val isInitialized: Boolean
+        get() = llmInference != null
+
+    val isAvailable: Boolean
+        get() = _isAvailable
+
+    init {
+        // ตรวจสอบความพร้อมใช้งานตอน init
+        _isAvailable = checkAvailability()
+    }
 
     /**
-     * ✅ ตรวจสอบว่า LLM พร้อมใช้งานหรือไม่
-     */
-    fun isAvailable(): Boolean = true // MediaPipe ไม่ต้องโหลด native lib แยก
-
-    /**
-     * ✅ ตรวจสอบว่าโมเดลถูกโหลดแล้วหรือยัง
-     */
-    fun isModelLoaded(): Boolean = llmInference != null && isInitialized
-
-    /**
-     * 📥 โหลดโมเดล LiteRT (.task หรือ .tflite)
-     * 
-     * @param context Application context
-     * @param modelPath Path ไปยังไฟล์ .task หรือ .tflite
+     * 📥 โหลดโมเดล MediaPipe (.task file)
+     *
+     * @param modelPath Path ไปยังไฟล์ .task
      * @param maxTokens จำนวน token สูงสุด (default: 1024)
-     * @param temperature ค่าความสร้างสรรค์ (0.0 - 1.0, default: 0.7)
      * @return true ถ้าโหลดสำเร็จ
      */
-    fun loadModel(
-        context: Context,
+    suspend fun loadModel(
         modelPath: String,
-        maxTokens: Int = 1024,
-        temperature: Float = 0.7f
-    ): Boolean {
-        Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
+        maxTokens: Int = 1024
+    ): Boolean = withContext(Dispatchers.IO) {
+        // ตรวจสอบว่า native library พร้อมใช้งาน
+        if (!_isAvailable) {
+            Log.w(TAG, "⚠️ MediaPipe LLM not available, skipping model load")
+            return@withContext false
+        }
 
-        return try {
-            // สร้าง options สำหรับ LLM Inference
-            // Note: Temperature ถูกตั้งค่าผ่าน generateResponse() แทน
-            val options = LlmInferenceOptions.builder()
-                .setModelPath(modelPath)
-                .setMaxTokens(maxTokens)
-                .build()
+        try {
+            Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
 
-            // สร้าง LlmInference instance
-            llmInference = LlmInference.createFromOptions(context, options)
-            
-            isInitialized = true
+            val modelFile = File(modelPath)
+            if (!modelFile.exists()) {
+                Log.e(TAG, "❌ Model file not found: $modelPath")
+                return@withContext false
+            }
+
+            unloadModel()
+
+            // สร้าง LlmInference ผ่าน reflection เพื่อหลีกเลี่ยง class loading issues
+            val llmClass = Class.forName("com.google.mediapipe.tasks.genai.llminference.LlmInference")
+            val optionsClass = Class.forName("com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceOptions")
+            val builderClass = Class.forName("com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceOptions\$Builder")
+
+            // Get builder
+            val builderMethod = optionsClass.getMethod("builder")
+            val builder = builderMethod.invoke(null)
+
+            // Set options
+            val setModelPath = builderClass.getMethod("setModelPath", String::class.java)
+            val setMaxTokens = builderClass.getMethod("setMaxTokens", Int::class.java)
+            val buildMethod = builderClass.getMethod("build")
+
+            setModelPath.invoke(builder, modelPath)
+            setMaxTokens.invoke(builder, maxTokens)
+            val options = buildMethod.invoke(builder)
+
+            // Create LlmInference
+            val createMethod = llmClass.getMethod("createFromOptions", Context::class.java, optionsClass)
+            llmInference = createMethod.invoke(null, context, options)
+
             currentModelPath = modelPath
-            
+
             Log.i(TAG, "✅ MediaPipe model loaded successfully")
-            Log.i(TAG, "   Path: $modelPath")
-            Log.i(TAG, "   MaxTokens: $maxTokens")
-            
             true
+
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "❌ Native library not available: ${e.message}")
+            _isAvailable = false
+            false
+        } catch (e: FileNotFoundException) {
+            Log.e(TAG, "❌ Model file not found: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to load MediaPipe model: ${e.message}")
-            Log.e(TAG, "   Stack: ${e.stackTraceToString()}")
-            isInitialized = false
+            e.printStackTrace()
             false
         }
     }
 
     /**
-     * 💬 สร้างข้อความจาก prompt
-     * 
+     * 💬 Generate text (Synchronous)
+     *
      * @param prompt ข้อความ input
-     * @return ข้อความที่สร้าง หรือ empty string ถ้า error
+     * @return ข้อความที่สร้าง หรือ empty string ถ้าไม่พร้อมใช้งาน
      */
-    fun generate(prompt: String): String {
-        if (!isModelLoaded()) {
-            Log.e(TAG, "❌ Model not loaded")
-            return ""
+    suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
+        if (!_isAvailable) {
+            Log.w(TAG, "⚠️ MediaPipe LLM not available")
+            return@withContext ""
         }
 
-        return try {
-            Log.d(TAG, "🤖 Generating response...")
-            
-            // ใช้ generateResponse สำหรับ non-streaming
-            val response = llmInference?.generateResponse(prompt) ?: ""
-            
-            Log.d(TAG, "✅ Generated ${response.length} chars")
-            response
+        if (llmInference == null) {
+            Log.e(TAG, "❌ Model not loaded")
+            return@withContext ""
+        }
+
+        try {
+            Log.d(TAG, "🤖 Generating with MediaPipe...")
+
+            // Use reflection to call generateResponse
+            val generateMethod = llmInference!!.javaClass.getMethod("generateResponse", String::class.java)
+            val result = generateMethod.invoke(llmInference, prompt) as? String
+
+            Log.d(TAG, "✅ Generated ${result?.length ?: 0} chars")
+            result ?: ""
+
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "❌ Native library error: ${e.message}")
+            _isAvailable = false
+            ""
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Generation error: ${e.message}")
+            Log.e(TAG, "❌ Generation failed: ${e.message}")
+            e.printStackTrace()
             ""
         }
     }
 
     /**
-     * 💬 สร้างข้อความแบบ Async (non-streaming)
-     * 
+     * 💬 Generate text with Streaming
+     *
+     * Note: MediaPipe - ใช้ generateResponse() แล้ว simulate streaming
+     *
      * @param prompt ข้อความ input
-     * @return ข้อความที่สร้าง
+     * @param onToken callback สำหรับแต่ละ token
      */
-    suspend fun generateAsync(prompt: String): String {
-        if (!isModelLoaded()) {
-            Log.e(TAG, "❌ Model not loaded")
-            return ""
+    suspend fun generateStream(
+        prompt: String,
+        onToken: (String) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        if (!_isAvailable) {
+            Log.w(TAG, "⚠️ MediaPipe LLM not available for streaming")
+            return@withContext
         }
 
-        return try {
-            Log.d(TAG, "🤖 Starting async generation...")
-            
-            // ใช้ generateResponseAsync (ไม่มี callback ในตัว)
-            llmInference?.generateResponseAsync(prompt)
-            
-            // สำหรับตอนนี้ return empty ก่อน (จะ implement จริงภายหลัง)
-            Log.d(TAG, "✅ Async generation initiated")
-            ""
+        if (llmInference == null) {
+            Log.e(TAG, "❌ Model not loaded")
+            return@withContext
+        }
+
+        try {
+            Log.d(TAG, "🤖 Generating with MediaPipe (streaming)...")
+
+            // Generate full response first
+            val result = generate(prompt)
+
+            // Simulate streaming by sending chunks
+            result.chunked(10).forEach { chunk ->
+                onToken(chunk)
+                delay(50) // Small delay for streaming effect
+            }
+
+            Log.d(TAG, "✅ Streaming completed")
+
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Async generation error: ${e.message}")
-            ""
+            Log.e(TAG, "❌ Streaming generation failed: ${e.message}")
+            e.printStackTrace()
         }
     }
 
@@ -135,27 +236,29 @@ object MediaPipeLLMBridge {
      * 🗑️ ปิดโมเดลและปล่อยหน่วยความจำ
      */
     fun unloadModel() {
-        Log.i(TAG, "🗑️ Unloading MediaPipe model")
         try {
-            llmInference?.close()
+            if (llmInference != null) {
+                val closeMethod = llmInference!!.javaClass.getMethod("close")
+                closeMethod.invoke(llmInference)
+            }
             llmInference = null
-            isInitialized = false
             currentModelPath = null
-            Log.i(TAG, "✅ Model unloaded")
+            Log.i(TAG, "🗑️ MediaPipe model unloaded")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error unloading model: ${e.message}")
         }
     }
 
     /**
-     * 📊 ข้อมูลโมเดลที่โหลดอยู่
+     * 📊 ข้อมูลโมเดล
      */
     fun getModelInfo(): Map<String, Any?> {
         return mapOf(
-            "engine" to "MediaPipe GenAI (LiteRT)",
+            "initialized" to isInitialized,
+            "available" to isAvailable,
             "modelPath" to currentModelPath,
-            "isLoaded" to isModelLoaded(),
-            "isInitialized" to isInitialized
+            "backend" to "MediaPipe GenAI",
+            "status" to if (!_isAvailable) "Native library not available" else if (isInitialized) "Ready" else "Not loaded"
         )
     }
 }

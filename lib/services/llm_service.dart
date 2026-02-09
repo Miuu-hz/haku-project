@@ -22,13 +22,13 @@ import '../utils/constants.dart';
 /// - Development: โหลดจาก ../models/ (relative to app)
 ///
 /// วิธีใช้:
-/// 1. วางไฟล์ .gguf ใน folder `models/` ที่ root ของ project
-/// 2. แอพจะ copy ไปยัง app storage ตอนเริ่มต้น (ถ้ายังไม่มี)
-/// 3. หรือจะโหลดโมเดลผ่าน `downloadModel()` จาก URL
+/// 1. ดาวน์โหลดไฟล์ .task จาก Google AI / Kaggle
+/// 2. วางใน folder `models/` หรือ import ผ่านแอพ
+/// 3. แอพจะใช้ MediaPipe GenAI รันโมเดลโดยอัตโมัติ
 
 class LLMService {
-  /// ชื่อไฟล์โมเดลเริ่มต้น
-  static const String defaultModelFile = 'Qwen3-VL-4B-Thinking-Q4_K_M.gguf';
+  /// ชื่อไฟล์โมเดลเริ่มต้น (MediaPipe .task format)
+  static const String defaultModelFile = 'gemma-3-270m-it.task';
 
   /// เวลาที่ไม่ใช้งานก่อน auto-unload (นาที)
   static const int autoUnloadMinutes = 5;
@@ -111,7 +111,7 @@ class LLMService {
   /// **หมายเหตุ:** ไม่ควรเรียก method นี้โดยตรง ให้ใช้ [ensureLoaded] แทน
   /// เพื่อให้ระบบ lazy loading ทำงานได้ถูกต้อง
   ///
-  /// [modelName] - ชื่อไฟล์โมเดล (optional, default = Qwen3-VL-4B-Thinking-Q4_K_M.gguf)
+  /// [modelName] - ชื่อไฟล์โมเดล (optional, default = gemma-3-270m-it.task)
   Future<bool> initialize({String? modelName}) async {
     if (_isInitialized) {
       _resetAutoUnloadTimer();
@@ -173,7 +173,7 @@ class LLMService {
   /// ⏰ ตั้ง Timer สำหรับ auto-unload
   void _resetAutoUnloadTimer() {
     _autoUnloadTimer?.cancel();
-    _autoUnloadTimer = Timer(Duration(minutes: autoUnloadMinutes), () {
+    _autoUnloadTimer = Timer(const Duration(minutes: autoUnloadMinutes), () {
       _autoUnload();
     });
     if (kDebugMode) {
@@ -404,7 +404,7 @@ class LLMService {
       
       return await modelDir
           .list()
-          .where((f) => f is File && f.path.endsWith('.gguf'))
+          .where((f) => f is File && f.path.endsWith('.task'))
           .map((f) => basename(f.path))
           .toList();
     } catch (e) {
@@ -456,7 +456,7 @@ class LLMService {
   
   /// 📊 ข้อมูลโมเดล
   Map<String, dynamic> getModelInfo() => {
-      'name': _currentModelName.replaceAll('.gguf', ''),
+      'name': _currentModelName.replaceAll('.task', ''),
       'quantization': 'Q4_K_M',
       'size': '~2.4GB',
       'contextLength': 4096,
@@ -477,178 +477,344 @@ class LLMService {
 /// - Use simple Thai sentences
 /// - Provide explicit context
 ///
-/// 🤖 AI Actions:
-/// AI สามารถส่ง actions ในรูปแบบ:
-/// [ACTION:SCHEDULE] title="...", date=..., time=...
-/// [ACTION:PRESET] switch=...
-/// [ACTION:REMINDER] message="...", minutes=...
-/// [ACTION:OBJECTIVE] title="...", due=...
+/// 🧬 HakuPrompts - Private Life OS Prompts
+///
+/// Concept: Haku = Private Life OS (ระบบปฏิบัติการชีวิตส่วนตัว)
+///
+/// บทบาทหลัก:
+/// - รู้ก่อน: วิเคราะห์ pattern จากข้อมูลที่มี
+/// - เตือนก่อน: แจ้งเตือนเรื่องสำคัญ
+/// - ทำให้เลย: ลงมือทำทันที (ลงปฏิทิน, สรุปข้อมูล)
 class HakuPrompts {
-  /// System prompt พื้นฐานที่อธิบาย Haku
-  static const String _hakuIdentity = '''คุณคือ Haku (箱) - Private Life OS ระบบปฏิบัติการชีวิตส่วนตัว
-บทบาท: ผู้ช่วยที่รู้จักผู้ใช้ดีที่สุด เพราะมีข้อมูลชีวิตประจำวันทั้งหมด
-หน้าที่:
-- รู้ก่อน: วิเคราะห์ pattern จากข้อมูลที่มี
-- เตือนก่อน: แจ้งเตือนเรื่องสำคัญ
-- ทำให้เลย: ลงมือทำทันที (ลงปฏิทิน, สรุปข้อมูล)
-การตอบ: กระชับ เป็นกันเอง ใช้อิโมจิ 1-2 ตัว พูดภาษาไทย''';
+  /// 🧬 System Identity (English = better token efficiency)
+  static const String _hakuIdentity = r'''
+You are "Haku" (箱), a Private Life OS running on the user's phone.
 
-  /// Action instructions for AI
-  static const String _actionInstructions = '''
-เมื่อต้องการทำ actions ให้เพิ่ม tag ท้ายข้อความ:
-- สร้างนัด: [ACTION:SCHEDULE] title="ชื่อ", date=พรุ่งนี้, time=09:00
-- ตั้งเตือน: [ACTION:REMINDER] message="ข้อความ", minutes=15
-- สร้างเป้าหมาย: [ACTION:OBJECTIVE] title="ชื่อ", due=พรุ่งนี้''';
+Core Principles:
+1. KNOW BEFORE: Analyze patterns from user's data
+2. WARN BEFORE: Proactive alerts for important matters
+3. DO IT NOW: Immediate actions (schedule, summarize, suggest)
+
+Personality: Smart, Minimalist, Empathetic, Proactive
+Response Style: Short (1-2 sentences), Thai language, friendly emoji
+
+OUTPUT RULES:
+- Output ONLY raw JSON (NO Markdown blocks)
+- "response" field MUST be in Thai
+- "type": "log" | "schedule" | "chat" | "proactive" | "location" | "pattern"
+''';
+
+  /// 🔨 Helper: Current DateTime (สำคัญสำหรับคำนวณเวลา)
+  static String get _now => DateTime.now().toString().substring(0, 16);
 
   /// 🔍 RAG Question - ถามตอบจากบันทึก
   static String forRAGQuestion(String question, List<String> contextEntries) {
     final context = contextEntries.join('\n');
-    return '''<|im_start|>system
-$_hakuIdentity
-
-ข้อมูลบันทึกของผู้ใช้:
-$context
-
-คำสั่ง: ตอบจากข้อมูลที่มี ถ้าไม่มีให้บอกตรงๆ<|im_end|>
-<|im_start|>user
-$question<|im_end|>
-<|im_start|>assistant
-''';
+    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser Records:\n$context\n\nTask: Answer based on records. If not found, say so honestly.\n\nQuestion: $question\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Answer in Thai"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
   /// 📊 Summarization - สรุปบันทึก
-  static String forSummarization(String entries) => '''<|im_start|>system
-$_hakuIdentity
-
-หน้าที่: สรุปบันทึกให้กระชับ 3-5 ประโยค
-เน้น: อารมณ์ กิจกรรมหลัก สถานที่ ข้อสังเกต<|im_end|>
-<|im_start|>user
-บันทึก:
-$entries
-
-สรุปให้หน่อย<|im_end|>
-<|im_start|>assistant
-''';
+  static String forSummarization(String entries) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nTask: Summarize these entries in 3-5 Thai sentences with emoji.\nFocus: Mood, main activities, locations, insights.\n\nRecords:\n$entries\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai summary with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
 
   /// 📅 Event Extraction - ดึงกิจกรรมลงปฏิทิน
-  static String forEventExtraction(String text) => '''<|im_start|>system
-หน้าที่: ดึงข้อมูลกิจกรรมจากข้อความ
-ตอบเป็น JSON เท่านั้น:
-{"title":"ชื่อ","date":"YYYY-MM-DD","time":"HH:MM","duration_minutes":60}<|im_end|>
-<|im_start|>user
-$text<|im_end|>
-<|im_start|>assistant
-''';
+  static String forEventExtraction(String text) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nTask: Extract event details from text to JSON.\nCalculate relative dates (tomorrow, next Friday) based on Current Time.\n\nText: $text\n\nOutput JSON ONLY:\n{\n  "type": "schedule",\n  "data": {\n    "title": "Event name",\n    "date": "YYYY-MM-DD",\n    "time": "HH:MM",\n    "duration_minutes": 60,\n    "location": "Place"\n  },\n  "response": "Thai confirmation message"\n}<end_of_turn>\n<start_of_turn>model\n';
 
-  /// 💬 Chat - คุยทั่วไป (พร้อม action support)
-  static String forChat(String message) => '''<|im_start|>system
-$_hakuIdentity
+  /// 💬 General Chat
+  static String forChat(String message) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nInput: $message\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai reply"\n}<end_of_turn>\n<start_of_turn>model\n';
 
-$_actionInstructions<|im_end|>
-<|im_start|>user
-$message<|im_end|>
-<|im_start|>assistant
-''';
-
-  /// 🎯 Chat with Objective Detection
+  /// 🔔 Proactive Trigger - ทักทายก่อนไม่รอให้ถาม
   ///
-  /// ใช้เมื่อต้องการให้ AI ตรวจจับ intent และสร้าง action อัตโนมัติ
-  static String forChatWithActions(String message, {String? presetContext}) {
-    final context =
-        presetContext != null ? '\nโหมดปัจจุบัน: $presetContext' : '';
-    return '''<|im_start|>system
+  /// ใช้เมื่อ Haku ต้องการทักทายผู้ใช้ก่อน (ไม่รอให้ถาม)
+  static String forProactiveTrigger(String context, String suggestedMessage) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nContext:\n$context\n\nSuggested Topic: $suggestedMessage\n\nTask: Create proactive greeting (1-2 sentences, Thai, friendly, emoji).\nReference past data if relevant.\n\nOutput JSON ONLY:\n{\n  "type": "proactive",\n  "response": "Thai greeting message"\n}<end_of_turn>\n<start_of_turn>model\n';
+
+  /// 📍 Location Revisit - จำได้ว่าเคยมาที่นี่ทำอะไร
+  ///
+  /// ใช้เมื่อผู้ใช้กลับมาที่เดิม
+  static String forLocationRevisit(String locationName, List<String> previousVisits) {
+    final history = previousVisits.join('\n');
+    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser is at: $locationName\nPrevious visits:\n$history\n\nTask: Remind user what they did here before and their mood.\nMake it personal and friendly.\n\nOutput JSON ONLY:\n{\n  "type": "location",\n  "data": {\n    "location": "$locationName",\n    "past_activities": ["activity1", "activity2"],\n    "mood_trend": "positive|neutral|negative"\n  },\n  "response": "Thai message reminding past visits"\n}<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 🧠 Pattern Analysis - วิเคราะห์ pattern ของผู้ใช้
+  ///
+  /// ใช้เมื่อต้องการวิเคราะห์ pattern และให้คำแนะนำ
+  static String forPatternAnalysis(String patternData) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser Pattern Data:\n$patternData\n\nTask: Analyze patterns and provide insights + actionable suggestions.\nBe empathetic and proactive.\n\nOutput JSON ONLY:\n{\n  "type": "pattern",\n  "data": {\n    "patterns": ["Pattern 1", "Pattern 2"],\n    "insights": ["Insight 1", "Insight 2"],\n    "suggestions": ["Suggestion 1", "Suggestion 2"]\n  },\n  "response": "Thai analysis and advice"\n}<end_of_turn>\n<start_of_turn>model\n';
+
+  /// 🎯 Chat with Context (Preset/Objective)
+  static String forChatWithContext(
+    String message, {
+    String? presetContext,
+    String? objectiveContext,
+  }) {
+    final preset = presetContext != null ? '\nMode: $presetContext' : '';
+    final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
+
+    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now$preset$objective\n\nInput: $message\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai reply"\n}<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 🎬 Full Action Instructions - คำสั่งสำหรับ AI ทำ actions
+  static const String _actionInstructions = r'''
+AVAILABLE ACTIONS (use when needed):
+- Schedule event: [ACTION:SCHEDULE] title="...", date=YYYY-MM-DD, time=HH:MM, location="..."
+- Set reminder: [ACTION:REMINDER] message="...", minutes=15
+- Create objective: [ACTION:OBJECTIVE] title="...", due=YYYY-MM-DD
+- Search place: [ACTION:SEARCH_PLACE] query="ร้านกาแฟ ทองหล่อ", type=cafe
+- Save place: [ACTION:SAVE_PLACE] name="...", lat=13.XXX, lng=100.XXX
+- Web search: [ACTION:WEB_SEARCH] query="..."
+- Sync to Google Calendar: [ACTION:SYNC_CALENDAR] title="...", date=..., time=...
+- Open navigation: [ACTION:NAVIGATE] lat=..., lng=..., name="..."
+- Ask user for location: [ACTION:ASK_LOCATION] message="เลือกสถานที่นัดพบ"
+
+WHEN TO USE ACTIONS:
+- User mentions appointment/event → use SCHEDULE
+- User mentions place → offer to SEARCH_PLACE
+- User asks "what is..." or needs info → use WEB_SEARCH
+- User wants to save location → use SAVE_PLACE
+- User wants to navigate → use NAVIGATE
+''';
+
+  /// 💬 Chat with Actions - AI สามารถสั่งงานได้
+  static String forChatWithActions(
+    String message, {
+    String? presetContext,
+    String? objectiveContext,
+    String? chatHistory,
+    String? locationContext,
+  }) {
+    final preset = presetContext != null ? '\nMode: $presetContext' : '';
+    final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
+    final history = chatHistory != null ? '\n\nChat History:\n$chatHistory' : '';
+    final location = locationContext != null ? '\nCurrent Location: $locationContext' : '';
+
+    return '''<start_of_turn>user
 $_hakuIdentity
-$context
 
 $_actionInstructions
 
-สำคัญ: ถ้าผู้ใช้พูดถึงนัดหมาย/เวลา/กิจกรรม ให้สร้าง action tag ด้วย<|im_end|>
-<|im_start|>user
-$message<|im_end|>
-<|im_start|>assistant
+Current Time: $_now$preset$objective$location$history
+
+Input: $message
+
+IMPORTANT:
+- If user mentions a meeting/event with location, ask if they want to search for place
+- If user needs information, use WEB_SEARCH
+- Always respond in Thai
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai message (include [ACTION:...] tags if needed)"
+}<end_of_turn>
+<start_of_turn>model
 ''';
   }
 
-  /// 🔔 Proactive Trigger - ทักทายตามบริบท
-  ///
-  /// ใช้เมื่อ Haku ต้องการทักทายผู้ใช้ก่อน (ไม่รอให้ถาม)
-  static String forProactiveTrigger(String context, String suggestedMessage) =>
-      '''<|im_start|>system
+  /// 🔍 Process Search Results - ให้ AI ประมวลผลผลลัพธ์
+  static String forProcessSearchResults(
+    String originalQuestion,
+    String searchResults,
+  ) => '''<start_of_turn>user
 $_hakuIdentity
 
-บริบทปัจจุบัน:
-$context
+User asked: $originalQuestion
 
-หน้าที่: ทักทายผู้ใช้ตามบริบท อ้างอิงข้อมูลเก่าถ้ามี<|im_end|>
-<|im_start|>user
-$suggestedMessage<|im_end|>
-<|im_start|>assistant
+Search Results:
+$searchResults
+
+Task: Summarize the search results and answer user's question in Thai.
+Be helpful and cite sources if available.
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai answer based on search results"
+}<end_of_turn>
+<start_of_turn>model
 ''';
 
-  /// 🎭 Preset-based Chat
-  ///
-  /// ใช้เมื่อ AI ต้องตอบตาม preset personality
-  static String forPresetChat(
-    String message, {
-    required String presetName,
-    required String personality,
-    List<String> focusAreas = const [],
+  /// 📍 Process Place Results - ให้ AI แนะนำจากผลค้นหาสถานที่
+  static String forProcessPlaceResults(
+    String originalRequest,
+    String placeResults,
+  ) => '''<start_of_turn>user
+$_hakuIdentity
+
+User asked: $originalRequest
+
+Found Places:
+$placeResults
+
+Task: Recommend places from the results in a friendly way.
+Ask if user wants to:
+1. Save any place
+2. Navigate to a place
+3. Add to their schedule
+
+Output JSON:
+{
+  "type": "chat",
+  "response": "Thai recommendation with emoji"
+}<end_of_turn>
+<start_of_turn>model
+''';
+
+  /// 🗺️ Location Context - บอก AI ว่าผู้ใช้อยู่ที่ไหน
+  static String buildLocationContext({
+    String? currentPlace,
+    String? nearbyPlaces,
+    String? lastVisitInfo,
   }) {
-    final focus =
-        focusAreas.isNotEmpty ? '\nโฟกัส: ${focusAreas.join(', ')}' : '';
-    return '''<|im_start|>system
-$_hakuIdentity
+    final buffer = StringBuffer();
 
-โหมดปัจจุบัน: $presetName
-บุคลิก: $personality$focus
+    if (currentPlace != null) {
+      buffer.writeln('📍 Current: $currentPlace');
+    }
+    if (nearbyPlaces != null) {
+      buffer.writeln('🏪 Nearby: $nearbyPlaces');
+    }
+    if (lastVisitInfo != null) {
+      buffer.writeln('📝 Last visit: $lastVisitInfo');
+    }
 
-$_actionInstructions<|im_end|>
-<|im_start|>user
-$message<|im_end|>
-<|im_start|>assistant
+    return buffer.toString();
+  }
+
+  // ============================================================
+  // 🏛️ HAKU ENGINE PROMPTS (The Face)
+  // ============================================================
+
+  /// 🎭 The Face - Main chat prompt with full context
+  ///
+  /// Components:
+  /// - [Identity]: User profile (Lean format)
+  /// - [Status]: Time, location, battery
+  /// - [Mem]: RAG topic summaries (English)
+  /// - [Reply]: Referenced context (if replying)
+  /// - [Recent]: Recent messages (Thai)
+  static String forHakuEngine({
+    required String userInput,
+    required String identityCard,
+    required String statusBar,
+    String? memoryContext,
+    String? replyContext,
+    String? recentMessages,
+  }) {
+    final buffer = StringBuffer();
+
+    // System identity (short)
+    buffer.writeln('Role: Haku (Private Life OS)');
+    buffer.writeln('Style: Short Thai, emoji, proactive');
+
+    // Identity Card
+    if (identityCard.isNotEmpty) {
+      buffer.writeln(identityCard);
+    }
+
+    // Status Bar
+    buffer.writeln(statusBar);
+
+    // Memory (RAG)
+    if (memoryContext != null && memoryContext.isNotEmpty) {
+      buffer.writeln('[Mem]');
+      buffer.writeln(memoryContext);
+    }
+
+    // Reply context
+    if (replyContext != null && replyContext.isNotEmpty) {
+      buffer.writeln('[Reply]');
+      buffer.writeln(replyContext);
+    }
+
+    // Recent messages
+    if (recentMessages != null && recentMessages.isNotEmpty) {
+      buffer.writeln('[Recent]');
+      buffer.writeln(recentMessages);
+    }
+
+    // Actions
+    buffer.writeln(_actionInstructionsLean);
+
+    return '''<start_of_turn>user
+${buffer.toString()}
+Input: $userInput
+
+Reply in Thai (1-2 sentences). Use [ACTION:...] if needed.
+<end_of_turn>
+<start_of_turn>model
 ''';
   }
 
-  /// 📍 Location Revisit - กลับมาที่เดิม
-  static String forLocationRevisit(
-          String locationName, List<String> previousVisits) =>
-      '''<|im_start|>system
-$_hakuIdentity
+  /// 🎬 Lean Action Instructions
+  static const String _actionInstructionsLean = r'''
+[Actions]
+SCHEDULE:title,date,time,location|REMINDER:msg,mins|OBJECTIVE:title,due
+SEARCH_PLACE:query,type|SAVE_PLACE:name,lat,lng|WEB_SEARCH:query
+SYNC_CALENDAR:title,date|NAVIGATE:lat,lng,name|ASK_LOCATION:msg''';
 
-ผู้ใช้กลับมาที่: $locationName
-ประวัติการมาก่อนหน้า:
-${previousVisits.join('\n')}
+  // ============================================================
+  // 👷 HAKU ENGINE PROMPTS (The Worker)
+  // ============================================================
 
-หน้าที่: บอกผู้ใช้ว่าเคยมาที่นี่ทำอะไร อารมณ์เป็นยังไง<|im_end|>
-<|im_start|>user
-ฉันกลับมาที่นี่อีกแล้ว<|im_end|>
-<|im_start|>assistant
+  /// 👷 Worker - Summarize Thai to English
+  static String forWorkerSummarize(List<String> messages) {
+    final joined = messages.join('\n');
+    return '''<start_of_turn>user
+Task: Summarize Thai conversation in English (2-3 sentences).
+Focus: topic, emotions, key facts/dates.
+
+$joined
+
+English summary:
+<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
+  /// 👷 Worker - Generate topic name
+  static String forWorkerTopicName(String summary) => '''<start_of_turn>user
+Create short topic name (2-4 words) for:
+$summary
+
+Topic:
+<end_of_turn>
+<start_of_turn>model
 ''';
 
-  /// 🧠 Pattern Analysis - วิเคราะห์ pattern
-  static String forPatternAnalysis(String patternData) => '''<|im_start|>system
-$_hakuIdentity
+  /// 👷 Worker - Extract facts from message
+  static String forWorkerExtractFacts(String message) => '''<start_of_turn>user
+Extract personal facts from Thai message.
+Return: likes[], dislikes[], goals[], or empty.
 
-ข้อมูล pattern ของผู้ใช้:
-$patternData
+Message: $message
 
-หน้าที่: วิเคราะห์ pattern และให้คำแนะนำ<|im_end|>
-<|im_start|>user
-ช่วยวิเคราะห์ pattern ของฉันหน่อย<|im_end|>
-<|im_start|>assistant
+JSON:
+<end_of_turn>
+<start_of_turn>model
 ''';
 
-  /// 🎯 Objective Extraction
-  ///
-  /// ใช้เมื่อต้องการให้ AI วิเคราะห์ข้อความและดึง objectives ออกมา
-  static String forObjectiveExtraction(String text) => '''<|im_start|>system
-วิเคราะห์ข้อความและดึงข้อมูลเป้าหมาย/นัดหมาย
-ถ้าพบให้ตอบ:
-[ACTION:SCHEDULE] title="ชื่อ", date=วันที่, time=เวลา
+  // ============================================================
+  // 🔔 PROACTIVE PROMPTS
+  // ============================================================
 
-ถ้าไม่พบให้ตอบ: ไม่พบนัดหมาย<|im_end|>
-<|im_start|>user
-$text<|im_end|>
-<|im_start|>assistant
+  /// 🔔 Proactive greeting with context
+  static String forProactiveGreeting({
+    required String identityCard,
+    required String statusBar,
+    required String trigger,
+    String? relevantMemory,
+  }) {
+    final memory = relevantMemory != null ? '\n[Mem]\n$relevantMemory' : '';
+
+    return '''<start_of_turn>user
+Role: Haku (proactive assistant)
+$identityCard
+$statusBar$memory
+
+Trigger: $trigger
+
+Create friendly Thai greeting (1 sentence) based on trigger and context.
+<end_of_turn>
+<start_of_turn>model
 ''';
+  }
 }

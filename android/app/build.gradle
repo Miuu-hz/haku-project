@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 android {
     namespace "com.example.haku"
     compileSdk 36
-    ndkVersion "27.0.12077973"
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -48,71 +48,32 @@ android {
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
-        
-        externalNativeBuild {
-            cmake {
-                cppFlags "-O3 -flto -ffunction-sections -fdata-sections -fexceptions -frtti"
-                // ⚠️ CPU-ONLY MODE - ปิด Vulkan เพื่อป้องกัน crash บน Adreno GPU (Qualcomm)
-                // Adreno GPU มีปัญหา Vulkan shader crash กับ llama.cpp
-                // ถ้าต้องการเปิด Vulkan: เปลี่ยน HAKU_CPU_ONLY=OFF และ GGML_VULKAN=ON
-                arguments "-DANDROID_STL=c++_shared",
-                          "-DHAKU_CPU_ONLY=ON",
-                          "-DGGML_VULKAN=OFF"
-                // Build เฉพาะ ARM64
-                abiFilters 'arm64-v8a'
-            }
-        }
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-O3 -flto -DNDEBUG"
-                }
-            }
+            // TODO: Re-enable minification after fixing ProGuard rules
+            minifyEnabled false
+            shrinkResources false
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             signingConfig signingConfigs.debug
-            externalNativeBuild {
-                cmake {
-                    cppFlags "-O0 -g"
-                }
-            }
-            // Debug ใช้แค่ ARM64 เหมือนกัน (ลดเวลา build และป้องกันปัญหา APK location)
-            ndk {
-                abiFilters 'arm64-v8a'
-            }
         }
     }
-    
-    externalNativeBuild {
-        cmake {
-            path "src/main/cpp/CMakeLists.txt"
-            version "3.22.1"
-        }
-    }
-    
+
+    // 🏗️ MediaPipe GenAI: Include all native libraries
     packagingOptions {
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libhaku_llm.so'
-        // MediaPipe GenAI native libs
-        jniLibs {
-            useLegacyPackaging = true
-        }
+        pickFirst 'lib/**/*.so'
+        doNotStrip 'lib/**/*.so'
     }
     
-    // ปิด splits เพื่อให้ Flutter หา APK เจอ (Flutter จะจัดการเอง)
-    // splits {
-    //     abi {
-    //         enable true
-    //         universalApk true
-    //     }
-    // }
+    // 🏗️ Extract native libraries properly
+    androidResources {
+        noCompress 'tflite', 'task'
+    }
+
 }
 
 flutter {
@@ -123,10 +84,15 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0"
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.core:core-ktx:1.12.0'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     
-    // 🤖 MediaPipe GenAI - LLM Inference (ต้องใช้ version ล่าสุด)
-    implementation 'com.google.mediapipe:tasks-genai:0.10.24'
+    // 🤖 MediaPipe GenAI LLM
+    // Gemma 3 requires 0.10.24+, using 0.10.30 for stability
+    implementation 'com.google.mediapipe:tasks-genai:0.10.32'
     
-    // 📱 Flutter Local Notifications - Core Library Desugaring
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+    // Coroutines สำหรับ async operations
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
+    
+    // Google Play Core (สำหรับ deferred components)
+    implementation 'com.google.android.play:core:1.10.3'
 }

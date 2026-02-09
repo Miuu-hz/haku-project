@@ -1,85 +1,112 @@
-/// 💬 โมเดลข้อความแชท
-/// 
-/// เก็บข้อมูลข้อความระหว่างผู้ใช้กับ AI
-library chat_message;
+// 💬 Chat Message Model
+//
+// ใช้เก็บข้อความในหน้าแชท รองรับหลายประเภท:
+// - User message
+// - Assistant message
+// - Proactive message (trigger)
+// - Loading indicator
+// - Error message
+
+enum ChatMessageType {
+  user,
+  assistant,
+  proactive,
+  loading,
+  error,
+  welcome,
+}
 
 class ChatMessage {
   final String id;
+  final ChatMessageType type;
   final String content;
-  final bool isUser;        // true = ผู้ใช้, false = AI
-  final bool isLoading;     // กำลังรอคำตอบ
-  final bool isProactive;   // ข้อความกระตุ้นจากระบบ (Trigger)
   final DateTime timestamp;
-  final List<String>? sources;  // อ้างอิงจาก Entry ไหน (สำหรับ RAG)
-  final Map<String, dynamic>? action; // สำหรับ Auto-scheduling
-  final String? triggerTitle; // หัวข้อ trigger (สำหรับ proactive message)
+  final List<String>? sources;
+  final String? triggerTitle;
+  final List<String>? actions; // 🆕 Actions ที่ AI ทำ
 
   ChatMessage({
-    required this.id,
+    String? id,
+    required this.type,
     required this.content,
-    required this.isUser,
-    this.isLoading = false,
-    this.isProactive = false,
-    required this.timestamp,
+    DateTime? timestamp,
     this.sources,
-    this.action,
     this.triggerTitle,
-  });
+    this.actions,
+  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        timestamp = timestamp ?? DateTime.now();
 
-  /// 👤 สร้างข้อความจากผู้ใช้
+  // Getters
+  bool get isUser => type == ChatMessageType.user;
+  bool get isAssistant => type == ChatMessageType.assistant;
+  bool get isProactive => type == ChatMessageType.proactive;
+  bool get isLoading => type == ChatMessageType.loading;
+  bool get isError => type == ChatMessageType.error;
+  bool get isWelcome => type == ChatMessageType.welcome;
+  bool get hasActions => actions != null && actions!.isNotEmpty;
+
+  // Factory constructors
   factory ChatMessage.user(String content) => ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      content: content,
-      isUser: true,
-      timestamp: DateTime.now(),
-    );
+        type: ChatMessageType.user,
+        content: content,
+      );
 
-  /// 🤖 สร้างข้อความจาก AI
-  factory ChatMessage.assistant(String content, {List<String>? sources}) => ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      content: content,
-      isUser: false,
-      timestamp: DateTime.now(),
-      sources: sources,
-    );
+  factory ChatMessage.assistant(
+    String content, {
+    List<String>? sources,
+    List<String>? actions,
+  }) =>
+      ChatMessage(
+        type: ChatMessageType.assistant,
+        content: content,
+        sources: sources,
+        actions: actions,
+      );
 
-  /// ⏳ ข้อความ "กำลังพิมพ์..."
+  factory ChatMessage.proactive(
+    String content, {
+    String? triggerTitle,
+  }) =>
+      ChatMessage(
+        type: ChatMessageType.proactive,
+        content: content,
+        triggerTitle: triggerTitle,
+      );
+
   factory ChatMessage.loading() => ChatMessage(
-      id: 'loading',
-      content: '...',
-      isUser: false,
-      isLoading: true,
-      timestamp: DateTime.now(),
-    );
+        type: ChatMessageType.loading,
+        content: '',
+      );
 
-  /// 👋 ข้อความต้อนรับเริ่มต้น
+  factory ChatMessage.error(String message) => ChatMessage(
+        type: ChatMessageType.error,
+        content: message,
+      );
+
   factory ChatMessage.welcome() => ChatMessage(
-      id: 'welcome',
-      content: 'สวัสดีค่ะ! ฮาคุพร้อมช่วยเหลือคุณแล้ว 🌸\n\n'
-          'คุณสามารถถามฉันเกี่ยวกับบันทึกของคุณได้ เช่น:\n'
-          '• "วันนี้กินอะไรมา?"\n'
-          '• "สรุปวันนี้หน่อย"\n'
-          '• "เมื่อวานไปไหนมา?"\n\n'
-          'หรือเลือกคำถามสำเร็จรูปด้านล่างได้เลยค่ะ',
-      isUser: false,
-      timestamp: DateTime.now(),
-    );
+        type: ChatMessageType.welcome,
+        content: 'สวัสดีค่ะ! ฉันคือ Haku (箱) ผู้ช่วยส่วนตัวของคุณ\n\n'
+            'ฉันสามารถ:\n'
+            '• ตอบคำถามจากบันทึกของคุณ\n'
+            '• สรุปวันของคุณ\n'
+            '• ช่วยจดบันทึกและตั้งเตือน\n'
+            '• รู้จักคุณมากขึ้นเรื่อยๆ\n\n'
+            'ลองถามอะไรก็ได้เลยค่ะ! 💜',
+      );
 
-  /// ❌ ข้อความ Error
-  factory ChatMessage.error(String errorMessage) => ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      content: errorMessage,
-      isUser: false,
-      timestamp: DateTime.now(),
-    );
-
-  /// 🔔 ข้อความ Proactive (จาก Trigger)
-  factory ChatMessage.proactive(String content, {String? triggerTitle}) => ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      content: content,
-      isUser: false,
-      isProactive: true,
-      timestamp: DateTime.now(),
-      triggerTitle: triggerTitle,
-    );
+  ChatMessage copyWith({
+    String? content,
+    List<String>? sources,
+    String? triggerTitle,
+    List<String>? actions,
+  }) =>
+      ChatMessage(
+        id: id,
+        type: type,
+        content: content ?? this.content,
+        timestamp: timestamp,
+        sources: sources ?? this.sources,
+        triggerTitle: triggerTitle ?? this.triggerTitle,
+        actions: actions ?? this.actions,
+      );
 }

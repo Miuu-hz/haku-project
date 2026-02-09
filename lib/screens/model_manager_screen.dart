@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
-import '../services/mediapipe_llm_service.dart';
+import '../services/llm_service.dart';
 
-/// 🤖 Model Manager - จัดการโมเดล MediaPipe LLM
+/// 🤖 Model Manager - จัดการโมเดล LLM
 class ModelManagerScreen extends ConsumerStatefulWidget {
   const ModelManagerScreen({super.key});
 
@@ -15,25 +15,11 @@ class ModelManagerScreen extends ConsumerStatefulWidget {
 class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
   bool _isImporting = false;
   String? _importStatus;
-  Map<String, dynamic>? _modelInfo;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadModelInfo();
-  }
-
-  Future<void> _loadModelInfo() async {
-    final info = await MediaPipeLLMService().validateCustomModel();
-    setState(() {
-      _modelInfo = info;
-    });
-  }
-
+  
   @override
   Widget build(BuildContext context) {
-    final llmService = MediaPipeLLMService();
-
+    final llmService = LLMService();
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('🤖 จัดการโมเดล AI'),
@@ -45,17 +31,17 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
           children: [
             // โมเดลปัจจุบัน
             _buildCurrentModelCard(llmService),
-
+            
             const SizedBox(height: 24),
-
+            
             // ปุ่ม import
             _buildImportButton(),
-
+            
             const SizedBox(height: 16),
-
+            
             // โมเดลที่แนะนำ
             _buildRecommendedModels(),
-
+            
             if (_importStatus != null) ...[
               const SizedBox(height: 16),
               Text(
@@ -71,7 +57,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
     );
   }
 
-  Widget _buildCurrentModelCard(MediaPipeLLMService llmService) => Card(
+  Widget _buildCurrentModelCard(LLMService llmService) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -82,28 +68,27 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (_modelInfo == null)
-              const CircularProgressIndicator()
-            else if (_modelInfo!['valid'] == true) ...[
-              ListTile(
-                leading: const Icon(Icons.model_training, color: Colors.green),
-                title: Text(
-                  path.basename(_modelInfo!['path'] as String),
-                  style: const TextStyle(fontSize: 14),
-                ),
-                subtitle: Text(
-                  'ขนาด: ${_modelInfo!['size']}\nสถานะ: ${llmService.isInitialized ? "โหลดแล้ว" : "พร้อมใช้งาน"}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: llmService.isInitialized
-                    ? const Chip(label: Text('กำลังใช้งาน'), backgroundColor: Colors.green)
-                    : null,
-              ),
-            ] else
-              Text(
-                '❌ ${_modelInfo!['message']}\nกรุณาเลือกไฟล์โมเดล .task',
-                style: const TextStyle(color: Colors.orange),
-              ),
+            FutureBuilder<List<String>>(
+              future: llmService.listAvailableModels(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Text(
+                    '❌ ยังไม่มีโมเดล\nกรุณา import โมเดล .task (MediaPipe)',
+                    style: TextStyle(color: Colors.orange),
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: snapshot.data!.map((model) => ListTile(
+                    leading: const Icon(Icons.model_training),
+                    title: Text(model),
+                    trailing: model == llmService.currentModelName
+                        ? const Chip(label: Text('กำลังใช้งาน'), backgroundColor: Colors.green)
+                        : null,
+                  )).toList(),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -112,7 +97,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
   Widget _buildImportButton() => SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: _isImporting ? null : _pickAndSetModel,
+        onPressed: _isImporting ? null : _pickAndImportModel,
         icon: _isImporting
             ? const SizedBox(
                 width: 20,
@@ -120,7 +105,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.file_upload),
-        label: Text(_isImporting ? 'กำลังตั้งค่า...' : '📁 เลือกไฟล์โมเดล (.task)'),
+        label: Text(_isImporting ? 'กำลังนำเข้า...' : '📁 เลือกไฟล์โมเดล (.task)'),
       ),
     );
 
@@ -131,34 +116,24 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'โมเดลที่แนะนำ (MediaPipe)',
+              'โมเดลที่แนะนำ',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             _buildModelItem(
-              'gemma-3-270m-it-int8.task',
-              '~290 MB',
-              'Gemma 3 - เร็ว ประหยัดแบต',
+              'Gemma 3 270M IT',
+              '~180 MB',
+              'เร็วที่สุด ใช้งานง่าย',
             ),
             _buildModelItem(
-              'gemma-3-1b-it-int8.task',
-              '~1 GB',
-              'Gemma 3 - สมดุล',
-            ),
-            _buildModelItem(
-              'gemma-3-4b-it-int8.task',
-              '~4 GB',
-              'Gemma 3 - คุณภาพสูง',
+              'Gemma 3 4B IT',
+              '~2.8 GB',
+              'คุณภาพสูง ตอบโต้ดี',
             ),
             const SizedBox(height: 8),
             const Text(
-              '💡 ดาวน์โหลดจาก: kaggle.com/models/google/gemma-3',
+              '💡 ดาวน์โหลดจาก: Google AI / Kaggle',
               style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '⚠️ ใช้ไฟล์ .task (MediaPipe format) เท่านั้น',
-              style: TextStyle(fontSize: 11, color: Colors.orange),
             ),
           ],
         ),
@@ -171,7 +146,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
       subtitle: Text('$size - $desc', style: const TextStyle(fontSize: 11)),
     );
 
-  Future<void> _pickAndSetModel() async {
+  Future<void> _pickAndImportModel() async {
     setState(() {
       _isImporting = true;
       _importStatus = null;
@@ -180,6 +155,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
+        allowedExtensions: ['task'],
       );
 
       if (result == null || result.files.single.path == null) {
@@ -193,30 +169,22 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
       final filePath = result.files.single.path!;
       final fileName = path.basename(filePath);
 
-      // ตรวจสอบว่าเป็นไฟล์ .task หรือไม่
-      if (!fileName.endsWith('.task')) {
+      setState(() {
+        _importStatus = 'กำลัง copy $fileName...';
+      });
+
+      final llmService = LLMService();
+      final success = await llmService.importModel(filePath);
+
+      if (success) {
         setState(() {
-          _importStatus = '❌ กรุณาเลือกไฟล์ .task เท่านั้น';
-          _isImporting = false;
+          _importStatus = '✅ นำเข้าสำเร็จ! กรุณารีสตาร์ทแอพ';
         });
-        return;
+      } else {
+        setState(() {
+          _importStatus = '❌ นำเข้าล้มเหลว';
+        });
       }
-
-      setState(() {
-        _importStatus = 'กำลังตั้งค่า $fileName...';
-      });
-
-      // บันทึก path ลง SharedPreferences
-      final llmService = MediaPipeLLMService();
-      await llmService.setCustomModelPath(filePath);
-
-      // โหลด model info ใหม่
-      await _loadModelInfo();
-
-      setState(() {
-        _importStatus = '✅ ตั้งค่าสำเร็จ! กรุณารีสตาร์ทแอพเพื่อโหลดโมเดล';
-      });
-
     } catch (e) {
       setState(() {
         _importStatus = '❌ ผิดพลาด: $e';

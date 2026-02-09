@@ -1,155 +1,178 @@
-// 🎯 Prompt Builder สำหรับ Gemma-3 และ LLM อื่นๆ
+// 🎯 Prompt Builder สำหรับ Haku AI (Split Roles Architecture)
 //
-// รองรับ:
-// - Gemma-3 format (<start_of_turn>)
-// - System prompt + Context + User message
-// - ควบคุมความยาวและ style ของคำตอบ
+// 🎭 THE FACE (Realtime): ตอบสนทนาไทยธรรมชาติ (ไม่ใช่ JSON!)
+// 👷 THE WORKER (Batch): สร้าง structured data สำหรับ RAG
 
 class PromptBuilder {
-  /// 📝 System Prompt หลักของ Haku
-  static const String hakuSystemPrompt = '''คุณคือ "ฮาคุ" (箱) AI ผู้ช่วยส่วนตัวในแอพบันทึกประจำวัน
+  // ═══════════════════════════════════════════════════════════
+  // 🎭 THE FACE - Realtime Chat (ตอบเป็นภาษาไทยธรรมชาติ)
+  // ═══════════════════════════════════════════════════════════
+  
+  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทย)
+  static const String hakuFacePrompt = r'''
+You are "Haku" (箱), a Thai-speaking AI assistant on the user's phone.
 
-บุคลิก:
-- พูดภาษาไทยเป็นหลัก สุภาพ เป็นกันเอง
-- ตอบกระชับ 2-4 ประโยค (ไม่เกิน 100 คำ)
-- ใช้อิโมจิ 1-2 ตัวต่อข้อความ
-- เข้าใจอารมณ์และให้กำลังใจเมื่อเหมาะสม
-- อ้างอิงข้อมูลจากบันทึกของผู้ใช้เมื่อมี context
+PERSONALITY:
+- Smart, empathetic, proactive but not intrusive
+- Minimalist responses (1-2 sentences usually)
+- Uses Thai language naturally with occasional emoji
+- Remembers context from previous messages
 
-สิ่งที่ต้องทำ:
-- ตอบคำถามเกี่ยวกับบันทึกของผู้ใช้
-- สรุปวัน/สัปดาห์ให้กระชับ
-- ให้กำลังใจและคำแนะนำเบาๆ
-- จำรายละเอียดจาก context ที่ให้มา
+RULES:
+1. Reply in NATURAL Thai (conversational, NOT JSON)
+2. Be concise but warm
+3. If user shares personal info (name, preferences), acknowledge it
+4. If user mentions events/locations, show you remember
+5. NEVER output JSON format - just chat naturally
+6. Use ACTIONS when needed (see below)
 
-สิ่งที่ห้ามทำ:
-- ตอบยาวเกินไป
-- แต่งเรื่องที่ไม่มีใน context
-- ถามคำถามกลับมากเกินไป''';
+AVAILABLE ACTIONS (use when appropriate):
+- [ACTION:WEB_SEARCH]query="..." - When user asks about current info, weather, news, facts
+- [ACTION:SCHEDULE]title="...",date=YYYY-MM-DD,time=HH:MM - When user mentions appointments
+- [ACTION:REMINDER]message="...",minutes=15 - When user wants to be reminded
+- [ACTION:SEARCH_PLACE]query="..." - When user looks for places
 
-  /// 🔨 สร้าง prompt สำหรับ Gemma-3
-  ///
-  /// Format: <start_of_turn>user\n...<end_of_turn>\n<start_of_turn>model\n
+WHEN TO USE ACTIONS:
+- Weather questions → use WEB_SEARCH
+- "What is..." / "How to..." → use WEB_SEARCH
+- Appointments with date/time → use SCHEDULE
+- Looking for restaurants/cafes → use SEARCH_PLACE
+
+EXAMPLE RESPONSES:
+- "สวัสดีค่ะ วันนี้เป็นยังไงบ้างคะ? 😊"
+- "เข้าใจค่ะ จะจำไว้ว่าคุณชื่อ Arm"
+- "[ACTION:WEB_SEARCH]query=พยากรณ์อากาศ กรุงเทพ วันนี้" (for weather questions)
+''';
+
+  /// 🔨 Helper ดึงเวลาปัจจุบัน (จำเป็นมากสำหรับ AI)
+  static String get _currentDateTime => DateTime.now().toString().substring(0, 16);
+
+  /// 🗣️ THE FACE: General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
-    String? systemPrompt,
   }) {
-    final system = systemPrompt ?? hakuSystemPrompt;
-
-    // สร้าง full prompt ที่รวม system + context
+    final timeContext = 'Current DateTime: $_currentDateTime';
+    
     final contextSection = context != null && context.isNotEmpty
-        ? '\n\n📋 ข้อมูลจากบันทึก:\n$context'
+        ? '\nContext (Retrieval):\n$context\n(Use this context ONLY if relevant)'
         : '';
 
-    return '''<start_of_turn>user
-$system$contextSection
+    return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+  }
 
-คำถาม: $userMessage<end_of_turn>
+  // ═══════════════════════════════════════════════════════════
+  // 👷 THE WORKER - Batch Processing (สร้าง structured data)
+  // ═══════════════════════════════════════════════════════════
+  
+  /// 👷 Worker: Extract structured data จาก chat (สำหรับ RAG)
+  static String buildWorkerExtractPrompt(String userMessage, String aiResponse) {
+    return '''<start_of_turn>user
+You are a data extraction worker. Extract structured information from this conversation.
+
+User said: "$userMessage"
+AI replied: "$aiResponse"
+
+Output JSON ONLY:
+{
+  "intent": "log|schedule|query|chat",
+  "extracted_data": {
+    "activity": "what user did/will do",
+    "location": "where",
+    "time": "when",
+    "mood": 1-10,
+    "tags": ["tag1", "tag2"],
+    "entities": ["names", "places"]
+  },
+  "summary_en": "Brief English summary for RAG (max 20 words)"
+}<end_of_turn>
+<start_of_turn>model
+''';
+  }
+  
+  /// 👷 Worker: Summarize chat to English (สำหรับ Vector DB)
+  static String buildWorkerSummarizePrompt(String chatContent) {
+    return '''<start_of_turn>user
+Summarize this chat in English (max 30 words) for vector search.
+Focus on: what, when, where, mood.
+
+Chat:
+$chatContent
+
+Output ONLY the summary text, no JSON.<end_of_turn>
 <start_of_turn>model
 ''';
   }
 
-  // 📅 Prompt สำหรับสรุปวัน
+  /// 📅 Scheduler (ต้องเพิ่ม now เพื่อคำนวณ relative date)
+  static String buildSchedulerPrompt(String text) {
+    // เพิ่ม DateTime.now() เข้าไปใน Prompt
+    final now = _currentDateTime;
+    
+    return '<start_of_turn>user\nRole: Event Extractor. Current Date: $now\nTask: Extract event details from text to JSON. Calculate relative dates (tomorrow, next friday) based on Current Date.\n\nInput: $text\n\nOutput JSON ONLY (No Markdown):\n{\n  "type": "schedule",\n  "data": {\n    "title": "String",\n    "date": "YYYY-MM-DD",\n    "time": "HH:MM",\n    "location": "String?"\n  },\n  "response": "Confirm in Thai"\n}<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 📝 Summarize Entry (Log)
+  static String buildLogPrompt(String userMessage, {String? context}) {
+    final contextSection = context != null && context.isNotEmpty
+        ? '\nRelated Context: $context'
+        : '';
+    
+    return '<start_of_turn>user\nRole: Life Logger. Analyze and categorize this event.\nContext:$contextSection\nInput: $userMessage\n\nOutput JSON ONLY:\n{\n  "type": "log",\n  "data": {\n    "activity": "String",\n    "location": "String?",\n    "mood": "int (1-10)",\n    "tags": ["Tag1", "Tag2"],\n    "summary": "Thai summary"\n  },\n  "response": "Thai empathetic reply"\n}<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 📅 สรุปวัน
   static String buildDailySummaryPrompt({
     required String entriesContent,
     String? period,
-    String? context,
   }) {
-    final contextSection = context != null && context.isNotEmpty
-        ? '\n\n📋 บริบทเพิ่มเติม:\n$context'
-        : '';
+    final now = _currentDateTime;
     
-    return '''<start_of_turn>user
-คุณคือฮาคุ ช่วยสรุปบันทึกให้กระชับ 3-5 ประโยค พร้อมอิโมจิ
-
-บันทึก${period ?? 'วันนี้'}:
-$entriesContent$contextSection
-
-สรุป:<end_of_turn>
-<start_of_turn>model
-''';
+    return '<start_of_turn>user\nRole: Daily Summarizer. Current Date: $now\nTask: Summarize these entries in 3-5 sentences with emoji.\n\nEntries${period != null ? ' ($period)' : ''}:\n$entriesContent\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai summary with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
-  /// 🔔 Prompt สำหรับ Proactive Message
+  /// 🔔 Proactive Message
   static String buildProactivePrompt({
     required String triggerContext,
     required String suggestedMessage,
     String? context,
   }) {
+    final now = _currentDateTime;
     final extraContext = context != null && context.isNotEmpty
-        ? '\n\n📋 ข้อมูลจากบันทึก:\n$context'
+        ? '\nUser Context:\n$context'
         : '';
     
-    return '''<start_of_turn>user
-คุณคือฮาคุ กำลังทักทายผู้ใช้ ตอบสั้นๆ 1-2 ประโยค พร้อมอิโมจิ
-
-บริบท:
-$triggerContext$extraContext
-
-ทักทาย: $suggestedMessage<end_of_turn>
-<start_of_turn>model
-''';
+    return '<start_of_turn>user\nRole: Proactive Assistant. Current Date: $now\nTrigger: $triggerContext$extraContext\nSuggested: $suggestedMessage\n\nTask: Create a short greeting (1-2 sentences, Thai, friendly, emoji).\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai greeting"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
-  /// 📊 Prompt สำหรับวิเคราะห์ข้อมูล
+  /// 📊 วิเคราะห์ข้อมูล
   static String buildAnalysisPrompt({
     required String content,
     required String analysisType,
     String? context,
   }) {
     final contextSection = context != null && context.isNotEmpty
-        ? '\n\n📋 บริบทจากบันทึกอื่น:\n$context'
+        ? '\nContext:\n$context'
         : '';
     
-    return '''<start_of_turn>user
-วิเคราะห์ข้อมูลต่อไปนี้แบบ $analysisType ตอบกระชับ
-
-$content$contextSection<end_of_turn>
-<start_of_turn>model
-''';
+    return '<start_of_turn>user\nRole: Data Analyzer. Task: $analysisType\n\nContent:\n$content$contextSection\n\nOutput JSON ONLY:\n{\n  "type": "analysis",\n  "data": {\n    "key_points": ["Point 1", "Point 2"],\n    "sentiment": "positive|neutral|negative",\n    "summary": "Brief summary"\n  },\n  "response": "Thai analysis reply"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
-  /// 📝 Prompt สำหรับ Scheduler (ดึง event จากข้อความ)
-  static String buildSchedulerPrompt(String text) => '''<start_of_turn>user
-วิเคราะห์ข้อความและดึงข้อมูลกิจกรรม ตอบเป็น JSON เท่านั้น:
-{"title": "ชื่อกิจกรรม", "date": "YYYY-MM-DD", "time": "HH:MM", "duration_minutes": number, "location": "สถานที่"}
-ถ้าไม่มีข้อมูลใดให้ใส่ null
-
-ข้อความ: $text<end_of_turn>
-<start_of_turn>model
-''';
-
-  /// 📝 Prompt สำหรับสรุป Entry
+  /// 📝 สรุป Entry
   static String buildSummarizeEntryPrompt(String content, {String? context}) {
     final contextSection = context != null && context.isNotEmpty
-        ? '\n\n📋 บริบทที่เกี่ยวข้อง:\n$context'
+        ? '\nContext:\n$context'
         : '';
     
-    return '''<start_of_turn>user
-สรุปบันทึกนี้ให้กระชับ 2-3 ประโยค พร้อมอิโมจิ ถ้ามีอารมณ์ให้ระบุด้วย
-
-บันทึก:
-$content$contextSection<end_of_turn>
-<start_of_turn>model
-''';
+    return '<start_of_turn>user\nRole: Entry Summarizer.\n\nEntry:\n$content$contextSection\n\nOutput JSON ONLY:\n{\n  "type": "summary",\n  "data": {\n    "summary": "Thai summary",\n    "mood": "Detected mood",\n    "tags": ["Tag1", "Tag2"]\n  },\n  "response": "Thai reply with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
-  /// 🔍 Prompt สำหรับดึง Insights
+  /// 🔍 Insights
   static String buildInsightsPrompt(String content, {String? context}) {
     final contextSection = context != null && context.isNotEmpty
-        ? '\n\n📋 บริบทเพิ่มเติม:\n$context'
+        ? '\nContext:\n$context'
         : '';
     
-    return '''<start_of_turn>user
-ดึง 3-5 ประเด็นสำคัญจากบันทึกนี้ ตอบเป็นรายการ:
-- ประเด็น 1
-- ประเด็น 2
-...
-
-บันทึก:
-$content$contextSection<end_of_turn>
-<start_of_turn>model
-''';
+    return '<start_of_turn>user\nRole: Insight Extractor.\n\nContent:\n$content$contextSection\n\nOutput JSON ONLY:\n{\n  "type": "insights",\n  "data": {\n    "insights": ["Insight 1", "Insight 2", "Insight 3"],\n    "patterns": ["Pattern 1"]\n  },\n  "response": "Thai summary of insights"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 }

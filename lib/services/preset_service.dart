@@ -73,7 +73,7 @@ class PresetService {
       final jsonStr = prefs.getString(_prefsKey);
 
       if (jsonStr != null) {
-        final List<dynamic> jsonList = jsonDecode(jsonStr);
+        final List<dynamic> jsonList = jsonDecode(jsonStr) as List<dynamic>;
         _presets = jsonList
             .map((j) => Preset.fromJson(j as Map<String, dynamic>))
             .toList();
@@ -108,7 +108,7 @@ class PresetService {
       final jsonStr = prefs.getString(_savedLocationsKey);
 
       if (jsonStr != null) {
-        final Map<String, dynamic> jsonMap = jsonDecode(jsonStr);
+        final Map<String, dynamic> jsonMap = jsonDecode(jsonStr) as Map<String, dynamic>;
         _savedLocations = jsonMap.map(
           (k, v) => MapEntry(k, SavedLocation.fromJson(v as Map<String, dynamic>)),
         );
