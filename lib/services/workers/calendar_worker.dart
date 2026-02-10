@@ -227,7 +227,41 @@ class CalendarWorker {
   // 📝 EVENT MANAGEMENT
   // ============================================================
 
-  /// เพิ่ม event
+  /// เพิ่ม event (สำหรับ Dispatcher)
+  Future<void> add({
+    required String title,
+    DateTime? date,
+    String? time,
+    String? location,
+    EventType type = EventType.event,
+  }) async {
+    // Parse time string (e.g., "10:00")
+    TimeOfDay? eventTime;
+    if (time != null) {
+      final parts = time.split(':');
+      if (parts.length == 2) {
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour != null && minute != null) {
+          eventTime = TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+    }
+
+    final event = CalendarEvent(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: type,
+      title: title,
+      date: date ?? DateTime.now(),
+      time: eventTime,
+      location: location,
+      createdAt: DateTime.now(),
+    );
+
+    await addEvent(event);
+  }
+
+  /// เพิ่ม event (จาก object)
   Future<void> addEvent(CalendarEvent event) async {
     _events.add(event);
     await _saveEvents();
@@ -342,6 +376,7 @@ class TimeOfDay {
   String toString() => '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 
+/// 📅 Calendar Event - รวมจาก EventInfo (กลุ่ม 8)
 class CalendarEvent {
   final String id;
   final EventType type;
@@ -351,6 +386,8 @@ class CalendarEvent {
   final String? location;
   final String? notes;
   final DateTime createdAt;
+  final int durationMinutes; // จาก EventInfo
+  final String? originalText; // จาก EventInfo
 
   CalendarEvent({
     required this.id,
@@ -361,6 +398,8 @@ class CalendarEvent {
     this.location,
     this.notes,
     required this.createdAt,
+    this.durationMinutes = 60,
+    this.originalText,
   });
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
@@ -400,5 +439,47 @@ class CalendarEvent {
       buffer.write(' @$location');
     }
     return buffer.toString();
+  }
+
+  /// Display time for UI (จาก EventInfo)
+  String get displayTime {
+    final timeStr = time?.toString() ?? '';
+    if (timeStr.isNotEmpty) {
+      return '${date.day}/${date.month} เวลา $timeStr';
+    }
+    return '${date.day}/${date.month}';
+  }
+
+  /// Factory สำหรับสร้างจาก extraction result (แทน EventInfo)
+  factory CalendarEvent.fromExtraction({
+    required String title,
+    DateTime? date,
+    String? time,
+    int durationMinutes = 60,
+    String? location,
+    String? originalText,
+  }) {
+    // Parse time string "HH:MM" to TimeOfDay
+    TimeOfDay? timeOfDay;
+    if (time != null && time.contains(':')) {
+      final parts = time.split(':');
+      if (parts.length == 2) {
+        final hour = int.tryParse(parts[0]) ?? 0;
+        final minute = int.tryParse(parts[1]) ?? 0;
+        timeOfDay = TimeOfDay(hour: hour, minute: minute);
+      }
+    }
+
+    return CalendarEvent(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      type: EventType.event,
+      title: title,
+      date: date ?? DateTime.now(),
+      time: timeOfDay,
+      durationMinutes: durationMinutes,
+      location: location,
+      originalText: originalText,
+      createdAt: DateTime.now(),
+    );
   }
 }

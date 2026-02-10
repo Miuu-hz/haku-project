@@ -8,7 +8,7 @@ import '../services/biometric_service.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
-import '../services/llm_service.dart';
+import '../services/mediapipe_llm_service.dart';
 import '../utils/constants.dart';
 import '../widgets/profile_editor_widget.dart';
 
@@ -40,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _googleSignedIn = false;
   bool _isGoogleLoading = false;
   bool _autoSyncEnabled = true;
-  List<CalendarEvent> _upcomingEvents = [];
+  List<GoogleCalendarEvent> _upcomingEvents = [];
   bool _isMockMode = false;
 
   @override
@@ -56,7 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // ตรวจสอบสถานะไฟล์ถ้ามี custom path
     Map<String, dynamic>? validation;
     if (savedPath != null && savedPath.isNotEmpty) {
-      validation = await LLMService().validateCustomModel();
+      validation = await MediaPipeLLMService().validateCustomModel();
     }
     
     // Load Google Calendar settings
@@ -89,7 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _validateModelFile() async {
-    final validation = await LLMService().validateCustomModel();
+    final validation = await MediaPipeLLMService().validateCustomModel();
     setState(() => _modelValidation = validation);
     
     if (!mounted) return;
@@ -727,10 +727,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return;
         }
 
-        await LLMService().setCustomModelPath(filePath);
+        await MediaPipeLLMService().setCustomModelPath(filePath);
         
         // ตรวจสอบไฟล์ทันทีหลังเลือก
-        final validation = await LLMService().validateCustomModel();
+        final validation = await MediaPipeLLMService().validateCustomModel();
         
         setState(() {
           _customLlmPath = filePath;
@@ -758,7 +758,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _clearCustomLlmPath() async {
-    await LLMService().setCustomModelPath(null);
+    await MediaPipeLLMService().setCustomModelPath(null);
     setState(() {
       _customLlmPath = null;
       _modelValidation = null;
@@ -963,7 +963,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildEventTile(CalendarEvent event) {
+  Widget _buildEventTile(GoogleCalendarEvent event) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Container(

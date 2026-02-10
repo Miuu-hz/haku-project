@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:math';
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
+import '../models/correlation_models.dart';
 import '../models/entry.dart';
+import 'database_helper.dart';
 
 /// 🔍 Unified Vector Service - รวม Vector Search ทุกประเภท
 ///
@@ -21,21 +24,55 @@ class UnifiedVectorService {
   UnifiedVectorService._internal();
 
   static const String _storageKey = 'unified_vectors';
+  static const String _entryVectorsTable = 'entry_vectors';
 
-  // In-memory vectors
+  // In-memory vectors (for facts/knowledge)
   final List<VectorItem> _items = [];
   bool _isInitialized = false;
 
+  // SQLite database for entry vectors (hybrid search)
+  Database? _entryDb;
+
   // Vector dimension
   static const int _vocabSize = 2000;
+
+  /// Check if service is initialized
+  bool get isInitialized => _isInitialized;
 
   /// 🚀 Initialize
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     await _loadFromStorage();
+    await _initEntryDatabase();
     _isInitialized = true;
-    debugPrint('✅ Unified Vector Service initialized: ${_items.length} items');
+    debugPrint('✅ Unified Vector Service initialized: ${_items.length} facts, ${_entryDb != null ? 'SQLite ready' : 'no DB'}');
+  }
+
+  /// 🗄️ Initialize SQLite database for entry vectors
+  Future<void> _initEntryDatabase() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      _entryDb = await openDatabase(
+        join(dbPath, 'haku_entry_vectors.db'),
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS $_entryVectorsTable (
+              entry_id INTEGER PRIMARY KEY,
+              embedding BLOB NOT NULL,
+              content_hash TEXT NOT NULL,
+              created_at INTEGER NOT NULL
+            )
+          ''');
+          await db.execute('''
+            CREATE INDEX IF NOT EXISTS idx_created_at ON $_entryVectorsTable(created_at)
+          ''');
+        },
+      );
+    } catch (e) {
+      debugPrint('⚠️ Error initializing entry DB: $e');
+    }
   }
 
   // ============================================================
@@ -75,8 +112,8 @@ class UnifiedVectorService {
   // ➕ ADD ITEMS
   // ============================================================
 
-  /// ➕ Index Entry (from diary)
-  void indexEntry(Entry entry) {
+  /// ➕ Index Entry in memory (from diary)
+  void indexEntryInMemory(Entry entry) {
     // Remove old if exists
     _items.removeWhere((i) => i.type == VectorType.entry && i.sourceId == entry.id?.toString());
 
@@ -99,12 +136,12 @@ class UnifiedVectorService {
     ));
   }
 
-  /// ➕ Index multiple entries
-  void indexEntries(List<Entry> entries) {
+  /// ➕ Index multiple entries in memory
+  void indexEntriesInMemory(List<Entry> entries) {
     for (final entry in entries) {
-      indexEntry(entry);
+      indexEntryInMemory(entry);
     }
-    debugPrint('✅ Indexed ${entries.length} entries');
+    debugPrint('✅ Indexed ${entries.length} entries in memory');
   }
 
   /// ➕ Add Fact
@@ -208,6 +245,76 @@ class UnifiedVectorService {
     return id;
   }
 
+  /// ➕ Add Insight (Correlation)
+  /// 
+  /// เก็บ insights จากการวิเคราะห์ correlation
+  Future<String> addInsight({
+    required String content,
+    required EntityType entityAType,
+    required String entityAValue,
+    required EntityType entityBType,
+    required String entityBValue,
+    required double correlation,
+    required double confidence,
+    required int sampleSize,
+    Map<String, dynamic>? metadata,
+  }) async {
+    await initialize();
+
+    final id = 'insight_${DateTime.now().millisecondsSinceEpoch}';
+    final vector = _createEmbedding(content);
+
+    _items.add(VectorItem(
+      id: id,
+      type: VectorType.insight,
+      content: content,
+      vector: vector,
+      metadata: {
+        'entityAType': entityAType.name,
+        'entityAValue': entityAValue,
+        'entityBType': entityBType.name,
+        'entityBValue': entityBValue,
+        'correlation': correlation,
+        'confidence': confidence,
+        'sampleSize': sampleSize,
+        'discoveredAt': DateTime.now().toIso8601String(),
+        ...?metadata,
+      },
+      createdAt: DateTime.now(),
+    ));
+
+    await _saveToStorage();
+    debugPrint('🔮 Added insight: $entityAValue ↔ $entityBValue (${correlation.toStringAsFixed(2)})');
+    return id;
+  }
+
+  /// 🔍 Search Insights only
+  List<SearchResult> searchInsights(String query, {int limit = 10}) {
+    return search(query, limit: limit, type: VectorType.insight);
+  }
+
+  /// 📊 Get all insights
+  List<VectorItem> get insights => getByType(VectorType.insight);
+
+  /// 🧹 Clear old insights (keep last N days)
+  Future<int> clearOldInsights({int keepDays = 30}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: keepDays));
+    final toRemove = _items.where((i) =>
+        i.type == VectorType.insight &&
+        i.createdAt.isBefore(cutoff)).toList();
+
+    for (final item in toRemove) {
+      _items.removeWhere((i) => i.id == item.id);
+    }
+
+    if (toRemove.isNotEmpty) {
+      await _saveToStorage();
+      debugPrint('🧹 Cleared ${toRemove.length} old insights');
+    }
+
+    return toRemove.length;
+  }
+
   // ============================================================
   // 🔍 SEARCH
   // ============================================================
@@ -248,8 +355,8 @@ class UnifiedVectorService {
     return results.take(limit).toList();
   }
 
-  /// 🔍 Search Entries only
-  List<SearchResult> searchEntries(String query, {int limit = 5}) {
+  /// 🔍 Search Entries in memory only
+  List<SearchResult> searchEntriesInMemory(String query, {int limit = 5}) {
     return search(query, limit: limit, type: VectorType.entry);
   }
 
@@ -271,6 +378,7 @@ class UnifiedVectorService {
         VectorType.entry => '📝',
         VectorType.fact => '💡',
         VectorType.knowledge => '📚',
+        VectorType.insight => '🔮',
       };
       // Truncate content
       final content = r.item.content.length > 100
@@ -280,6 +388,166 @@ class UnifiedVectorService {
     }
 
     return buffer.toString();
+  }
+
+  // ============================================================
+  // 📝 ENTRY METHODS (SQLite-based for better performance)
+  // ============================================================
+
+  /// 📝 Index entry in SQLite (for RAG)
+  Future<void> indexEntry(Entry entry) async {
+    if (_entryDb == null) return;
+    
+    final text = '${entry.content} ${entry.tags.join(' ')} ${entry.locationName ?? ''}';
+    final vector = _createEmbedding(text);
+    final bytes = _vectorToBytes(vector);
+    final contentHash = _hashContent(text);
+    
+    await _entryDb!.insert(
+      _entryVectorsTable,
+      {
+        'entry_id': entry.id,
+        'embedding': bytes,
+        'content_hash': contentHash,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    
+    // Also index in memory for unified search
+    indexEntryInMemory(entry);
+    debugPrint('✅ Indexed entry ${entry.id} in SQLite and memory');
+  }
+
+  /// 📝 Index multiple entries
+  Future<void> indexEntries(List<Entry> entries) async {
+    for (final entry in entries) {
+      await indexEntry(entry);
+    }
+    debugPrint('✅ Indexed ${entries.length} entries');
+  }
+
+  /// 🔍 Search entries in SQLite with cosine similarity
+  Future<List<SearchResultWithEntry>> searchEntriesInDatabase(String query, {int limit = 5}) async {
+    if (_entryDb == null) {
+      // Fallback to in-memory search
+      final results = search(query, limit: limit, type: VectorType.entry);
+      return results.map((r) {
+        final entryId = int.tryParse(r.item.sourceId ?? '');
+        return SearchResultWithEntry(
+          entry: Entry(
+            id: entryId,
+            content: r.item.content,
+            createdAt: r.item.createdAt,
+          ),
+          score: r.score,
+        );
+      }).toList();
+    }
+    
+    final rows = await _entryDb!.query(_entryVectorsTable);
+    if (rows.isEmpty) return [];
+    
+    final queryVector = _createEmbedding(query);
+    final results = <_EntrySearchResult>[];
+    
+    for (final row in rows) {
+      final entryId = row['entry_id'] as int;
+      final bytes = row['embedding'] as List<int>;
+      final vector = _bytesToVector(bytes);
+      final similarity = _cosineSimilarity(queryVector, vector);
+      results.add(_EntrySearchResult(entryId: entryId, score: similarity));
+    }
+    
+    results.sort((a, b) => b.score.compareTo(a.score));
+    
+    final topResults = results.take(limit).toList();
+    final entriesWithScore = <SearchResultWithEntry>[];
+    
+    for (final result in topResults) {
+      final entry = await DatabaseHelper.instance.getEntryById(result.entryId);
+      if (entry != null) {
+        entriesWithScore.add(SearchResultWithEntry(entry: entry, score: result.score));
+      }
+    }
+    
+    return entriesWithScore;
+  }
+
+  /// 🧠 Build context for LLM (RAG)
+  Future<String> buildContext(String query, {int topK = 3}) async {
+    final results = await searchEntriesInDatabase(query, limit: topK);
+    
+    if (results.isEmpty) {
+      return 'ไม่พบบันทึกที่เกี่ยวข้อง';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('ข้อมูลบันทึกที่เกี่ยวข้อง:');
+    buffer.writeln();
+
+    for (var i = 0; i < results.length; i++) {
+      final result = results[i];
+      buffer.writeln('[${i + 1}] ${result.entry.createdAt}: ${result.entry.content}');
+      if (result.entry.locationName != null) {
+        buffer.writeln('    ที่: ${result.entry.locationName}');
+      }
+      if (result.entry.mood != null) {
+        buffer.writeln('    อารมณ์: ${result.entry.mood}/5');
+      }
+      buffer.writeln();
+    }
+
+    return buffer.toString();
+  }
+
+  /// 🗑️ Remove entry from index
+  Future<void> removeEntry(int entryId) async {
+    if (_entryDb == null) return;
+    await _entryDb!.delete(
+      _entryVectorsTable,
+      where: 'entry_id = ?',
+      whereArgs: [entryId],
+    );
+    deleteEntry(entryId);
+  }
+
+  /// 🔄 Reindex all entries
+  Future<void> reindexAllEntries() async {
+    if (_entryDb == null) return;
+    await _entryDb!.delete(_entryVectorsTable);
+    final entries = await DatabaseHelper.instance.getAllEntries();
+    await indexEntries(entries);
+  }
+
+  // ============================================================
+  // 🔧 HELPERS
+  // ============================================================
+
+  List<int> _vectorToBytes(List<double> vector) {
+    final buffer = ByteData(vector.length * 4);
+    for (var i = 0; i < vector.length; i++) {
+      buffer.setFloat32(i * 4, vector[i], Endian.little);
+    }
+    return buffer.buffer.asUint8List();
+  }
+
+  List<double> _bytesToVector(List<int> bytes) {
+    final buffer = ByteData.sublistView(Uint8List.fromList(bytes));
+    final vector = <double>[];
+    for (var i = 0; i < bytes.length; i += 4) {
+      vector.add(buffer.getFloat32(i, Endian.little));
+    }
+    return vector;
+  }
+
+  String _hashContent(String text) {
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash) + text.codeUnitAt(i);
+      hash = hash & 0xFFFFFFFF;
+    }
+    return hash.toString();
   }
 
   // ============================================================
@@ -312,6 +580,14 @@ class UnifiedVectorService {
       counts[type] = _items.where((i) => i.type == type).length;
     }
     return counts;
+  }
+
+  /// Get stats for debugging
+  Map<String, dynamic> getStats() {
+    return {
+      'storedVectors': _items.length,
+      'memoryMB': (_items.length * _vocabSize * 8) / 1024 / 1024,
+    };
   }
 
   // ============================================================
@@ -430,6 +706,7 @@ enum VectorType {
   entry,      // Diary entry
   fact,       // Learned fact (likes, dislikes, etc.)
   knowledge,  // General knowledge
+  insight,    // 🔮 Correlation insights
 }
 
 /// Vector Item
@@ -497,4 +774,20 @@ class SearchResult {
       tags: (meta?['tags'] as List<dynamic>?)?.cast<String>() ?? [],
     );
   }
+}
+
+/// Search Result with Entry (for RAG)
+class SearchResultWithEntry {
+  final Entry entry;
+  final double score;
+
+  SearchResultWithEntry({required this.entry, required this.score});
+}
+
+/// Internal helper for entry search
+class _EntrySearchResult {
+  final int entryId;
+  final double score;
+
+  _EntrySearchResult({required this.entryId, required this.score});
 }

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../services/scheduler_service.dart';
+import '../services/workers/calendar_worker.dart';
 
 /// 📅 Card ยืนยันการสร้าง Event (Auto-scheduling)
 /// 
 /// แสดงเมื่อ AI ตรวจจับว่า user พูดถึงกิจกรรม/นัดหมาย
 
 class EventConfirmationCard extends StatelessWidget {
-  final EventInfo event;
+  final CalendarEvent event;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
 

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/objective.dart';
-import 'scheduler_service.dart';
+import 'calendar_service.dart';
 
 /// 🎯 Objective Service - จัดการเป้าหมาย/งาน
 ///
@@ -81,7 +81,7 @@ class ObjectiveService {
 
     // สร้าง calendar event ถ้าต้องการ
     if (createCalendarEvent && objective.dueDate != null) {
-      final event = EventInfo(
+      final event = CalendarEvent.fromExtraction(
         title: objective.title,
         date: objective.dueDate,
         time: objective.dueTime,
@@ -90,11 +90,11 @@ class ObjectiveService {
         originalText: objective.originalText,
       );
 
-      await SchedulerService().createCalendarEvent(event);
+      await CalendarService().createCalendarEvent(event);
 
       // ตั้ง reminders
       for (final minutes in objective.reminderMinutesBefore) {
-        await SchedulerService().scheduleReminder(event, minutesBefore: minutes);
+        await CalendarService().scheduleReminder(event, minutesBefore: minutes);
       }
     }
 
@@ -176,7 +176,7 @@ class ObjectiveService {
     // สร้าง calendar event
     final objective = _objectives[index];
     if (objective.dueDate != null) {
-      final event = EventInfo(
+      final event = CalendarEvent.fromExtraction(
         title: objective.title,
         date: objective.dueDate,
         time: objective.dueTime,
@@ -185,7 +185,7 @@ class ObjectiveService {
         originalText: objective.originalText,
       );
 
-      await SchedulerService().createCalendarEvent(event);
+      await CalendarService().createCalendarEvent(event);
     }
 
     onObjectiveUpdated?.call(_objectives[index]);

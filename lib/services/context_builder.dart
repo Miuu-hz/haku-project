@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'chat_history_service.dart';
-import 'geofence_service.dart';
-import 'topic_service.dart';
+import 'chat_summary_service.dart';
+import 'location_service.dart';
+import 'unified_task_service.dart';
 import 'user_profile_service.dart';
-import 'vector_service.dart';
+import 'unified_vector_service.dart';
 
 /// 🧱 Context Builder - Assembly Context for AI
 ///
@@ -28,10 +28,10 @@ class ContextBuilder {
   ContextBuilder._internal();
 
   final UserProfileService _profileService = UserProfileService();
-  final ChatHistoryService _chatHistory = ChatHistoryService();
-  final TopicService _topicService = TopicService();
-  final VectorService _vectorService = VectorService();
-  final GeofenceService _geofenceService = GeofenceService();
+  final ChatSummaryService _chatSummary = ChatSummaryService();
+  final UnifiedTaskService _taskService = UnifiedTaskService();
+  final UnifiedVectorService _vectorService = UnifiedVectorService();
+  final LocationService _locationService = LocationService();
 
   bool _isInitialized = false;
 
@@ -46,10 +46,10 @@ class ContextBuilder {
     if (_isInitialized) return;
 
     await _profileService.initialize();
-    await _chatHistory.initialize();
-    await _topicService.initialize();
+    await _chatSummary.initialize();
+    await _taskService.initialize();
     await _vectorService.initialize();
-    await _geofenceService.initialize();
+    await _locationService.initialize();
 
     _isInitialized = true;
     debugPrint('✅ Context Builder initialized');
@@ -95,7 +95,7 @@ class ContextBuilder {
     }
 
     // 5. Recent Messages (Thai)
-    final recentContext = _buildRecentContext();
+    final recentContext = await _buildRecentContext();
     if (recentContext.isNotEmpty) {
       parts.add('[Recent]\n$recentContext');
     }
@@ -127,7 +127,7 @@ class ContextBuilder {
     parts.add('$day $time');
 
     // Location
-    final currentZone = _geofenceService.currentZone;
+    final currentZone = _locationService.currentZone;
     if (currentZone != null) {
       parts.add('📍${currentZone.name}');
     }
@@ -139,12 +139,12 @@ class ContextBuilder {
 
   /// 💬 Build reply context (±2 around target)
   Future<String> _buildReplyContext(String messageId) async {
-    final history = _chatHistory.rawHistory;
+    final history = await _chatSummary.getRawHistory();
 
-    // Find message index
+    // Find message index by timestamp (since service ChatMessage doesn't have id)
     int targetIndex = -1;
     for (var i = 0; i < history.length; i++) {
-      if (history[i].id == messageId) {
+      if (history[i].timestamp.millisecondsSinceEpoch.toString() == messageId) {
         targetIndex = i;
         break;
       }
@@ -159,7 +159,7 @@ class ContextBuilder {
     final messages = <String>[];
 
     // Get topic summary for context
-    final topic = _topicService.getTopicForMessage(messageId);
+    final topic = _taskService.getTopicForMessage(messageId);
     if (topic != null && topic.summary.isNotEmpty) {
       messages.add('Topic:${topic.name}|${topic.summary}');
     }
@@ -177,18 +177,21 @@ class ContextBuilder {
 
   /// 🧠 Build RAG context (topic summaries)
   Future<String> _buildRagContext(String query) async {
-    // Search similar topics
-    final results = _vectorService.searchSimilar(query, topK: maxRagResults);
+    // Search similar vectors
+    final results = _vectorService.search(query, limit: maxRagResults);
 
     if (results.isEmpty) return '';
 
     final summaries = <String>[];
 
     for (final result in results) {
-      final topic = _topicService.getTopicById(result.topicId);
-      if (topic != null && topic.summary.isNotEmpty) {
-        // Lean format: Topic:Name|Summary
-        summaries.add('${topic.name}|${topic.summary}');
+      // Use the vector item content directly
+      if (result.item.content.isNotEmpty) {
+        // Lean format: Content|Metadata
+        final content = result.item.content.length > 100 
+            ? '${result.item.content.substring(0, 100)}...' 
+            : result.item.content;
+        summaries.add('${result.item.type.name}|$content');
       }
     }
 
@@ -196,8 +199,8 @@ class ContextBuilder {
   }
 
   /// 💬 Build recent messages context
-  String _buildRecentContext() {
-    final history = _chatHistory.rawHistory;
+  Future<String> _buildRecentContext() async {
+    final history = await _chatSummary.getRawHistory();
     if (history.isEmpty) return '';
 
     final recent = history.length > recentMessageCount
@@ -250,7 +253,7 @@ class ContextBuilder {
     }
 
     // Recent context (shorter for proactive)
-    final history = _chatHistory.rawHistory;
+    final history = await _chatSummary.getRawHistory();
     if (history.isNotEmpty) {
       final lastMsg = history.last;
       parts.add('[Last:${lastMsg.content}]');
@@ -315,12 +318,12 @@ class ContextBuilder {
   // ============================================================
 
   /// 📊 Get context stats
-  Map<String, dynamic> getContextStats() {
+  Future<Map<String, dynamic>> getContextStats() async {
     return {
       'hasProfile': _profileService.hasProfile,
-      'topicCount': _topicService.topicCount,
+      'topicCount': _taskService.topicCount,
       'vectorCount': _vectorService.getStats()['storedVectors'],
-      'historyCount': _chatHistory.rawHistory.length,
+      'historyCount': (await _chatSummary.getRawHistory()).length,
     };
   }
 

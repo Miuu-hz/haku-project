@@ -5,13 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../battery_aware_service.dart';
-import '../deferred_task_service.dart';
-import '../lean_context_service.dart';
-import '../notification_service.dart';
+import '../unified_task_service.dart';
+import '../context_retriever.dart';
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
-import '../worker_service.dart';
-import 'manager_summary_strategy.dart';
+import '../workers/correlation_worker.dart';
+
+import '../big_manager_service.dart';
 import 'timer_trigger.dart';
 
 /// 🔌 Charging Trigger - ประมวลผลเมื่อชาร์จ (จบวัน)
@@ -27,14 +27,14 @@ import 'timer_trigger.dart';
 
 class ChargingTrigger {
   final BatteryAwareService batteryService;
-  final LeanContextService leanContext;
+  final ContextRetriever contextRetriever;
   final UnifiedVectorService vectorService;
   final UserProfileService userProfile;
   final void Function(ChargingTriggerEvent) onTrigger;
 
   ChargingTrigger({
     required this.batteryService,
-    required this.leanContext,
+    required this.contextRetriever,
     required this.vectorService,
     required this.userProfile,
     required this.onTrigger,
@@ -154,19 +154,38 @@ class ChargingTrigger {
       final now = DateTime.now();
 
       // 1. End current session and create summary
-      final sessionSummary = await leanContext.endSession();
+      final sessionSummary = await contextRetriever.endSession();
 
-      // 2. Run ManagerSummaryStrategy (NEW - Orchestrator Pattern)
-      debugPrint('📊 Running ManagerSummaryStrategy...');
-      final managerStrategy = ManagerSummaryStrategy(
-        leanContext: leanContext,
-        vectorService: vectorService,
-        userProfile: userProfile,
-      );
-      final managerResult = await managerStrategy.analyze();
+      // 2. Run BigManager analysis
+      debugPrint('👔 Running BigManager analysis...');
+      final bigManager = BigManagerService();
+      await bigManager.initialize();
       
-      // 3. Execute worker tasks from ManagerSummaryStrategy
-      await _executeWorkerTasks(managerResult.workerTasks);
+      // 3. Execute background tasks via UnifiedTaskService
+      await _executeBackgroundTasks();
+
+      // 4. 🔮 Run Correlation Analysis (The Hidden Correlation)
+      debugPrint('🔮 Running correlation analysis...');
+      final correlationWorker = CorrelationWorker();
+      final correlationResult = await correlationWorker.runFullAnalysis();
+      
+      if (correlationResult != null && correlationResult.insights.isNotEmpty) {
+        debugPrint('🔮 Found ${correlationResult.insights.length} correlations');
+        
+        // แจ้งเตือนถ้ามี insight ที่น่าสนใจ
+        final topInsight = correlationResult.interestingInsights.firstOrNull;
+        if (topInsight != null) {
+          onTrigger(ChargingTriggerEvent(
+            type: ChargingTriggerType.correlationInsight,
+            message: '🔮 พบความเชื่อมโยง: ${topInsight.description}',
+            data: {
+              'insight': topInsight.toJson(),
+              'totalInsights': correlationResult.insights.length,
+              'gemmaSummary': correlationResult.gemmaSummary,
+            },
+          ));
+        }
+      }
 
       // 4. Analyze health flags (legacy support)
       final healthAnalysis = await _analyzeHealth(sessionSummary);
@@ -193,16 +212,12 @@ class ChargingTrigger {
       _lastProcessedTime = now;
       await _saveState();
 
-      // 9. Notify with ManagerSummary insights
-      final insightsSummary = managerResult.insights.map((i) => i.title).join(', ');
+      // 9. Notify with daily summary
+      final topicsSummary = dailySummary.topics.take(3).join(', ');
       onTrigger(ChargingTriggerEvent(
         type: ChargingTriggerType.endOfDaySummary,
-        message: 'สรุปวันนี้: ${insightsSummary.isNotEmpty ? insightsSummary : dailySummary.topics.take(3).join(", ")}',
-        data: {
-          ...dailySummary.toJson(),
-          'managerInsights': managerResult.insights.map((i) => i.toJson()).toList(),
-          'managerRecommendations': managerResult.recommendations.map((r) => r.toJson()).toList(),
-        },
+        message: 'สรุปวันนี้: ${topicsSummary.isNotEmpty ? topicsSummary : "ไม่มีข้อมูล"}',
+        data: dailySummary.toJson(),
       ));
 
       debugPrint('✅ End-of-day processing complete');
@@ -213,57 +228,15 @@ class ChargingTrigger {
     }
   }
 
-  /// 🔧 Execute worker tasks from ManagerSummaryStrategy
-  Future<void> _executeWorkerTasks(List<WorkerTask> tasks) async {
-    if (tasks.isEmpty) return;
+  /// 🔧 Execute background tasks
+  Future<void> _executeBackgroundTasks() async {
+    debugPrint('🔧 Executing background tasks...');
     
-    debugPrint('🔧 Executing ${tasks.length} worker tasks via WorkerService...');
+    // Run batch process for comprehensive background tasks
+    final taskService = UnifiedTaskService();
+    await taskService.forceProcess();
     
-    // Use WorkerService for batch processing
-    final workerService = WorkerService();
-    
-    for (final task in tasks) {
-      try {
-        switch (task.worker) {
-          case WorkerType.reminder:
-            debugPrint('  ⏰ Reminder: ${task.action}');
-            // Schedule via NotificationService
-            final notificationService = NotificationService();
-            await notificationService.initialize();
-            // TODO: Parse reminder data and schedule
-            break;
-            
-          case WorkerType.fact:
-            debugPrint('  📝 Fact: ${task.action}');
-            // Facts already stored in vectorService by ManagerSummaryStrategy
-            // Queue for deferred processing if needed
-            workerService.queueFactExtraction();
-            break;
-            
-          case WorkerType.calendar:
-            debugPrint('  📅 Calendar: ${task.action}');
-            // Queue calendar processing
-            DeferredTaskService().enqueue(
-              taskType: 'calendar_event',
-              payload: task.data,
-              priority: TaskPriority.normal,
-            );
-            break;
-            
-          case WorkerType.health:
-            debugPrint('  💊 Health: ${task.action}');
-            // Queue health analysis
-            workerService.queueHealthAnalysis();
-            break;
-        }
-      } catch (e) {
-        debugPrint('  ⚠️ Task failed: $e');
-      }
-    }
-    
-    // Also run WorkerService batch process for comprehensive background tasks
-    debugPrint('🔧 Running WorkerService batch process...');
-    await workerService.runBatchProcess();
+    debugPrint('✅ Background tasks complete');
   }
 
   /// 💊 Analyze health from session
@@ -442,6 +415,7 @@ enum ChargingTriggerType {
   endOfDaySummary,
   morningNotification,
   healthAnalysis,
+  correlationInsight,
 }
 
 /// Charging trigger event

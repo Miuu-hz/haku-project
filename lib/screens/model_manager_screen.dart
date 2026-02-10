@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
-import '../services/llm_service.dart';
+import '../services/model_manager_service.dart';
+import '../services/mediapipe_llm_service.dart';
 
 /// 🤖 Model Manager - จัดการโมเดล LLM
 class ModelManagerScreen extends ConsumerStatefulWidget {
@@ -18,8 +19,6 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
   
   @override
   Widget build(BuildContext context) {
-    final llmService = LLMService();
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('🤖 จัดการโมเดล AI'),
@@ -30,7 +29,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // โมเดลปัจจุบัน
-            _buildCurrentModelCard(llmService),
+            _buildCurrentModelCard(ModelManagerService()),
             
             const SizedBox(height: 24),
             
@@ -57,7 +56,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
     );
   }
 
-  Widget _buildCurrentModelCard(LLMService llmService) => Card(
+  Widget _buildCurrentModelCard(ModelManagerService modelManager) => Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -68,8 +67,8 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            FutureBuilder<List<String>>(
-              future: llmService.listAvailableModels(),
+            FutureBuilder<List<LocalModel>>(
+              future: modelManager.getLocalModels(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Text(
@@ -81,8 +80,8 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: snapshot.data!.map((model) => ListTile(
                     leading: const Icon(Icons.model_training),
-                    title: Text(model),
-                    trailing: model == llmService.currentModelName
+                    title: Text(model.name),
+                    trailing: model.path == MediaPipeLLMService().currentModelPath
                         ? const Chip(label: Text('กำลังใช้งาน'), backgroundColor: Colors.green)
                         : null,
                   )).toList(),
@@ -173,8 +172,8 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
         _importStatus = 'กำลัง copy $fileName...';
       });
 
-      final llmService = LLMService();
-      final success = await llmService.importModel(filePath);
+      final modelManager = ModelManagerService();
+      final success = await modelManager.importModel(filePath);
 
       if (success) {
         setState(() {

@@ -96,7 +96,7 @@ class WebSearchService {
   // ============================================================
 
   /// 🔍 ค้นหาเว็บ (main method)
-  Future<SearchResult> search(
+  Future<WebSearchResult> search(
     String query, {
     int maxResults = 5,
     String? language,
@@ -145,7 +145,7 @@ class WebSearchService {
   }
 
   /// 🦆 ค้นหาผ่าน DuckDuckGo HTML
-  Future<SearchResult> _searchDuckDuckGo(
+  Future<WebSearchResult> _searchDuckDuckGo(
     String query, {
     int maxResults = 5,
   }) async {
@@ -171,11 +171,11 @@ class WebSearchService {
       debugPrint('⚠️ DuckDuckGo search error: $e');
     }
 
-    return SearchResult(query: query, items: [], source: 'duckduckgo');
+    return WebSearchResult(query: query, items: [], source: 'duckduckgo');
   }
 
   /// 📝 Parse DuckDuckGo HTML
-  SearchResult _parseDuckDuckGoHtml(String html, int maxResults) {
+  WebSearchResult _parseDuckDuckGoHtml(String html, int maxResults) {
     final items = <SearchItem>[];
 
     try {
@@ -213,7 +213,7 @@ class WebSearchService {
       debugPrint('⚠️ Error parsing DuckDuckGo HTML: $e');
     }
 
-    return SearchResult(
+    return WebSearchResult(
       query: '',
       items: items,
       source: 'duckduckgo',
@@ -221,7 +221,7 @@ class WebSearchService {
   }
 
   /// 🔍 ค้นหาผ่าน Google (scraping)
-  Future<SearchResult> _searchGoogle(
+  Future<WebSearchResult> _searchGoogle(
     String query, {
     int maxResults = 5,
   }) async {
@@ -250,11 +250,11 @@ class WebSearchService {
       debugPrint('⚠️ Google search error: $e');
     }
 
-    return SearchResult(query: query, items: [], source: 'google');
+    return WebSearchResult(query: query, items: [], source: 'google');
   }
 
   /// 📝 Parse Google HTML
-  SearchResult _parseGoogleHtml(String html, int maxResults) {
+  WebSearchResult _parseGoogleHtml(String html, int maxResults) {
     final items = <SearchItem>[];
 
     try {
@@ -301,7 +301,7 @@ class WebSearchService {
       debugPrint('⚠️ Error parsing Google HTML: $e');
     }
 
-    return SearchResult(
+    return WebSearchResult(
       query: '',
       items: items,
       source: 'google',
@@ -474,14 +474,14 @@ class WebSearchService {
 // 📦 DATA MODELS
 // ============================================================
 
-/// 🔍 ผลการค้นหา
-class SearchResult {
+/// 🔍 ผลการค้นหา (Web Search)
+class WebSearchResult {
   final String query;
   final List<SearchItem> items;
   final String source;
   final DateTime searchedAt;
 
-  SearchResult({
+  WebSearchResult({
     required this.query,
     required this.items,
     required this.source,
@@ -540,7 +540,7 @@ class PageContent {
 
 /// 📦 Cached search
 class CachedSearch {
-  final SearchResult result;
+  final WebSearchResult result;
   final DateTime cachedAt;
 
   CachedSearch({
@@ -563,7 +563,7 @@ class CachedSearch {
   factory CachedSearch.fromJson(Map<String, dynamic> json) {
     final resultJson = json['result'] as Map<String, dynamic>;
     return CachedSearch(
-      result: SearchResult(
+      result: WebSearchResult(
         query: resultJson['query'] as String,
         items: (resultJson['items'] as List)
             .map((i) => SearchItem.fromJson(i as Map<String, dynamic>))

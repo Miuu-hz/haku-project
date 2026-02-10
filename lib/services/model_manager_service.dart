@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 
@@ -183,6 +184,34 @@ class ModelManagerService {
     if (models.isEmpty) return null;
     
     return models.reduce((a, b) => a.sizeBytes < b.sizeBytes ? a : b);
+  }
+
+  /// 📥 Import โมเดลจาก path ที่ user เลือก
+  Future<bool> importModel(String sourcePath) async {
+    try {
+      final file = File(sourcePath);
+      if (!await file.exists()) {
+        debugPrint('❌ Source file not found: $sourcePath');
+        return false;
+      }
+
+      final modelsDir = await _modelsDir;
+      final fileName = path.basename(sourcePath);
+      final destPath = '${modelsDir.path}/$fileName';
+
+      // ถ้ามีไฟล์อยู่แล้ว ให้ลบก่อน
+      final destFile = File(destPath);
+      if (await destFile.exists()) {
+        await destFile.delete();
+      }
+
+      await file.copy(destPath);
+      debugPrint('✅ Model imported: $destPath');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Import error: $e');
+      return false;
+    }
   }
 }
 

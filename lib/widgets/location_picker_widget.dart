@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../services/place_service.dart';
+import '../services/location_service.dart';
 
 /// 🗺️ Location Picker Widget - เลือกสถานที่บนแผนที่
 ///
@@ -33,7 +33,7 @@ class LocationPickerWidget extends StatefulWidget {
 }
 
 class _LocationPickerWidgetState extends State<LocationPickerWidget> {
-  final PlaceService _placeService = PlaceService();
+  final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -54,11 +54,11 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
   }
 
   Future<void> _initializeLocation() async {
-    await _placeService.initialize();
+    await _locationService.initialize();
 
     if (_selectedLocation == null) {
       // Try to get current location
-      final position = await _placeService.getCurrentPosition();
+      final position = await LocationService.getCurrentPosition();
       if (position != null) {
         _selectedLocation = LatLng(position.latitude, position.longitude);
       }
@@ -281,7 +281,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
 
     // Saved places markers
     if (widget.showSavedPlaces) {
-      for (final place in _placeService.savedPlaces) {
+      for (final place in _locationService.savedPlaces) {
         if (_selectedLocation != null &&
             place.latitude == _selectedLocation!.latitude &&
             place.longitude == _selectedLocation!.longitude) {
@@ -340,7 +340,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
       // Get current map center for nearby search
       final center = _mapController.camera.center;
 
-      final results = await _placeService.searchPlaces(
+      final results = await _locationService.searchPlaces(
         query,
         nearLat: center.latitude,
         nearLng: center.longitude,
@@ -384,7 +384,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
   }
 
   Future<void> _goToCurrentLocation() async {
-    final position = await _placeService.getCurrentPosition();
+    final position = await LocationService.getCurrentPosition();
     if (position != null) {
       final location = LatLng(position.latitude, position.longitude);
 

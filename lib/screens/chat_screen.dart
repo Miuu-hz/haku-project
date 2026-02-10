@@ -5,17 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
-import '../services/ai_action_service.dart';
-import '../services/ai_service.dart';
-import '../services/context_retriever.dart';
+
+import '../services/big_manager_service.dart';
 import '../services/database_helper.dart';
-import '../services/llm_queue_service.dart';
-import '../services/mvp_trigger_service.dart';
+import '../services/unified_task_service.dart';
+import '../services/triggers/trigger_service.dart';
 import '../services/notification_service.dart';
-import '../services/rag_service.dart';
-import '../services/chat_summary_service.dart';
+import '../services/unified_vector_service.dart';
+import '../services/chat_summary_service.dart' show ChatSummaryService;
 import '../services/mediapipe_llm_service.dart';
-import '../services/smart_preprocessor.dart';
+
+import '../services/web_search_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 ///
@@ -35,9 +35,9 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
     // 🔋 บันทึกประวัติแชทสำหรับสรุปแบบ Deferred (ไม่กินแบต)
     if (!message.isLoading && !message.isError) {
-      ChatSummaryService().logChatMessage(
-        message: message.content,
-        isUser: message.isUser,
+      ChatSummaryService().addMessage(
+        role: message.isUser ? 'user' : 'assistant',
+        content: message.content,
         intent: message.isProactive ? 'proactive' : 'chat',
       );
     }
@@ -72,136 +72,89 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🤖 ส่งข้อความไปให้ AI พร้อม Smart Preprocessing + LLM Queue
+  /// 🤖 ส่งข้อความไปให้ AI ด้วย Architecture ใหม่: Face → Manager → Dispatcher
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
     debugPrint('🚀 ============================================');
-    debugPrint('🚀 sendToAI called: $userMessage');
+    debugPrint('🚀 sendToAI (NEW FLOW): $userMessage');
 
-    // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
+    final bigManager = BigManagerService();
+    final webSearch = WebSearchService();
+
+    // เพิ่มข้อความผู้ใช้
     addMessage(ChatMessage.user(userMessage));
 
     // แสดง "กำลังพิมพ์..."
     addMessage(ChatMessage.loading());
 
-    String? response;
-    String contextStr = '';
-
     try {
-      // 🧠 Smart Preprocessor: วิเคราะห์ intent + ดึง context
-      if (useContext) {
-        try {
-          debugPrint('🧠 Running SmartPreprocessor...');
-          final preprocessor = SmartPreprocessor();
-          final preprocessResult = await preprocessor.preprocess(
-            userMessage,
-            useLeanContext: true,
-          );
-          contextStr = preprocessResult.enrichedContext;
-          debugPrint('✅ Preprocessing complete:');
-          debugPrint('   - Intent: ${preprocessResult.detectedIntent}');
-          debugPrint('   - Context length: ${contextStr.length}');
-          debugPrint('   - Worker results: ${preprocessResult.workerResults.getSummary()}');
-
-          // บันทึก message เข้า LeanContext
-          await preprocessor.addToLeanContext(userMessage, isUser: true);
-        } catch (e, stackTrace) {
-          debugPrint('⚠️ SmartPreprocessor failed: $e');
-          debugPrint('Stack: $stackTrace');
-          // Fallback to ContextRetriever
-          try {
-            final contextData = await ContextRetriever().retrieveFullContext(
-              userQuery: userMessage,
-            );
-            contextStr = ContextRetriever().buildContextString(contextData);
-          } catch (e2) {
-            debugPrint('⚠️ Fallback also failed: $e2');
-          }
-        }
-      }
-
       // ═══════════════════════════════════════════════════════════
-      // 🎯 LLM Queue: Priority 1 - Chat Response (user waiting)
+      // 1️⃣ 🎭 THE FACE - ตอบรับทันที (Priority 1)
       // ═══════════════════════════════════════════════════════════
-      final queue = LLMQueueService();
-      final llm = MediaPipeLLMService();
-
-      // 🔋 Lazy Loading
-      if (!llm.isInitialized && !llm.isLoading) {
-        await llm.initialize();
-      }
-
-      if (llm.isInitialized) {
-        debugPrint('📥 LLMQueue: Sending chat request (Priority 1)...');
-        response = await queue.chat(
-          userMessage,
-          context: contextStr.isNotEmpty ? contextStr : null,
-        );
-        debugPrint('✅ LLMQueue: Chat response received');
-
-        // บันทึก AI response เข้า LeanContext
-        if (response.isNotEmpty) {
-          final displayResponse = _extractResponseText(response);
-          await SmartPreprocessor().addToLeanContext(displayResponse, isUser: false);
-        }
-      }
-
-      // Fallback ไป Mock ถ้า LLM ไม่พร้อม
-      if (response == null || response.isEmpty) {
-        response = await AIService.getMockResponse(userMessage);
-      }
-
-      // 🎬 Parse ACTION tags จาก response
-      debugPrint('🎬 Parsing ACTION tags from response...');
-      final actionService = AIActionService();
-      final parseResult = actionService.parseResponse(response);
-
-      // Execute actions ถ้ามี และเก็บ result
-      String? actionResult;
-      if (parseResult.hasActions) {
-        debugPrint('🎬 Found ${parseResult.actions.length} actions');
-        for (final action in parseResult.actions) {
-          debugPrint('🎬 Executing: ${action.displayName}');
-          final result = await actionService.executeAction(action);
-          if (result.success) {
-            debugPrint('✅ Action executed: ${action.type.name}');
-            if (result.hasDataForAI) {
-              actionResult = result.data;
-            }
-          } else {
-            debugPrint('⚠️ Action failed: ${action.type.name} - ${result.error}');
-          }
-        }
-      }
-
-      // ถ้ามี action result ส่งกลับไปให้ AI สรุป (Priority 2)
-      String finalResponse = parseResult.cleanResponse;
-      if (actionResult != null && actionResult.isNotEmpty && llm.isInitialized) {
-        debugPrint('📥 LLMQueue: Sending search follow-up (Priority 2)...');
-        try {
-          finalResponse = await queue.searchFollowUp(userMessage, actionResult);
-          finalResponse = _extractResponseText(finalResponse);
-        } catch (e) {
-          debugPrint('⚠️ Follow-up generation failed: $e');
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════
-      // 👷 LLM Queue: Priority 4 - Worker Extraction (background)
-      // ═══════════════════════════════════════════════════════════
-      // Queue worker extraction - ไม่ block UI, ทำ background
-      queue.queueWorkerExtraction(userMessage, finalResponse);
-      debugPrint('📥 LLMQueue: Queued worker extraction (Priority 4)');
-
-      debugPrint('🔄 Removing loading message...');
+      final acknowledgment = bigManager.generateAcknowledgment(userMessage);
+      
+      // แสดงข้อความตอบรับทันที (แทนที่ loading)
       state = state.where((m) => !m.isLoading).toList();
+      addMessage(ChatMessage.assistant(acknowledgment));
+      
+      // แสดง loading อีกครั้งสำหรับผลลัพธ์สุดท้าย
+      addMessage(ChatMessage.loading());
 
-      debugPrint('🔄 Adding assistant message...');
-      addMessage(ChatMessage.assistant(
-        finalResponse,
-        sources: useContext ? _extractSources(contextStr) : null,
-      ));
+      // ═══════════════════════════════════════════════════════════
+      // 2️⃣ 👔 BIG MANAGER - วิเคราะห์ structured (Priority 2)
+      // ═══════════════════════════════════════════════════════════
+      debugPrint('👔 BigManager: Analyzing...');
+      final analysis = await bigManager.analyzeAndDispatch(userMessage);
+
+      // ═══════════════════════════════════════════════════════════
+      // 3️⃣ 🔧 DISPATCHER - ทำงานด้วย code (ไม่ใช้ LLM)
+      //    (ทำงานแล้วใน analyzeAndDispatch ผ่าน UnifiedTaskService)
+      // ═══════════════════════════════════════════════════════════
+
+      // 4️⃣ 🌐 ถ้ามี web search → รอผลแล้วสรุป
+      String finalResponse = analysis;
+      
+      // เช็คว่ามี web search ใน queue ไหม (ถ้ามีคำว่า "ค้นหา" หรือ "หา" ใน response)
+      if (userMessage.contains('หา') || userMessage.contains('ค้นหา') || 
+          userMessage.contains('ร้าน') || userMessage.contains('คาเฟ่')) {
+        debugPrint('🌐 Checking for web search results...');
+        
+        // ถ้าคำถามเกี่ยวกับสถานที่ → search แล้วสรุป
+        final searchQuery = _extractSearchQuery(userMessage);
+        if (searchQuery.isNotEmpty) {
+          await webSearch.initialize();
+          final searchResults = await webSearch.searchForAI(searchQuery);
+          
+          // สรุปผลค้นหาด้วย LLM (Priority 3)
+          final taskService = UnifiedTaskService();
+          if (MediaPipeLLMService().isInitialized) {
+            final summary = await taskService.searchFollowUp(userMessage, searchResults);
+            finalResponse = _extractResponseText(summary);
+          } else {
+            finalResponse = searchResults;
+          }
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // 5️⃣ 🎭 THE FACE - แสดงผลลัพธ์สุดท้าย
+      // ═══════════════════════════════════════════════════════════
+      state = state.where((m) => !m.isLoading).toList();
+      
+      // ถ้าผลลัพธ์ต่างจาก acknowledgment แรก ให้แสดงเพิ่ม
+      if (finalResponse != acknowledgment) {
+        addMessage(ChatMessage.assistant(
+          finalResponse,
+          sources: useContext ? _extractSources(finalResponse) : null,
+        ));
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // 6️⃣ 👷 BACKGROUND - Worker Extraction (Priority 4)
+      // ═══════════════════════════════════════════════════════════
+      final taskService = UnifiedTaskService();
+      taskService.queueExtraction(userMessage, finalResponse);
+
       debugPrint('✅ sendToAI completed successfully');
-      debugPrint('📊 Queue stats: ${queue.getQueueStats()}');
       debugPrint('🚀 ============================================');
 
     } catch (e, stackTrace) {
@@ -212,10 +165,24 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
       addMessage(ChatMessage.error(
         'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
-        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ'
+        'กรุณาลองใหม่อีกครั้งนะคะ'
       ));
       debugPrint('🚀 ============================================');
     }
+  }
+
+  /// 🔍 สกัดคำค้นหาจากข้อความผู้ใช้
+  String _extractSearchQuery(String message) {
+    final lower = message.toLowerCase();
+    
+    // ลบคำที่ไม่จำเป็น
+    final stopWords = ['หา', 'ค้นหา', 'ร้าน', 'ที่', 'แนะนำ', 'หน่อย', 'ค่ะ', 'ครับ', 'นะ'];
+    var query = lower;
+    for (final word in stopWords) {
+      query = query.replaceAll(word, '');
+    }
+    
+    return query.trim();
   }
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive) - ใช้ LLM Queue
@@ -223,7 +190,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     addMessage(ChatMessage.loading());
 
     try {
-      final queue = LLMQueueService();
+      final taskService = UnifiedTaskService();
       final llm = MediaPipeLLMService();
 
       // 🔋 Lazy Loading
@@ -232,38 +199,32 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       }
 
       String response;
+      final message = trigger.message ?? 'สวัสดีค่ะ!';
       if (llm.isInitialized) {
         // ใช้ queue สำหรับ trigger response (Priority 1)
-        final triggerContext = ContextRetriever().buildContextString(trigger.context);
-        response = await queue.chat(
-          trigger.suggestedMessage ?? 'สวัสดีค่ะ',
+        final triggerContext = trigger.data != null 
+            ? 'ข้อมูลเพิ่มเติม: ${trigger.data}'
+            : '';
+        response = await taskService.chat(
+          message,
           context: triggerContext,
         );
         response = _extractResponseText(response);
       } else {
-        response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
+        response = message;
       }
 
-      // 🎬 Parse ACTION tags
-      final actionService = AIActionService();
-      final parseResult = actionService.parseResponse(response);
-
-      // Execute actions ถ้ามี
-      if (parseResult.hasActions) {
-        for (final action in parseResult.actions) {
-          await actionService.executeAction(action);
-        }
-      }
-
+      // 🎭 แสดงผลลัพธ์ (BigManager จัดการ actions ให้แล้ว)
       state = state.where((m) => !m.isLoading).toList();
+      final notification = trigger.toNotification();
       addMessage(ChatMessage.proactive(
-        parseResult.cleanResponse,
-        triggerTitle: trigger.displayTitle,
+        response,
+        triggerTitle: notification['title'],
       ));
 
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
-      addMessage(ChatMessage.assistant(trigger.suggestedMessage ?? 'สวัสดีค่ะ!'));
+      addMessage(ChatMessage.assistant(trigger.message ?? 'สวัสดีค่ะ!'));
     }
   }
 
@@ -308,7 +269,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
       ).join('\n');
 
-      final queue = LLMQueueService();
+      final taskService = UnifiedTaskService();
       final llm = MediaPipeLLMService();
 
       // 🔋 Lazy Loading
@@ -319,7 +280,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       String response;
       if (llm.isInitialized) {
         // ใช้ queue.chat() สำหรับ summary (Priority 1)
-        response = await queue.chat(
+        response = await taskService.chat(
           'สรุปวันนี้ให้หน่อย',
           context: 'บันทึกวันนี้:\n$entriesContent',
         );
@@ -328,19 +289,9 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
       }
 
-      // 🎬 Parse ACTION tags
-      final actionService = AIActionService();
-      final parseResult = actionService.parseResponse(response);
-
-      // Execute actions ถ้ามี
-      if (parseResult.hasActions) {
-        for (final action in parseResult.actions) {
-          await actionService.executeAction(action);
-        }
-      }
-
+      // 🎭 แสดงผลลัพธ์ (BigManager จัดการ actions ให้แล้ว)
       state = state.where((m) => !m.isLoading).toList();
-      addMessage(ChatMessage.assistant(parseResult.cleanResponse));
+      addMessage(ChatMessage.assistant(response));
 
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
@@ -389,8 +340,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       // Initialize RAG (Lightweight - ไม่ใช้ LLM)
       debugPrint('🔄 Initializing RAG...');
-      await RAGService().initialize();
-      debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
+      final vectorService = UnifiedVectorService();
+      await vectorService.initialize();
+      debugPrint('✅ Vector Service initialized');
 
       // 📝 NOTE: LLM (MediaPipe) จะถูกโหลดแบบ Lazy Loading
       // เมื่อมีการเรียก generate() ครั้งแรกเท่านั้น
@@ -403,11 +355,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       debugPrint('✅ Chat Summary Service initialized (Deferred to Charging)');
 
       // Index entries ถ้ายังไม่มี
-      if (RAGService().isInitialized) {
+      if (vectorService.isInitialized) {
         debugPrint('🔄 Indexing entries...');
         final entries = await DatabaseHelper.instance.getAllEntries();
         if (entries.isNotEmpty) {
-          await RAGService().indexEntries(entries);
+          await vectorService.indexEntries(entries);
         }
         debugPrint('✅ Entries indexed');
       }
@@ -426,7 +378,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       // Initialize MVP Trigger Service
       debugPrint('🔄 Initializing Trigger Service...');
-      final triggerService = MVPTriggerService();
+      final triggerService = TriggerService();
       await triggerService.initialize();
 
       // ตั้ง callback เมื่อมี trigger - แสดงทั้งในแอพและ notification

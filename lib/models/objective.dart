@@ -13,6 +13,9 @@ class Objective {
   final String title;
   final String? description;
 
+  /// 🔗 เชื่อมโยงกับ Entry ต้นทาง (null ถ้าสร้างเอง)
+  final int? entryId;
+
   /// วันเวลาที่ต้องทำ
   final DateTime? dueDate;
   final String? dueTime;
@@ -56,6 +59,7 @@ class Objective {
     required this.id,
     required this.title,
     this.description,
+    this.entryId,
     this.dueDate,
     this.dueTime,
     this.durationMinutes,
@@ -76,6 +80,7 @@ class Objective {
   Objective copyWith({
     String? title,
     String? description,
+    int? entryId,
     DateTime? dueDate,
     String? dueTime,
     int? durationMinutes,
@@ -92,6 +97,7 @@ class Objective {
         id: id,
         title: title ?? this.title,
         description: description ?? this.description,
+        entryId: entryId ?? this.entryId,
         dueDate: dueDate ?? this.dueDate,
         dueTime: dueTime ?? this.dueTime,
         durationMinutes: durationMinutes ?? this.durationMinutes,
@@ -161,6 +167,7 @@ class Objective {
         'id': id,
         'title': title,
         'description': description,
+        'entryId': entryId,
         'dueDate': dueDate?.toIso8601String(),
         'dueTime': dueTime,
         'durationMinutes': durationMinutes,
@@ -182,6 +189,7 @@ class Objective {
         id: json['id'] as String,
         title: json['title'] as String,
         description: json['description'] as String?,
+        entryId: json['entryId'] as int?,
         dueDate: json['dueDate'] != null
             ? DateTime.parse(json['dueDate'] as String)
             : null,

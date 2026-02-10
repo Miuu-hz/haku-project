@@ -256,6 +256,11 @@ class UserProfileService {
         case FactType.role:
           await setBasicInfo(role: fact.value);
           break;
+        case FactType.place:
+        case FactType.health:
+        case FactType.custom:
+          // These fact types are handled by other services (FactWorker)
+          break;
       }
     }
 
@@ -456,4 +461,7 @@ enum FactType {
   name,
   nickname,
   role,
+  place,
+  health,
+  custom,
 }

@@ -342,6 +342,53 @@ class FactWorker {
   // 💾 RAG STORAGE
   // ============================================================
 
+  /// Save fact directly (สำหรับ Dispatcher)
+  Future<void> saveFact({
+    required FactType type,
+    required String value,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      // Save to UserProfile based on type
+      switch (type) {
+        case FactType.name:
+          await _userProfile.setBasicInfo(name: value);
+          break;
+        case FactType.nickname:
+          await _userProfile.setBasicInfo(nickname: value);
+          break;
+        case FactType.like:
+          await _userProfile.addLike(value);
+          break;
+        case FactType.dislike:
+          await _userProfile.addDislike(value);
+          break;
+        case FactType.role:
+          await _userProfile.setBasicInfo(role: value);
+          break;
+        case FactType.goal:
+          await _userProfile.addGoal(value);
+          break;
+        case FactType.place:
+        case FactType.health:
+        case FactType.custom:
+          // Save to RAG only
+          break;
+      }
+
+      // Save to RAG
+      await _saveToRAG(
+        'fact_${type.name}',
+        value,
+        metadata ?? {'type': type.name, 'date': DateTime.now().toIso8601String()},
+      );
+
+      debugPrint('📝 FactWorker: Saved $type = $value');
+    } catch (e) {
+      debugPrint('⚠️ FactWorker save error: $e');
+    }
+  }
+
   /// Save to RAG (Unified Vector)
   Future<void> _saveToRAG(
     String category,
@@ -365,17 +412,6 @@ class FactWorker {
 // ============================================================
 
 /// Fact type enum
-enum FactType {
-  name,
-  nickname,
-  like,
-  dislike,
-  role,
-  goal,
-  place,
-  health,
-}
-
 /// Extracted fact
 class ExtractedFact {
   final FactType type;

@@ -33,7 +33,7 @@ class GoogleAuthService {
 
   /// Mock User Data
   GoogleSignInAccount? _mockUser;
-  final List<CalendarEvent> _mockEvents = [];
+  final List<GoogleCalendarEvent> _mockEvents = [];
   int _mockEventIdCounter = 1;
 
   static const String _userKey = 'google_user_data';
@@ -98,7 +98,7 @@ class GoogleAuthService {
   void _initMockEvents() {
     final now = DateTime.now();
     _mockEvents.addAll([
-      CalendarEvent(
+      GoogleCalendarEvent(
         id: 'mock_1',
         title: '🎯 ประชุมทีม Haku',
         startTime: now.add(const Duration(hours: 2)),
@@ -107,7 +107,7 @@ class GoogleAuthService {
         location: 'Google Meet',
         htmlLink: 'https://calendar.google.com',
       ),
-      CalendarEvent(
+      GoogleCalendarEvent(
         id: 'mock_2',
         title: '🍜 นัดกินข้าวกับเพื่อน',
         startTime: now.add(const Duration(days: 1, hours: 12)),
@@ -116,7 +116,7 @@ class GoogleAuthService {
         location: 'Shibuya Restaurant',
         htmlLink: 'https://calendar.google.com',
       ),
-      CalendarEvent(
+      GoogleCalendarEvent(
         id: 'mock_3',
         title: '💪 ออกกำลังกาย',
         startTime: now.add(const Duration(days: 2, hours: 18)),
@@ -222,7 +222,7 @@ class GoogleAuthService {
   // ============================================================
 
   /// 📅 สร้าง event ใน Google Calendar
-  Future<CalendarEventResult> createCalendarEvent({
+  Future<GoogleCalendarResult> createCalendarEvent({
     required String title,
     required DateTime startTime,
     DateTime? endTime,
@@ -232,7 +232,7 @@ class GoogleAuthService {
     bool sendNotifications = false,
   }) async {
     if (!isSignedIn) {
-      return CalendarEventResult(
+      return GoogleCalendarResult(
         success: false,
         error: 'Not signed in to Google',
       );
@@ -243,7 +243,7 @@ class GoogleAuthService {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       endTime ??= startTime.add(const Duration(hours: 1));
       
-      final event = CalendarEvent(
+      final event = GoogleCalendarEvent(
         id: 'mock_${_mockEventIdCounter++}',
         title: title,
         startTime: startTime,
@@ -258,7 +258,7 @@ class GoogleAuthService {
           .compareTo(b.startTime ?? DateTime.now()));
       
       debugPrint('🎭 Mock event created: ${event.title}');
-      return CalendarEventResult(
+      return GoogleCalendarResult(
         success: true,
         eventId: event.id,
         eventLink: event.htmlLink,
@@ -266,7 +266,7 @@ class GoogleAuthService {
     }
 
     if (_accessToken == null) {
-      return CalendarEventResult(
+      return GoogleCalendarResult(
         success: false,
         error: 'Not signed in to Google',
       );
@@ -316,7 +316,7 @@ class GoogleAuthService {
         final data = jsonDecode(response.body);
         debugPrint('✅ Calendar event created: ${data['id']}');
 
-        return CalendarEventResult(
+        return GoogleCalendarResult(
           success: true,
           eventId: data['id'] as String,
           eventLink: data['htmlLink'] as String?,
@@ -331,14 +331,14 @@ class GoogleAuthService {
           // Could retry here
         }
 
-        return CalendarEventResult(
+        return GoogleCalendarResult(
           success: false,
           error: 'API error: ${response.statusCode}',
         );
       }
     } catch (e) {
       debugPrint('⚠️ Create event error: $e');
-      return CalendarEventResult(
+      return GoogleCalendarResult(
         success: false,
         error: e.toString(),
       );
@@ -346,7 +346,7 @@ class GoogleAuthService {
   }
 
   /// 📋 ดึง events จาก Calendar
-  Future<List<CalendarEvent>> getUpcomingEvents({
+  Future<List<GoogleCalendarEvent>> getUpcomingEvents({
     int maxResults = 10,
     DateTime? timeMin,
     DateTime? timeMax,
@@ -398,7 +398,7 @@ class GoogleAuthService {
         final data = jsonDecode(response.body);
         final items = data['items'] as List? ?? [];
 
-        return items.map((e) => CalendarEvent.fromJson(e as Map<String, dynamic>)).toList();
+        return items.map((e) => GoogleCalendarEvent.fromJson(e as Map<String, dynamic>)).toList();
       }
     } catch (e) {
       debugPrint('⚠️ Get events error: $e');
@@ -408,7 +408,7 @@ class GoogleAuthService {
   }
 
   /// 🗑️ ลบ event
-  Future<bool> deleteCalendarEvent(String eventId) async {
+  Future<bool> deleteGoogleCalendarEvent(String eventId) async {
     if (!isSignedIn) return false;
 
     // 🎭 Mock Mode
@@ -441,7 +441,7 @@ class GoogleAuthService {
   }
 
   /// 🔄 อัพเดต event
-  Future<bool> updateCalendarEvent({
+  Future<bool> updateGoogleCalendarEvent({
     required String eventId,
     String? title,
     DateTime? startTime,
@@ -457,7 +457,7 @@ class GoogleAuthService {
       final index = _mockEvents.indexWhere((e) => e.id == eventId);
       if (index != -1) {
         final old = _mockEvents[index];
-        _mockEvents[index] = CalendarEvent(
+        _mockEvents[index] = GoogleCalendarEvent(
           id: old.id,
           title: title ?? old.title,
           startTime: startTime ?? old.startTime,
@@ -518,7 +518,7 @@ class GoogleAuthService {
   // ============================================================
 
   /// 🔄 Sync objective ไป Calendar
-  Future<CalendarEventResult> syncObjectiveToCalendar({
+  Future<GoogleCalendarResult> syncObjectiveToCalendar({
     required String objectiveId,
     required String title,
     required DateTime dueDate,
@@ -620,8 +620,8 @@ class _MockGoogleAuth implements GoogleSignInAuthentication {
 // 📦 DATA MODELS
 // ============================================================
 
-/// 📅 Calendar Event
-class CalendarEvent {
+/// 📅 Google Calendar Event
+class GoogleCalendarEvent {
   final String id;
   final String title;
   final DateTime? startTime;
@@ -630,7 +630,7 @@ class CalendarEvent {
   final String? location;
   final String? htmlLink;
 
-  CalendarEvent({
+  GoogleCalendarEvent({
     required this.id,
     required this.title,
     this.startTime,
@@ -640,7 +640,7 @@ class CalendarEvent {
     this.htmlLink,
   });
 
-  factory CalendarEvent.fromJson(Map<String, dynamic> json) {
+  factory GoogleCalendarEvent.fromJson(Map<String, dynamic> json) {
     DateTime? parseDateTime(dynamic dateTimeObj) {
       if (dateTimeObj == null) return null;
       if (dateTimeObj is Map) {
@@ -650,7 +650,7 @@ class CalendarEvent {
       return null;
     }
 
-    return CalendarEvent(
+    return GoogleCalendarEvent(
       id: json['id'] as String,
       title: json['summary'] as String? ?? 'Untitled',
       startTime: parseDateTime(json['start']),
@@ -676,14 +676,14 @@ class CalendarEvent {
   }
 }
 
-/// ✅ Calendar Event Result
-class CalendarEventResult {
+/// ✅ Google Calendar Result
+class GoogleCalendarResult {
   final bool success;
   final String? eventId;
   final String? eventLink;
   final String? error;
 
-  CalendarEventResult({
+  GoogleCalendarResult({
     required this.success,
     this.eventId,
     this.eventLink,

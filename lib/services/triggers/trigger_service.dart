@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../battery_aware_service.dart';
-import '../lean_context_service.dart';
+import '../context_retriever.dart';
 import '../user_profile_service.dart';
 import '../unified_vector_service.dart';
 import 'timer_trigger.dart';
 import 'charging_trigger.dart';
-import 'manager_summary_strategy.dart';
+import '../big_manager_service.dart';
 
 /// 🎯 Trigger Service - ศูนย์รวม Triggers ทั้งหมด
 ///
@@ -19,7 +19,7 @@ import 'manager_summary_strategy.dart';
 ///
 /// Integration:
 /// - BatteryAwareService: ตรวจสอบสถานะแบต
-/// - LeanContextService: บันทึก/อ่าน context
+/// - ContextRetriever: ดึงข้อมูลบริบท
 /// - UnifiedVectorService: เก็บข้อมูล RAG
 
 class TriggerService {
@@ -28,14 +28,14 @@ class TriggerService {
   TriggerService._internal();
 
   final BatteryAwareService _battery = BatteryAwareService();
-  final LeanContextService _leanContext = LeanContextService();
+  final ContextRetriever _contextRetriever = ContextRetriever();
   final UserProfileService _userProfile = UserProfileService();
   final UnifiedVectorService _vectorService = UnifiedVectorService();
 
   // Sub-services
   late final TimerTrigger _timerTrigger;
   late final ChargingTrigger _chargingTrigger;
-  late final ManagerSummaryStrategy _managerSummary;
+  late final BigManagerService _bigManager;
 
   bool _isInitialized = false;
 
@@ -48,7 +48,7 @@ class TriggerService {
 
     // Initialize dependencies
     await _battery.initialize();
-    await _leanContext.initialize();
+    // ContextRetriever uses lazy init, no initialize needed
     await _vectorService.initialize();
 
     // Create sub-services
@@ -59,17 +59,14 @@ class TriggerService {
 
     _chargingTrigger = ChargingTrigger(
       batteryService: _battery,
-      leanContext: _leanContext,
+      contextRetriever: _contextRetriever,
       vectorService: _vectorService,
       userProfile: _userProfile,
       onTrigger: _handleChargingTrigger,
     );
 
-    _managerSummary = ManagerSummaryStrategy(
-      leanContext: _leanContext,
-      vectorService: _vectorService,
-      userProfile: _userProfile,
-    );
+    _bigManager = BigManagerService();
+    await _bigManager.initialize();
 
     // Register battery callbacks
     _battery.onChargingStarted = _onChargingStarted;
@@ -148,8 +145,8 @@ class TriggerService {
   // 📊 MANAGER SUMMARY
   // ============================================================
 
-  /// 📊 Run manager summary analysis
-  Future<ManagerSummaryResult> runManagerSummary() => _managerSummary.analyze();
+  /// 📊 Run BigManager analysis
+  Future<String> runBigManagerAnalysis(String message) => _bigManager.analyzeAndDispatch(message);
 
   // ============================================================
   // 📋 GETTERS

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'context_retriever.dart';
-import 'mvp_trigger_service.dart';
+import 'triggers/trigger_service.dart';
 
 /// 🔔 Notification Service - แจ้งเตือน + Quick Reply
 /// 
@@ -84,7 +84,8 @@ class NotificationService {
     final triggerId = event.timestamp.millisecondsSinceEpoch.toString();
     
     // Quick Reply Actions
-    final actions = event.quickReplyOptions.map((option) => AndroidNotificationAction(
+    final quickReplies = (event.data?['quickReplies'] as List<dynamic>?)?.cast<String>() ?? [];
+    final actions = quickReplies.map((option) => AndroidNotificationAction(
         'reply_$option',
         option,
         showsUserInterface: false,
@@ -131,13 +132,13 @@ class NotificationService {
 
     await _notifications.show(
       event.timestamp.millisecond, // notification id
-      event.displayTitle,
-      event.suggestedMessage ?? 'Haku มีอะไรจะบอกคุณ',
+      event.toNotification()['title'] ?? 'Haku',
+      event.message ?? 'Haku มีอะไรจะบอกคุณ',
       details,
       payload: triggerId,
     );
 
-    debugPrint('🔔 Showed notification: ${event.displayTitle}');
+    debugPrint('🔔 Showed notification: ${event.toNotification()['title'] ?? "Haku"}');
   }
 
   /// 👆 จัดการเมื่อผู้ใช้ตอบกลับจาก notification
@@ -149,13 +150,13 @@ class NotificationService {
 
     if (actionId == null || actionId == 'open_app') {
       // เปิดแอพ
-      final context = await ContextRetriever().retrieveFullContext();
+      await ContextRetriever().retrieveFullContext();
       onNotificationTap?.call(
         TriggerEvent(
-          type: TriggerType.morningStart,
-          timestamp: DateTime.now(),
-          context: context,
-          quickReplyOptions: const ['พร้อมมาก!', 'ยังง่วง', 'วันนี้มีอะไร?'],
+          type: TriggerType.morning,
+          subType: 'morning_start',
+          message: 'สวัสดีตอนเช้า! พร้อมเริ่มวันใหม่ไหมคะ?',
+          data: {'quickReplies': ['พร้อมมาก!', 'ยังง่วง', 'วันนี้มีอะไร?']},
         ),
       );
       return;
@@ -179,6 +180,63 @@ class NotificationService {
   /// 🧹 ยกเลิกการแจ้งเตือนเฉพาะ id
   Future<void> cancel(int id) async {
     await _notifications.cancel(id);
+  }
+
+  /// 📢 แสดง notification ทั่วไป (สำหรับ external services)
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    required NotificationDetails details,
+    String? payload,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('⚠️ NotificationService not initialized');
+      return;
+    }
+
+    await _notifications.show(
+      id,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+  }
+
+  /// 📢 แสดง notification ง่าย (ใช้ default channel)
+  Future<void> showSimpleNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+    Importance importance = Importance.high,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('⚠️ NotificationService not initialized');
+      return;
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      'haku_trigger_channel',
+      'Haku Triggers',
+      channelDescription: 'การแจ้งเตือนจาก Haku AI',
+      importance: importance,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.show(id, title, body, details, payload: payload);
   }
 }
 

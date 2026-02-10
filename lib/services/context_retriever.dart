@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/entry.dart';
 import 'database_helper.dart';
-import 'rag_service.dart';
+import 'unified_vector_service.dart';
 
 /// 🧠 Context Retriever - ดึงข้อมูลบริบทจากหลายแหล่ง
 /// 
@@ -147,24 +147,23 @@ class ContextRetriever {
     );
   }
 
-  /// 💝 ดึงความชอบ/ไม่ชอบ (ผ่าน RAG)
+  /// 💝 ดึงความชอบ/ไม่ชอบ (ผ่าน Vector Search)
   Future<UserPreferences> _getPreferences(String? query) async {
     if (query == null) return UserPreferences.empty();
 
     try {
-      if (!RAGService().isInitialized) {
-        return UserPreferences.empty();
-      }
+      final vectorService = UnifiedVectorService();
+      await vectorService.initialize();
 
-      // ใช้ RAG หาข้อมูลที่เกี่ยวข้อง
-      final ragResults = await RAGService().search(query, limit: 5);
+      // ใช้ Vector Search หาข้อมูลที่เกี่ยวข้อง
+      final searchResults = await vectorService.searchEntriesInDatabase(query, limit: 5);
 
       // วิเคราะห์ sentiment จากผลลัพธ์
-      final positiveEntries = ragResults.where((r) => r.entry.mood != null && r.entry.mood! >= 4).toList();
-      final negativeEntries = ragResults.where((r) => r.entry.mood != null && r.entry.mood! <= 2).toList();
+      final positiveEntries = searchResults.where((r) => r.entry.mood != null && r.entry.mood! >= 4).toList();
+      final negativeEntries = searchResults.where((r) => r.entry.mood != null && r.entry.mood! <= 2).toList();
 
       return UserPreferences(
-        relatedEntries: ragResults.map((r) => r.entry).toList(),
+        relatedEntries: searchResults.map((r) => r.entry).toList(),
         positiveContexts: positiveEntries.map((r) => r.entry.content).toList(),
         negativeContexts: negativeEntries.map((r) => r.entry.content).toList(),
       );
@@ -177,15 +176,46 @@ class ContextRetriever {
   /// 🔍 ดึงบันทึกที่เกี่ยวข้องกับคำถาม
   Future<List<Entry>> _getRelatedEntries(String query) async {
     try {
-      if (!RAGService().isInitialized) {
-        return [];
-      }
-      final results = await RAGService().search(query, limit: 5);
+      final vectorService = UnifiedVectorService();
+      await vectorService.initialize();
+      final results = await vectorService.searchEntriesInDatabase(query, limit: 5);
       return results.map((r) => r.entry).toList();
     } catch (e) {
       debugPrint('⚠️ _getRelatedEntries error: $e');
       return [];
     }
+  }
+
+  /// 🌙 จบ Session (end-of-day processing)
+  /// 
+  /// สรุปข้อมูลวันนี้สำหรับ ChargingTrigger
+  Future<SessionSummary?> endSession() async {
+    final now = DateTime.now();
+    final allEntries = await DatabaseHelper.instance.getAllEntries();
+    
+    // ดึง entries วันนี้
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final todayEntries = allEntries
+        .where((e) => !e.createdAt.isBefore(startOfDay))
+        .toList();
+    
+    if (todayEntries.isEmpty) return null;
+    
+    // สร้างสรุปง่าย ๆ
+    final topics = todayEntries
+        .expand((e) => e.tags)
+        .toSet()
+        .toList();
+    
+    final summary = todayEntries
+        .map((e) => e.content)
+        .join('. ');
+    
+    return SessionSummary(
+      summaryEn: summary.length > 200 ? '${summary.substring(0, 200)}...' : summary,
+      topics: topics.isEmpty ? ['general'] : topics,
+      endedAt: now,
+    );
   }
 
   /// 📝 สร้าง Context String สำหรับ Prompt
@@ -336,4 +366,17 @@ class UserPreferences {
     positiveContexts: [],
     negativeContexts: [],
   );
+}
+
+/// 📊 Session Summary (สำหรับ end-of-day processing)
+class SessionSummary {
+  final String summaryEn;
+  final List<String> topics;
+  final DateTime endedAt;
+
+  SessionSummary({
+    required this.summaryEn,
+    required this.topics,
+    required this.endedAt,
+  });
 }

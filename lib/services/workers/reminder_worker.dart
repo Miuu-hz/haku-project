@@ -160,7 +160,25 @@ class ReminderWorker {
   // 📝 REMINDER MANAGEMENT
   // ============================================================
 
-  /// เพิ่ม reminder
+  /// เพิ่ม reminder (สำหรับ Dispatcher)
+  Future<void> add({
+    required String content,
+    ReminderTime? time,
+    ReminderFrequency frequency = ReminderFrequency.once,
+  }) async {
+    final reminder = Reminder(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: content,
+      time: time,
+      frequency: frequency,
+      isActive: true,
+      createdAt: DateTime.now(),
+    );
+
+    await addReminder(reminder);
+  }
+
+  /// เพิ่ม reminder (จาก object)
   Future<void> addReminder(Reminder reminder) async {
     _reminders.add(reminder);
     await _saveReminders();

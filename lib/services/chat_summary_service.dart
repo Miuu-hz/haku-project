@@ -1,117 +1,291 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/entry.dart';
 import 'mediapipe_llm_service.dart';
 import 'prompt_builder.dart';
 
-/// 🔋 Chat Summary Service - Deferred Processing
+/// 💬 Unified Chat & Summary Service
 /// 
-/// เก็บประวัติแชทไว้ 24 ชม. แล้วสรุปตอนชาร์จ
-/// 
-/// กลยุทธ์:
-/// 1. เก็บแชทแบบ lightweight (text only) ไม่กินแบต
-/// 2. รอจนครบ 24 ชม. หรือมีข้อความครบ threshold
-/// 3. ตรวจจับการชาร์จ - เริ่มสรุปทันที
-/// 4. ถ้าไม่ชาร์จภายใน 6 ชม. สรุปเลย (ไม่งั้นเสียความสด)
+/// รวม 3 ไฟล์เก่า:
+/// - chat_history_service.dart (เก็บประวัติแชท + context ให้ AI)
+/// - summarization_service.dart (สรุป entries + sentiment)
+/// - chat_summary_service.dart (deferred processing ตอนชาร์จ)
 ///
-/// ข้อดี:
-/// - ไม่กิน CPU ตอนใช้งานปกติ
-/// - LLM ทำงานตอนชาร์จเท่านั้น
-/// - มีสรุปให้ทุกวันแบบอัตโนมัติ
+/// หน้าที่:
+/// 1. เก็บ raw chat history (100 ข้อความล่าสุด)
+/// 2. ให้ context สำหรับ AI response (สรุป + ข้อความล่าสุด)
+/// 3. สรุป entries (entry เดี่ยว/หลาย entries)
+/// 4. วิเคราะห์ sentiment
+/// 5. Deferred processing: สรุป chat ตอนชาร์จ
 
 class ChatSummaryService {
   static final ChatSummaryService _instance = ChatSummaryService._internal();
   factory ChatSummaryService() => _instance;
   ChatSummaryService._internal();
 
-  /// 🔋 Battery state monitor
+  // ============================================================================
+  // Dependencies
+  // ============================================================================
   final Battery _battery = Battery();
   StreamSubscription<BatteryState>? _batterySubscription;
-  
-  /// ⏰ Timer ตรวจสอบคิวสรุป
   Timer? _queueCheckTimer;
-  
-  /// 📊 สถานะการทำงาน
   bool _isProcessing = false;
-  bool get isProcessing => _isProcessing;
 
-  /// 🕐 ช่วงเวลาต่างๆ
-  static const int _summaryThresholdHours = 24;      // สรุปทุก 24 ชม.
-  static const int _maxWaitHours = 30;               // รอนานสุด 30 ชม.
-  static const int _messageThreshold = 10;           // หรือครบ 10 ข้อความ
-  static const int _queueCheckIntervalMinutes = 15;  // เช็คคิวทุก 15 นาที
+  // ============================================================================
+  // Constants
+  // ============================================================================
+  static const int _maxRawMessages = 100;      // เก็บ raw message สูงสุด
+  static const int _contextMessageCount = 10;  // ใช้ 10 ข้อความล่าสุดเป็น context
+  static const int _summaryThresholdHours = 24;
+  static const int _maxWaitHours = 30;
+  static const int _messageThreshold = 10;
+  static const int _queueCheckIntervalMinutes = 15;
 
-  /// 📁 Keys สำหรับ SharedPreferences
+  // ============================================================================
+  // Storage Keys
+  // ============================================================================
   static const String _chatHistoryKey = 'chat_history_queue';
+  static const String _chatSummariesKey = 'chat_summaries_v2';  // สรุปแชทแยก
   static const String _pendingSummariesKey = 'pending_summaries';
   static const String _lastSummaryTimeKey = 'last_summary_time';
 
-  /// 🚀 เริ่มต้น Service
+  // ============================================================================
+  // Initialization
+  // ============================================================================
   Future<void> initialize() async {
-    debugPrint('🔋 ChatSummaryService initialized');
-    
-    // เริ่มต้นตรวจจับการชาร์จ
+    debugPrint('💬 ChatSummaryService initialized');
     _startBatteryMonitoring();
-    
-    // เริ่มต้น timer เช็คคิว
     _startQueueChecker();
   }
 
-  /// 📝 บันทึกข้อความแชทใหม่ (Lightweight - ไม่กินแบต)
-  ///
-  /// เรียกเมื่อมีข้อความใหม่ในแชท
-  Future<void> logChatMessage({
-    required String message,
-    required bool isUser,
-    String? intent, // log, schedule, chat, etc.
+  void dispose() {
+    _batterySubscription?.cancel();
+    _queueCheckTimer?.cancel();
+  }
+
+  // ============================================================================
+  // PART 1: Chat History Management (จาก chat_history_service.dart)
+  // ============================================================================
+
+  /// 📝 บันทึกข้อความแชทใหม่
+  Future<void> addMessage({
+    required String role,      // 'user' | 'assistant' | 'system'
+    required String content,
+    String? intent,
   }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // ดึงประวัติเดิม
-      final historyJson = prefs.getStringList(_chatHistoryKey) ?? [];
-      
-      // เพิ่มข้อความใหม่ (เก็บแบบ minimal)
-      final entry = {
-        'timestamp': DateTime.now().toIso8601String(),
-        'isUser': isUser,
-        'message': message,
-        'intent': intent ?? 'chat',
-        'length': message.length,
-      };
-      
-      historyJson.add(jsonEncode(entry));
-      
-      // เก็บแค่ 100 ข้อความล่าสุด (ประหยัด memory)
-      if (historyJson.length > 100) {
-        historyJson.removeAt(0);
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList(_chatHistoryKey) ?? [];
+
+    final entry = ServiceChatMessage(
+      timestamp: DateTime.now(),
+      role: role,
+      content: content,
+      intent: intent,
+    );
+
+    history.add(jsonEncode(entry.toJson()));
+
+    // เก็บแค่ 100 ข้อความล่าสุด
+    while (history.length > _maxRawMessages) {
+      history.removeAt(0);
+    }
+
+    await prefs.setStringList(_chatHistoryKey, history);
+
+    // ตรวจสอบ threshold สรุป
+    await _checkSummaryThreshold();
+  }
+
+  /// 🤖 ดึง Context สำหรับ AI (สรุป + ข้อความล่าสุด)
+  Future<String> getContextForAI() async {
+    // 1. ดึงสรุปเก่า
+    final summaries = await _loadSummaries();
+    final recentSummaries = summaries.take(3).toList();
+
+    // 2. ดึงข้อความล่าสุด
+    final history = await _loadChatHistory();
+    final recentMessages = history.length > _contextMessageCount
+        ? history.sublist(history.length - _contextMessageCount)
+        : history;
+
+    // 3. สร้าง context string
+    final buffer = StringBuffer();
+
+    if (recentSummaries.isNotEmpty) {
+      buffer.writeln('=== บทสนทนาก่อนหน้า (สรุป) ===');
+      for (final s in recentSummaries) {
+        buffer.writeln('[${s.date}] ${s.summary.substring(0, min(200, s.summary.length))}...');
       }
-      
-      await prefs.setStringList(_chatHistoryKey, historyJson);
-      
-      // ตรวจสอบว่าครบ threshold ยัง
-      await _checkSummaryThreshold();
-      
+      buffer.writeln();
+    }
+
+    if (recentMessages.isNotEmpty) {
+      buffer.writeln('=== บทสนทนาล่าสุด ===');
+      for (final m in recentMessages) {
+        final role = m.role == 'user' ? 'User' : 'Haku';
+        buffer.writeln('$role: ${m.content}');
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  /// 💬 ดึงบริบทย่อยสำหรับการตอบกลับ (±2 ข้อความรอบ target)
+  Future<String> getReplyContext(int targetMessageId) async {
+    final history = await _loadChatHistory();
+    final targetIndex = history.indexWhere((m) => m.timestamp.millisecondsSinceEpoch == targetMessageId);
+
+    if (targetIndex == -1) return '';
+
+    final start = max(0, targetIndex - 2);
+    final end = min(history.length, targetIndex + 3);
+    final contextMessages = history.sublist(start, end);
+
+    return contextMessages
+        .map((m) => '${m.role == 'user' ? 'User' : 'Haku'}: ${m.content}')
+        .join('\n');
+  }
+
+  // ============================================================================
+  // PART 2: Entry Summarization (จาก summarization_service.dart)
+  // ============================================================================
+
+  /// 📝 สรุป Entry เดี่ยว
+  Future<String> summarizeEntry(Entry entry) async {
+    final prompt = PromptBuilder.buildDailySummaryPrompt(
+      entriesContent: entry.content,
+      period: 'บันทึกนี้',
+    );
+
+    try {
+      final response = await MediaPipeLLMService().generate(prompt);
+      return response.isEmpty ? _fallbackSummarizeEntry(entry) : response.trim();
     } catch (e) {
-      debugPrint('❌ Error logging chat: $e');
+      return _fallbackSummarizeEntry(entry);
     }
   }
 
-  /// 🔋 เริ่มต้นตรวจจับการชาร์จ
+  /// 📅 สรุปหลาย Entries
+  Future<String> summarizeEntries(List<Entry> entries, {String? period}) async {
+    if (entries.isEmpty) {
+      return 'ยังไม่มีบันทึกสำหรับ${period ?? 'ช่วงนี้'}ค่ะ';
+    }
+
+    final content = entries
+        .map((e) => '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}')
+        .join('\n');
+
+    final prompt = PromptBuilder.buildDailySummaryPrompt(
+      entriesContent: content,
+      period: period ?? 'ช่วงนี้',
+    );
+
+    try {
+      final response = await MediaPipeLLMService().generate(prompt);
+      return response.isEmpty ? _fallbackSummarizeEntries(entries, period: period) : response.trim();
+    } catch (e) {
+      return _fallbackSummarizeEntries(entries, period: period);
+    }
+  }
+
+  /// 🔍 ดึง Key Insights จาก Entry
+  Future<List<String>> extractInsights(Entry entry) async {
+    final prompt = '''<|im_start|>system
+ดึง 3-5 ประเด็นสำคัญจากบันทึก (กิจกรรม ความรู้สึก สถานที่)
+ตอบเป็นรายการ:
+- ประเด็น 1
+- ประเด็น 2<|im_end|>
+<|im_start|>user
+${entry.content}<|im_end|>
+<|im_start|>assistant
+''';  
+
+    try {
+      final response = await MediaPipeLLMService().generate(prompt);
+      if (response.isEmpty) return _fallbackExtractInsights(entry);
+
+      final lines = response
+          .split('\n')
+          .where((l) => l.trim().startsWith('-'))
+          .map((l) => l.trim().substring(1).trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+
+      return lines.isEmpty ? _fallbackExtractInsights(entry) : lines;
+    } catch (e) {
+      return _fallbackExtractInsights(entry);
+    }
+  }
+
+  /// 📊 วิเคราะห์ Sentiment
+  SentimentAnalysis analyzeSentiment(Entry entry) {
+    final text = entry.content;
+    final positiveWords = ['happy', 'มีความสุข', 'สนุก', 'ผ่อนคลาย', 'ภูมิใจ', 'สำเร็จ', 'ดีใจ', 'รักเลย', 'ชอบมาก', 'สดใส', 'ยินดี'];
+    final negativeWords = ['เสียใจ', 'เศร้า', 'โกรธ', 'เหนื่อย', 'เบื่อ', 'กังวล', 'เครียด', 'ผิดหวัง', 'ปวดหัว', 'หดหู่', 'ท้อแท้'];
+    final negationWords = ['ไม่', 'ไม่ได้', 'ไม่ค่อย', 'ยัง'];
+
+    int positiveCount = 0;
+    int negativeCount = 0;
+
+    for (final word in positiveWords) {
+      if (_containsWordWithNegation(text, word, negationWords)) {
+        negativeCount++;
+      } else if (text.contains(word)) {
+        positiveCount++;
+      }
+    }
+    for (final word in negativeWords) {
+      if (_containsWordWithNegation(text, word, negationWords)) {
+        positiveCount++;
+      } else if (text.contains(word)) {
+        negativeCount++;
+      }
+    }
+
+    double score = 0.5;
+    if (entry.mood != null) {
+      score = entry.mood! / 5.0;
+    } else {
+      final total = positiveCount + negativeCount;
+      if (total > 0) score = positiveCount / total;
+    }
+
+    String label;
+    String emoji;
+    if (score >= 0.65) {
+      label = 'บวก'; emoji = '😊';
+    } else if (score >= 0.35) {
+      label = 'ปานกลาง'; emoji = '😐';
+    } else {
+      label = 'ลบ'; emoji = '😔';
+    }
+
+    return SentimentAnalysis(
+      score: score,
+      label: label,
+      emoji: emoji,
+      keywords: _extractKeywords(text),
+    );
+  }
+
+  // ============================================================================
+  // PART 3: Deferred Processing (จาก chat_summary_service.dart)
+  // ============================================================================
+
   void _startBatteryMonitoring() {
     _batterySubscription = _battery.onBatteryStateChanged.listen((state) {
-      if (state == BatteryState.charging) {
-        debugPrint('🔌 Device is charging - checking summary queue');
+      if (state == BatteryState.charging || state == BatteryState.full) {
         _processPendingSummaries();
       }
     });
   }
 
-  /// ⏰ เริ่มต้น timer เช็คคิว
   void _startQueueChecker() {
     _queueCheckTimer?.cancel();
     _queueCheckTimer = Timer.periodic(
@@ -120,149 +294,103 @@ class ChatSummaryService {
     );
   }
 
-  /// 📋 ตรวจสอบคิวสรุป
   Future<void> _checkQueue() async {
     if (_isProcessing) return;
-    
+
     try {
-      // เช็คว่ามีงานค้างไหม
       final pending = await _getPendingSummaries();
       if (pending.isEmpty) return;
-      
-      // เช็คว่าชาร์จอยู่ไหม
+
       final batteryState = await _battery.batteryState;
-      final isCharging = batteryState == BatteryState.charging || 
-                         batteryState == BatteryState.full;
-      
-      for (final summaryJob in pending) {
-        final age = DateTime.now().difference(summaryJob.createdAt);
-        
-        // เงื่อนไขการสรุป:
-        // 1. ชาร์จอยู่ + อายุเกิน 6 ชม. (ดีที่สุด)
-        // 2. ไม่ชาร์จแต่อายุเกิน 30 ชม. (สรุปเลยไม่งั้นเสียความสด)
-        
-        final shouldProcess = (isCharging && age.inHours >= 6) || 
-                              age.inHours >= _maxWaitHours;
-        
+      final isCharging = batteryState == BatteryState.charging || batteryState == BatteryState.full;
+
+      for (final job in pending) {
+        final age = DateTime.now().difference(job.createdAt);
+        final shouldProcess = (isCharging && age.inHours >= 6) || age.inHours >= _maxWaitHours;
+
         if (shouldProcess) {
-          await _processSummary(summaryJob);
+          await _processSummaryJob(job);
         }
       }
-      
     } catch (e) {
       debugPrint('❌ Error checking queue: $e');
     }
   }
 
-  /// 📊 ตรวจสอบ Threshold สำหรับสรุป
   Future<void> _checkSummaryThreshold() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // เช็คเวลาสรุปล่าสุด
       final lastSummaryStr = prefs.getString(_lastSummaryTimeKey);
+
       if (lastSummaryStr != null) {
         final lastSummary = DateTime.parse(lastSummaryStr);
-        final hoursSinceLast = DateTime.now().difference(lastSummary).inHours;
-        
-        // ถ้ายังไม่ครบ 24 ชม. ไม่ต้องสร้างคิวใหม่
-        if (hoursSinceLast < _summaryThresholdHours) return;
+        if (DateTime.now().difference(lastSummary).inHours < _summaryThresholdHours) {
+          return;
+        }
       }
-      
-      // ดึงข้อความที่ยังไม่ได้สรุป
-      final history = await _getChatHistory(since: lastSummaryStr);
+
+      final history = await _loadChatHistory(since: lastSummaryStr);
       if (history.length < _messageThreshold) return;
-      
-      // สร้างคิวสรุปใหม่
+
       await _createSummaryJob(history);
-      
-      // ล้างประวัติที่สรุปแล้ว
       await _clearProcessedHistory();
-      
     } catch (e) {
       debugPrint('❌ Error checking threshold: $e');
     }
   }
 
-  /// 🏭 สร้างงานสรุปใหม่
-  Future<void> _createSummaryJob(List<ChatEntry> history) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      final job = SummaryJob(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        createdAt: DateTime.now(),
-        entries: history,
-        status: SummaryStatus.pending,
-      );
-      
-      // ดึงคิงเดิม
-      final pendingJson = prefs.getStringList(_pendingSummariesKey) ?? [];
-      pendingJson.add(jsonEncode(job.toJson()));
-      
-      await prefs.setStringList(_pendingSummariesKey, pendingJson);
-      
-      // อัปเดตเวลาสรุปล่าสุด
-      await prefs.setString(_lastSummaryTimeKey, DateTime.now().toIso8601String());
-      
-      debugPrint('📋 Created summary job: ${job.id} (${history.length} messages)');
-      
-    } catch (e) {
-      debugPrint('❌ Error creating summary job: $e');
-    }
+  Future<void> _createSummaryJob(List<ServiceChatMessage> history) async {
+    final prefs = await SharedPreferences.getInstance();
+    final job = SummaryJob(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      createdAt: DateTime.now(),
+      messages: history,
+      status: SummaryStatus.pending,
+    );
+
+    final pending = prefs.getStringList(_pendingSummariesKey) ?? [];
+    pending.add(jsonEncode(job.toJson()));
+    await prefs.setStringList(_pendingSummariesKey, pending);
+    await prefs.setString(_lastSummaryTimeKey, DateTime.now().toIso8601String());
+
+    debugPrint('📋 Created summary job: ${job.id} (${history.length} messages)');
   }
 
-  /// ⚡ ประมวลผลงานสรุปที่ค้างไว้
   Future<void> _processPendingSummaries() async {
     if (_isProcessing) return;
-    
     final pending = await _getPendingSummaries();
-    if (pending.isEmpty) return;
-    
-    debugPrint('⚡ Processing ${pending.length} pending summaries...');
-    
     for (final job in pending) {
-      await _processSummary(job);
+      await _processSummaryJob(job);
     }
   }
 
-  /// 🤖 ประมวลผลสรุปด้วย LLM
-  Future<void> _processSummary(SummaryJob job) async {
+  Future<void> _processSummaryJob(SummaryJob job) async {
     if (_isProcessing) return;
     _isProcessing = true;
-    
+
     try {
       debugPrint('🤖 Processing summary ${job.id}...');
-      
-      // เตรียมข้อมูล
-      final conversationText = job.entries
-          .map((e) => '${e.isUser ? 'User' : 'Haku'}: ${e.message}')
-          .join('\n');
-      
-      // เรียก LLM (ตอนนี้ชาร์จอยู่ ไม่ต้องห่วงแบต)
+
       final llm = MediaPipeLLMService();
-      
       if (!llm.isInitialized) {
-        debugPrint('⚠️ LLM not available, skipping summary');
         _isProcessing = false;
         return;
       }
-      
+
+      final conversation = job.messages
+          .map((m) => '${m.role == 'user' ? 'User' : 'Haku'}: ${m.content}')
+          .join('\n');
+
       final prompt = PromptBuilder.buildDailySummaryPrompt(
-        entriesContent: conversationText,
+        entriesContent: conversation,
         period: 'ช่วง 24 ชั่วโมง',
       );
-      
-      final response = await llm.generate(prompt);
-      
-      // บันทึกผลลัพธ์
-      await _saveSummaryResult(job, response);
-      
-      // ลบออกจากคิว
+
+      final summary = await llm.generate(prompt);
+      await _saveSummaryResult(job, summary);
       await _removeFromQueue(job.id);
-      
+
       debugPrint('✅ Summary completed: ${job.id}');
-      
     } catch (e) {
       debugPrint('❌ Error processing summary: $e');
     } finally {
@@ -270,211 +398,237 @@ class ChatSummaryService {
     }
   }
 
-  /// 💾 บันทึกผลสรุป
   Future<void> _saveSummaryResult(SummaryJob job, String summary) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // เก็บสรุปใน key แยก (ไม่เกิน 7 วัน)
-      final summaryKey = 'daily_summary_${job.id}';
-      await prefs.setString(summaryKey, jsonEncode({
-        'date': job.createdAt.toIso8601String(),
-        'summary': summary,
-        'messageCount': job.entries.length,
-      }));
-      
-      // ล้างสรุปเก่า (เก็บแค่ 7 วัน)
-      await _cleanupOldSummaries();
-      
-    } catch (e) {
-      debugPrint('❌ Error saving summary: $e');
+    final prefs = await SharedPreferences.getInstance();
+    final summaries = await _loadSummaries();
+
+    summaries.add(ChatSummary(
+      date: job.createdAt,
+      summary: summary,
+      messageCount: job.messages.length,
+    ));
+
+    // เก็บแค่ 30 วัน
+    while (summaries.length > 30) {
+      summaries.removeAt(0);
     }
+
+    await prefs.setString(
+      _chatSummariesKey,
+      jsonEncode(summaries.map((s) => s.toJson()).toList()),
+    );
   }
 
-  /// 🗑️ ล้างสรุปเก่า (เก็บแค่ 7 วัน)
-  Future<void> _cleanupOldSummaries() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys();
-      
-      final cutoff = DateTime.now().subtract(const Duration(days: 7));
-      
-      for (final key in keys) {
-        if (key.startsWith('daily_summary_')) {
-          final json = prefs.getString(key);
-          if (json != null) {
-            final data = jsonDecode(json) as Map<String, dynamic>;
-            final date = DateTime.parse(data['date'] as String);
-            if (date.isBefore(cutoff)) {
-              await prefs.remove(key);
-            }
-          }
-        }
-      }
-      
-    } catch (e) {
-      debugPrint('❌ Error cleaning up: $e');
-    }
-  }
-
-  /// 📖 ดึงประวัติแชท
-  Future<List<ChatEntry>> _getChatHistory({String? since}) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final historyJson = prefs.getStringList(_chatHistoryKey) ?? [];
-      
-      final sinceTime = since != null ? DateTime.parse(since) : null;
-      
-      return historyJson
-          .map((json) => ChatEntry.fromJson(jsonDecode(json) as Map<String, dynamic>))
-          .where((e) => sinceTime == null || e.timestamp.isAfter(sinceTime))
-          .toList();
-          
-    } catch (e) {
-      debugPrint('❌ Error getting history: $e');
-      return [];
-    }
-  }
-
-  /// 📋 ดึงคิวสรุปที่ค้าง
-  Future<List<SummaryJob>> _getPendingSummaries() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingJson = prefs.getStringList(_pendingSummariesKey) ?? [];
-      
-      return pendingJson
-          .map((json) => SummaryJob.fromJson(jsonDecode(json) as Map<String, dynamic>))
-          .where((j) => j.status == SummaryStatus.pending)
-          .toList();
-          
-    } catch (e) {
-      debugPrint('❌ Error getting pending: $e');
-      return [];
-    }
-  }
-
-  /// 🗑️ ลบออกจากคิว
   Future<void> _removeFromQueue(String jobId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final pendingJson = prefs.getStringList(_pendingSummariesKey) ?? [];
-      
-      pendingJson.removeWhere((json) {
-        final data = jsonDecode(json);
-        return data['id'] == jobId;
-      });
-      
-      await prefs.setStringList(_pendingSummariesKey, pendingJson);
-      
-    } catch (e) {
-      debugPrint('❌ Error removing from queue: $e');
-    }
+    final prefs = await SharedPreferences.getInstance();
+    final pending = prefs.getStringList(_pendingSummariesKey) ?? [];
+    pending.removeWhere((json) {
+      final data = jsonDecode(json);
+      return data['id'] == jobId;
+    });
+    await prefs.setStringList(_pendingSummariesKey, pending);
   }
 
-  /// 🧹 ล้างประวัติที่ประมวลผลแล้ว
   Future<void> _clearProcessedHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_chatHistoryKey);
-      
-    } catch (e) {
-      debugPrint('❌ Error clearing history: $e');
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_chatHistoryKey);
   }
 
-  /// 🚫 ปิด Service
-  void dispose() {
-    _batterySubscription?.cancel();
-    _queueCheckTimer?.cancel();
-    debugPrint('🚫 ChatSummaryService disposed');
+  // ============================================================================
+  // Storage Helpers
+  // ============================================================================
+
+  Future<List<ServiceChatMessage>> _loadChatHistory({String? since}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyJson = prefs.getStringList(_chatHistoryKey) ?? [];
+    final sinceTime = since != null ? DateTime.parse(since) : null;
+
+    return historyJson
+        .map((json) => ServiceChatMessage.fromJson(jsonDecode(json) as Map<String, dynamic>))
+        .where((m) => sinceTime == null || m.timestamp.isAfter(sinceTime))
+        .toList();
   }
 
-  /// 📊 ดึงสรุปล่าสุด (สำหรับแสดง UI)
-  Future<List<DailySummary>> getRecentSummaries({int limit = 7}) async {
+  Future<List<ChatSummary>> _loadSummaries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString(_chatSummariesKey);
+    if (json == null) return [];
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys()
-          .where((k) => k.startsWith('daily_summary_'))
-          .toList();
-      
-      final summaries = <DailySummary>[];
-      
-      for (final key in keys) {
-        final json = prefs.getString(key);
-        if (json != null) {
-          final data = jsonDecode(json) as Map<String, dynamic>;
-          summaries.add(DailySummary(
-            date: DateTime.parse(data['date'] as String),
-            summary: data['summary'] as String,
-            messageCount: data['messageCount'] as int,
-          ));
-        }
-      }
-      
-      // เรียงล่าสุดก่อน
-      summaries.sort((a, b) => b.date.compareTo(a.date));
-      
-      return summaries.take(limit).toList();
-      
+      final List<dynamic> data = jsonDecode(json) as List<dynamic>;
+      return data.map((d) => ChatSummary.fromJson(d as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('❌ Error getting summaries: $e');
       return [];
     }
+  }
+
+  // ============================================================================
+  // Public API for Worker Service
+  // ============================================================================
+
+  /// 📋 ดึง raw history ทั้งหมด (สำหรับ Worker)
+  Future<List<ServiceChatMessage>> getRawHistory() async => _loadChatHistory();
+
+  /// ⚡ บังคับประมวลผลสรุปทันที (สำหรับ Worker)
+  Future<void> forceProcess() async => _processPendingSummaries();
+
+  Future<List<SummaryJob>> _getPendingSummaries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendingJson = prefs.getStringList(_pendingSummariesKey) ?? [];
+
+    return pendingJson
+        .map((json) => SummaryJob.fromJson(jsonDecode(json) as Map<String, dynamic>))
+        .where((j) => j.status == SummaryStatus.pending)
+        .toList();
+  }
+
+  // ============================================================================
+  // Fallback Methods
+  // ============================================================================
+
+  String _fallbackSummarizeEntry(Entry entry) {
+    if (entry.content.length < 100) return entry.content;
+    final sentences = entry.content
+        .split(RegExp(r'[.!?。！？\n]'))
+        .where((s) => s.trim().isNotEmpty)
+        .take(2)
+        .join('... ');
+    return sentences.isNotEmpty ? '$sentences...' : '${entry.content.substring(0, min(100, entry.content.length))}...';
+  }
+
+  String _fallbackSummarizeEntries(List<Entry> entries, {String? period}) {
+    final count = entries.length;
+    final moods = entries.where((e) => e.mood != null).map((e) => e.mood!).toList();
+    final avgMood = moods.isNotEmpty ? moods.reduce((a, b) => a + b) / moods.length : null;
+
+    String moodText = '';
+    if (avgMood != null) {
+      if (avgMood >= 4) {
+        moodText = ' ดูเหมือนจะเป็นวันที่ดีนะคะ 😊';
+      } else if (avgMood <= 2) {
+        moodText = ' ดูเหมือนวันนี้จะเหนื่อยหน่อยนะคะ 💪';
+      } else {
+        moodText = ' วันนี้ก็ผ่านไปได้ด้วยดีค่ะ 😌';
+      }
+    }
+
+    return '${period ?? 'วันนี้'}คุณมี $count บันทึก$moodText';
+  }
+
+  List<String> _fallbackExtractInsights(Entry entry) {
+    final insights = <String>[];
+    if (entry.tags.isNotEmpty) insights.add('แท็ก: ${entry.tags.take(3).join(', ')}');
+    if (entry.locationName != null) insights.add('สถานที่: ${entry.locationName}');
+    if (entry.mood != null) {
+      final moodInfo = Entry.getMoodInfo(entry.mood);
+      insights.add('อารมณ์: ${moodInfo['label']} ${moodInfo['emoji']}');
+    }
+    if (insights.isEmpty) {
+      insights.add('เริ่มต้นด้วย: "${entry.content.split(' ').take(5).join(' ')}..."');
+    }
+    return insights;
+  }
+
+  bool _containsWordWithNegation(String text, String word, List<String> negations) {
+    for (final neg in negations) {
+      if (text.contains('$neg$word') || text.contains('$neg $word')) return true;
+    }
+    return false;
+  }
+
+  List<String> _extractKeywords(String text) {
+    final stopWords = {'จะ', 'ใน', 'ที่', 'ของ', 'และ', 'เป็น', 'ได้', 'ก็', 'ให้', 'ว่า', 'มี', 'the', 'a', 'is', 'and', 'แล้ว', 'ไป', 'มา', 'อยู่', 'กับ', 'จาก', 'ไม่'};
+    final words = text.toLowerCase()
+        .replaceAll(RegExp(r'[^\u0E00-\u0E7Fa-z0-9\s]'), '')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 2 && !stopWords.contains(w))
+        .toList();
+
+    final frequency = <String, int>{};
+    for (final w in words) {
+      frequency[w] = (frequency[w] ?? 0) + 1;
+    }
+
+    final sorted = frequency.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(5).map((e) => e.key).toList();
   }
 }
 
-/// 📄 โมเดลข้อมูล
+// ============================================================================
+// Data Models
+// ============================================================================
 
-class ChatEntry {
+/// Chat message for internal service use (avoids conflict with models/chat_message.dart)
+class ServiceChatMessage {
   final DateTime timestamp;
-  final bool isUser;
-  final String message;
-  final String intent;
-  final int length;
+  final String role;      // 'user' | 'assistant' | 'system'
+  final String content;
+  final String? intent;
 
-  ChatEntry({
+  ServiceChatMessage({
     required this.timestamp,
-    required this.isUser,
-    required this.message,
-    required this.intent,
-    required this.length,
+    required this.role,
+    required this.content,
+    this.intent,
   });
 
-  factory ChatEntry.fromJson(Map<String, dynamic> json) => ChatEntry(
+  factory ServiceChatMessage.fromJson(Map<String, dynamic> json) => ServiceChatMessage(
         timestamp: DateTime.parse(json['timestamp'] as String),
-        isUser: json['isUser'] as bool,
-        message: json['message'] as String,
-        intent: json['intent'] as String,
-        length: json['length'] as int,
+        role: json['role'] as String,
+        content: json['content'] as String,
+        intent: json['intent'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
         'timestamp': timestamp.toIso8601String(),
-        'isUser': isUser,
-        'message': message,
+        'role': role,
+        'content': content,
         'intent': intent,
-        'length': length,
+      };
+}
+
+class ChatSummary {
+  final DateTime date;
+  final String summary;
+  final int messageCount;
+
+  ChatSummary({
+    required this.date,
+    required this.summary,
+    required this.messageCount,
+  });
+
+  factory ChatSummary.fromJson(Map<String, dynamic> json) => ChatSummary(
+        date: DateTime.parse(json['date'] as String),
+        summary: json['summary'] as String,
+        messageCount: json['messageCount'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'date': date.toIso8601String(),
+        'summary': summary,
+        'messageCount': messageCount,
       };
 }
 
 class SummaryJob {
   final String id;
   final DateTime createdAt;
-  final List<ChatEntry> entries;
+  final List<ServiceChatMessage> messages;
   final SummaryStatus status;
 
   SummaryJob({
     required this.id,
     required this.createdAt,
-    required this.entries,
+    required this.messages,
     required this.status,
   });
 
   factory SummaryJob.fromJson(Map<String, dynamic> json) => SummaryJob(
         id: json['id'] as String,
         createdAt: DateTime.parse(json['createdAt'] as String),
-        entries: (json['entries'] as List<dynamic>)
-            .map((e) => ChatEntry.fromJson(e as Map<String, dynamic>))
+        messages: (json['messages'] as List<dynamic>)
+            .map((m) => ServiceChatMessage.fromJson(m as Map<String, dynamic>))
             .toList(),
         status: SummaryStatus.values.byName(json['status'] as String),
       );
@@ -482,21 +636,23 @@ class SummaryJob {
   Map<String, dynamic> toJson() => {
         'id': id,
         'createdAt': createdAt.toIso8601String(),
-        'entries': entries.map((e) => e.toJson()).toList(),
+        'messages': messages.map((m) => m.toJson()).toList(),
         'status': status.name,
       };
 }
 
-class DailySummary {
-  final DateTime date;
-  final String summary;
-  final int messageCount;
+enum SummaryStatus { pending, processing, completed, failed }
 
-  DailySummary({
-    required this.date,
-    required this.summary,
-    required this.messageCount,
+class SentimentAnalysis {
+  final double score;
+  final String label;
+  final String emoji;
+  final List<String> keywords;
+
+  SentimentAnalysis({
+    required this.score,
+    required this.label,
+    required this.emoji,
+    required this.keywords,
   });
 }
-
-enum SummaryStatus { pending, processing, completed, failed }

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/entry.dart';
-import '../services/summarization_service.dart';
+import '../services/chat_summary_service.dart';
 import 'new_entry_screen.dart';
 
 /// 📖 หน้าดู Entry แบบละเอียด
@@ -64,8 +64,8 @@ class _ViewEntryScreenState extends State<ViewEntryScreen> {
     try {
       // ใช้ Future.wait เรียกพร้อมกัน
       final results = await Future.wait([
-        SummarizationService().summarizeEntry(widget.entry),
-        SummarizationService().extractInsights(widget.entry),
+        ChatSummaryService().summarizeEntry(widget.entry),
+        ChatSummaryService().extractInsights(widget.entry),
       ]);
 
       final summary = results[0] as String;
