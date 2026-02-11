@@ -8,7 +8,11 @@ class PromptBuilder {
   // 🎭 THE FACE - Realtime Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   // ═══════════════════════════════════════════════════════════
   
-  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทย)
+  // ═══════════════════════════════════════════════════════════
+  // 🎭 Stage 1: THE FACE — ตอบสนทนาภาษาไทยธรรมชาติ (ไม่มี actions)
+  // ═══════════════════════════════════════════════════════════
+
+  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทยล้วน ไม่มี ACTION tags)
   static const String hakuFacePrompt = r'''
 You are "Haku" (箱), a Thai-speaking AI assistant on the user's phone.
 
@@ -24,41 +28,49 @@ RULES:
 3. If user shares personal info (name, preferences), acknowledge it
 4. If user mentions events/locations, show you remember
 5. NEVER output JSON format - just chat naturally
-6. Use ACTIONS when needed (see below)
-
-AVAILABLE ACTIONS (use when appropriate):
-- [ACTION:WEB_SEARCH]query="..." - When user asks about current info, weather, news, facts
-- [ACTION:SCHEDULE]title="...",date=YYYY-MM-DD,time=HH:MM - When user mentions appointments
-- [ACTION:REMINDER]message="...",minutes=15 - When user wants to be reminded
-- [ACTION:SEARCH_PLACE]query="..." - When user looks for places
-
-WHEN TO USE ACTIONS:
-- Weather questions → use WEB_SEARCH
-- "What is..." / "How to..." → use WEB_SEARCH
-- Appointments with date/time → use SCHEDULE
-- Looking for restaurants/cafes → use SEARCH_PLACE
+6. NEVER output action tags like [ACTION:...] - just answer naturally
 
 EXAMPLE RESPONSES:
 - "สวัสดีค่ะ วันนี้เป็นยังไงบ้างคะ? 😊"
 - "เข้าใจค่ะ จะจำไว้ว่าคุณชื่อ Arm"
-- "[ACTION:WEB_SEARCH]query=พยากรณ์อากาศ กรุงเทพ วันนี้" (for weather questions)
+- "เหนื่อยเหรอคะ? พักผ่อนบ้างนะ 💪"
 ''';
+
+  // ═══════════════════════════════════════════════════════════
+  // 🧠 Stage 2: BIG MANAGER — Lean classification (ไม่มี RAG/context)
+  // ═══════════════════════════════════════════════════════════
+
+  /// 🧠 Manager Prompt — ultra-lean (~120 tokens), classify + dispatch
+  static const String hakuManagerPrompt = r'''
+Classify intent. Output ONE line only.
+SEARCH:query - needs web search
+SCHEDULE:title,date,time - has appointment
+REMIND:message,time - wants reminder
+PLACE:query - looking for place
+NONE - just chatting
+
+Output:''';
 
   /// 🔨 Helper ดึงเวลาปัจจุบัน (จำเป็นมากสำหรับ AI)
   static String get _currentDateTime => DateTime.now().toString().substring(0, 16);
 
-  /// 🗣️ THE FACE: General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
+  /// 🗣️ Stage 1: THE FACE — General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
   }) {
     final timeContext = 'Current DateTime: $_currentDateTime';
-    
+
     final contextSection = context != null && context.isNotEmpty
         ? '\nContext (Retrieval):\n$context\n(Use this context ONLY if relevant)'
         : '';
 
     return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// 🧠 Stage 2: BIG MANAGER — Lean classification (ไม่มี RAG/context)
+  static String buildManagerPrompt({required String userMessage}) {
+    return '<start_of_turn>user\n$hakuManagerPrompt\nMsg: $userMessage<end_of_turn>\n<start_of_turn>model\n';
   }
 
   // ═══════════════════════════════════════════════════════════

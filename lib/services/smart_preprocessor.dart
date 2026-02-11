@@ -142,21 +142,12 @@ class SmartPreprocessor {
       }),
     ]);
 
-    // 2. ตรวจจับว่าต้องการค้นหาข้อมูลไหม
+    // 2. ตรวจจับว่าต้องการค้นหาข้อมูลไหม (detect only, ไม่ execute)
+    // Search execution ย้ายไปทำใน sendToAI() flow เพื่อไม่ให้ซ้ำซ้อน
     final searchQuery = _detectSearchIntent(userMessage);
     if (searchQuery != null) {
       debugPrint('🔍 Detected search intent: $searchQuery');
       intent = DetectedIntent.search;
-
-      try {
-        final searchResult = await _webSearch.searchForAI(searchQuery);
-        if (searchResult.isNotEmpty) {
-          enrichedContext += '\n\n📊 ข้อมูลจากการค้นหา:\n$searchResult';
-          debugPrint('✅ Web search completed');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Web search failed: $e');
-      }
     }
 
     // 3. 📦 Build Context
