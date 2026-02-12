@@ -13,7 +13,8 @@ import '../services/mvp_trigger_service.dart';
 import '../services/notification_service.dart';
 import '../services/rag_service.dart';
 import '../services/chat_summary_service.dart';
-import '../services/mediapipe_llm_service.dart';
+import '../services/llm_provider.dart';
+import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/smart_preprocessor.dart';
 import '../services/web_search_service.dart';
@@ -126,7 +127,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       }
 
       // เตรียม LLM
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       if (!llm.isInitialized && !llm.isLoading) {
         await llm.initialize();
       }
@@ -265,7 +266,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
         // ถ้ามี urgent action result → เพิ่ม follow-up message
         if (result.actionData != null && result.actionData!.isNotEmpty) {
-          final llm = MediaPipeLLMService();
+          final llm = LLMProviderManager().provider;
 
           if (result.intent == ManagerIntent.search && llm.isInitialized) {
             // สรุปผลค้นหาด้วย LLM
@@ -317,7 +318,7 @@ Reply in Thai (1-2 sentences):
       final prompt = await _buildTriggerPrompt(trigger);
       
       String response;
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
       if (!llm.isInitialized && !llm.isLoading) {
@@ -407,7 +408,7 @@ Reply in Thai (1-2 sentences):
       );
 
       String response;
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
       if (!llm.isInitialized && !llm.isLoading) {
@@ -475,7 +476,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
       
-      // 📝 NOTE: LLM (MediaPipe) จะถูกโหลดแบบ Lazy Loading
+      // 🎛️ Initialize LLM Provider Manager (load saved preference)
+      debugPrint('🔄 Initializing LLM Provider Manager...');
+      await LLMProviderManager().initialize();
+      debugPrint('✅ LLM Provider: ${LLMProviderManager().providerName}');
+
+      // 📝 NOTE: LLM จะถูกโหลดแบบ Lazy Loading
       // เมื่อมีการเรียก generate() ครั้งแรกเท่านั้น
       // ไม่โหลดตอน initState เพื่อประหยัดแบตเตอรี่
       debugPrint('💡 LLM จะโหลดแบบ Lazy Loading (เมื่อใช้งานจริง)');
@@ -605,7 +611,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatHistoryProvider);
-    final llmService = MediaPipeLLMService();
+    final llmService = LLMProviderManager().provider;
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
@@ -634,7 +640,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 const Text('Haku AI', style: TextStyle(fontSize: 16)),
                 Text(
-                  llmService.isInitialized ? 'Gemma-3 🟢' : 'Mock Mode 🟡',
+                  llmService.isInitialized ? '${LLMProviderManager().providerName} 🟢' : 'Mock Mode 🟡',
                   style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.normal),
                 ),
               ],

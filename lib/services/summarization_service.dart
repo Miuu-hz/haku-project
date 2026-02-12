@@ -2,7 +2,8 @@ import 'dart:math';
 
 import '../models/entry.dart';
 import 'context_retriever.dart';
-import 'mediapipe_llm_service.dart';
+import 'llm_provider.dart';
+import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 
 /// 📝 Summarization Service - สรุปบันทึกด้วย AI
@@ -21,8 +22,7 @@ class SummarizationService {
   ///
   /// 🔋 Battery Optimized: ใช้ lazy loading - LLM จะโหลดเมื่อใช้งานจริง
   Future<String> summarizeEntry(Entry entry) async {
-<<<<<<< HEAD
-    if (!MediaPipeLLMService().isInitialized) {
+    if (!LLMProviderManager().provider.isInitialized) {
       return _fallbackSummarizeEntry(entry);
     }
 
@@ -36,24 +36,7 @@ class SummarizationService {
     );
 
     try {
-      final response = await MediaPipeLLMService().generate(prompt);
-
-=======
-    // 🔋 ใช้ HakuPrompts (Private Life OS concept)
-    final prompt = HakuPrompts.forSummarization(entry.content);
-
-    try {
-      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.7,
-        maxTokens: 128,
-      );
-
-      if (response.isEmpty) {
-        return _fallbackSummarizeEntry(entry);
-      }
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
+      final response = await LLMProviderManager().provider.generate(prompt);
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntry(entry);
@@ -71,8 +54,7 @@ class SummarizationService {
       return 'ยังไม่มีบันทึกสำหรับ${period ?? 'ช่วงนี้'}ค่ะ';
     }
 
-<<<<<<< HEAD
-    if (!MediaPipeLLMService().isInitialized) {
+    if (!LLMProviderManager().provider.isInitialized) {
       return _fallbackSummarizeEntries(entries, period: period);
     }
 
@@ -92,30 +74,7 @@ class SummarizationService {
     );
 
     try {
-      final response = await MediaPipeLLMService().generate(prompt);
-
-=======
-    // รวมเนื้อหาทั้งหมด
-    final content = entries
-        .map((e) =>
-            '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}')
-        .join('\n');
-
-    // 🔋 ใช้ HakuPrompts (Private Life OS concept)
-    final prompt = HakuPrompts.forSummarization(content);
-
-    try {
-      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.7,
-        maxTokens: 256,
-      );
-
-      if (response.isEmpty) {
-        return _fallbackSummarizeEntries(entries, period: period);
-      }
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
+      final response = await LLMProviderManager().provider.generate(prompt);
       return response.trim();
     } catch (e) {
       return _fallbackSummarizeEntries(entries, period: period);
@@ -126,8 +85,7 @@ class SummarizationService {
   ///
   /// 🔋 Battery Optimized: ใช้ lazy loading
   Future<List<String>> extractInsights(Entry entry) async {
-<<<<<<< HEAD
-    if (!MediaPipeLLMService().isInitialized) {
+    if (!LLMProviderManager().provider.isInitialized) {
       return _fallbackExtractInsights(entry);
     }
 
@@ -141,7 +99,7 @@ class SummarizationService {
     );
 
     try {
-      final response = await MediaPipeLLMService().generate(prompt);
+      final response = await LLMProviderManager().provider.generate(prompt);
 
       // Parse รายการ
       final lines = response.split('\n')
@@ -149,38 +107,6 @@ class SummarizationService {
         .map((String l) => l.trim().substring(1).trim())
         .where((String l) => l.isNotEmpty)
         .toList();
-=======
-    // 🔋 ใช้ prompt ที่ optimize สำหรับ small model
-    final prompt = '''<|im_start|>system
-ดึง 3-5 ประเด็นสำคัญจากบันทึก (กิจกรรม ความรู้สึก สถานที่)
-ตอบเป็นรายการ:
-- ประเด็น 1
-- ประเด็น 2<|im_end|>
-<|im_start|>user
-${entry.content}<|im_end|>
-<|im_start|>assistant
-''';
-
-    try {
-      // LLM lazy loading - โหลดอัตโนมัติเมื่อใช้งาน
-      final response = await LLMService().generate(
-        prompt,
-        temperature: 0.5,
-        maxTokens: 150,
-      );
-
-      if (response.isEmpty) {
-        return _fallbackExtractInsights(entry);
-      }
-
-      // Parse รายการ
-      final lines = response
-          .split('\n')
-          .where((l) => l.trim().startsWith('-'))
-          .map((l) => l.trim().substring(1).trim())
-          .where((l) => l.isNotEmpty)
-          .toList();
->>>>>>> 78325a809745d8b35a14e13261748af5a78fbf6e
 
       return lines.isEmpty ? _fallbackExtractInsights(entry) : lines;
     } catch (e) {

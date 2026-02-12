@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'mediapipe_llm_service.dart';
+import 'llm_provider.dart';
+import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 
 /// 🔋 Chat Summary Service - Deferred Processing
@@ -240,7 +241,7 @@ class ChatSummaryService {
           .join('\n');
       
       // เรียก LLM (ตอนนี้ชาร์จอยู่ ไม่ต้องห่วงแบต)
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       if (!llm.isInitialized) {
         debugPrint('⚠️ LLM not available, skipping summary');

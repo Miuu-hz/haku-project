@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'mediapipe_llm_service.dart';
+import 'llm_provider.dart';
+import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 
 // 📅 Scheduler Service - Auto-scheduling จากข้อความธรรมชาติ
@@ -29,8 +30,8 @@ class SchedulerService {
       final prompt = PromptBuilder.buildSchedulerPrompt(text);
 
       String response;
-      if (MediaPipeLLMService().isInitialized) {
-        response = await MediaPipeLLMService().generate(prompt);
+      if (LLMProviderManager().provider.isInitialized) {
+        response = await LLMProviderManager().provider.generate(prompt);
       } else {
         // Simple regex fallback
         return _fallbackExtract(text);

@@ -5,9 +5,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/biometric_service.dart';
+import '../services/cloud_llm_provider.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
+import '../services/llm_provider_manager.dart';
 import '../services/llm_service.dart';
 import '../utils/constants.dart';
 import '../widgets/profile_editor_widget.dart';
@@ -35,6 +37,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _customLlmPath;
   Map<String, dynamic>? _modelValidation;
   
+  // LLM Provider
+  final _providerManager = LLMProviderManager();
+  ProviderType _selectedProvider = ProviderType.onDevice;
+  final _apiEndpointController = TextEditingController();
+  final _apiKeyController = TextEditingController();
+  ConnectionMode _connectionMode = ConnectionMode.direct;
+  bool _isTestingConnection = false;
+  bool? _connectionTestResult;
+
   // Google Calendar
   final _googleAuth = GoogleAuthService();
   bool _googleSignedIn = false;
@@ -49,6 +60,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
   }
 
+  @override
+  void dispose() {
+    _apiEndpointController.dispose();
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final savedPath = prefs.getString(StorageKeys.customLlmModelPath);
@@ -59,6 +77,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       validation = await LLMService().validateCustomModel();
     }
     
+    // Load LLM Provider settings
+    _selectedProvider = _providerManager.activeType;
+    _apiEndpointController.text = prefs.getString('llm_api_endpoint') ?? '';
+    _apiKeyController.text = prefs.getString('llm_api_key') ?? '';
+    final modeIndex = prefs.getInt('llm_connection_mode') ?? 1;
+    _connectionMode = ConnectionMode.values[modeIndex.clamp(0, ConnectionMode.values.length - 1)];
+
     // Load Google Calendar settings
     await _googleAuth.initialize();
     _autoSyncEnabled = prefs.getBool('google_auto_sync') ?? true;
@@ -264,6 +289,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             onTap: () => _showLlmPathOptions(),
           ),
+
+          const Divider(),
+
+          // 🌐 ส่วน LLM Provider
+          _buildSectionHeader('🌐 LLM Provider'),
+          _buildProviderSelection(),
 
           const Divider(),
 
@@ -900,6 +931,305 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🌐 LLM Provider Methods
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildProviderSelection() {
+    final providers = _providerManager.getAvailableProviders();
+    final isCloud = _selectedProvider != ProviderType.onDevice;
+
+    return Column(
+      children: [
+        // Provider dropdown
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(10),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withAlpha(30)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<ProviderType>(
+                value: _selectedProvider,
+                isExpanded: true,
+                dropdownColor: const Color(0xFF1E1E2E),
+                items: providers.map((p) => DropdownMenuItem(
+                  value: p.type,
+                  child: Row(
+                    children: [
+                      Text(p.icon, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(p.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                            Text(p.description, style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )).toList(),
+                onChanged: (type) {
+                  if (type == null) return;
+                  setState(() {
+                    _selectedProvider = type;
+                    _connectionTestResult = null;
+                  });
+                },
+              ),
+            ),
+          ),
+        ),
+
+        // Active provider indicator
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                _providerManager.provider.isInitialized ? Icons.circle : Icons.circle_outlined,
+                size: 10,
+                color: _providerManager.provider.isInitialized ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Active: ${_providerManager.providerName}',
+                style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+
+        // Cloud-only fields
+        if (isCloud) ...[
+          // Connection mode toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text('Mode:', style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 13)),
+                const SizedBox(width: 12),
+                ChoiceChip(
+                  label: const Text('Direct API'),
+                  selected: _connectionMode == ConnectionMode.direct,
+                  onSelected: (_) => setState(() => _connectionMode = ConnectionMode.direct),
+                  selectedColor: const Color(0xFF9B7CB6),
+                  labelStyle: TextStyle(
+                    color: _connectionMode == ConnectionMode.direct ? Colors.white : Colors.white70,
+                    fontSize: 12,
+                  ),
+                  backgroundColor: Colors.white.withAlpha(15),
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Tunnel'),
+                  selected: _connectionMode == ConnectionMode.tunnel,
+                  onSelected: (_) => setState(() => _connectionMode = ConnectionMode.tunnel),
+                  selectedColor: const Color(0xFF9B7CB6),
+                  labelStyle: TextStyle(
+                    color: _connectionMode == ConnectionMode.tunnel ? Colors.white : Colors.white70,
+                    fontSize: 12,
+                  ),
+                  backgroundColor: Colors.white.withAlpha(15),
+                ),
+              ],
+            ),
+          ),
+
+          // API Endpoint (tunnel mode only)
+          if (_connectionMode == ConnectionMode.tunnel)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: TextField(
+                controller: _apiEndpointController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: 'API Endpoint (Tunnel URL)',
+                  labelStyle: TextStyle(color: Colors.white.withAlpha(100)),
+                  hintText: 'https://your-tunnel.example.com',
+                  hintStyle: TextStyle(color: Colors.white.withAlpha(50)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF9B7CB6)),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                ),
+              ),
+            ),
+
+          // API Key
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: TextField(
+              controller: _apiKeyController,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'API Key',
+                labelStyle: TextStyle(color: Colors.white.withAlpha(100)),
+                hintText: 'sk-... / AIza...',
+                hintStyle: TextStyle(color: Colors.white.withAlpha(50)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF9B7CB6)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+          ),
+        ],
+
+        // Action buttons
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Test connection
+              if (isCloud)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isTestingConnection ? null : _testProviderConnection,
+                    icon: _isTestingConnection
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                          )
+                        : Icon(
+                            _connectionTestResult == true
+                                ? Icons.check_circle
+                                : _connectionTestResult == false
+                                    ? Icons.error
+                                    : Icons.wifi_find,
+                            size: 18,
+                          ),
+                    label: Text(
+                      _connectionTestResult == true
+                          ? 'Connected'
+                          : _connectionTestResult == false
+                              ? 'Failed'
+                              : 'Test',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _connectionTestResult == true
+                          ? Colors.green
+                          : _connectionTestResult == false
+                              ? Colors.red
+                              : const Color(0xFF9B7CB6),
+                      side: BorderSide(
+                        color: _connectionTestResult == true
+                            ? Colors.green
+                            : _connectionTestResult == false
+                                ? Colors.red
+                                : const Color(0xFF9B7CB6),
+                      ),
+                    ),
+                  ),
+                ),
+              if (isCloud) const SizedBox(width: 8),
+              // Apply button
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _applyProviderChange,
+                  icon: const Icon(Icons.save, size: 18),
+                  label: const Text('Apply', style: TextStyle(fontSize: 13)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF9B7CB6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _testProviderConnection() async {
+    setState(() {
+      _isTestingConnection = true;
+      _connectionTestResult = null;
+    });
+
+    try {
+      final result = await _providerManager.testConnection(
+        _selectedProvider,
+        apiEndpoint: _apiEndpointController.text.trim().isNotEmpty
+            ? _apiEndpointController.text.trim()
+            : null,
+        apiKey: _apiKeyController.text.trim().isNotEmpty
+            ? _apiKeyController.text.trim()
+            : null,
+        mode: _connectionMode,
+      );
+
+      if (!mounted) return;
+      setState(() => _connectionTestResult = result);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result ? 'Connection successful' : 'Connection failed'),
+          backgroundColor: result ? Colors.green : Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _connectionTestResult = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isTestingConnection = false);
+    }
+  }
+
+  Future<void> _applyProviderChange() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      await _providerManager.switchProvider(
+        _selectedProvider,
+        apiEndpoint: _apiEndpointController.text.trim().isNotEmpty
+            ? _apiEndpointController.text.trim()
+            : null,
+        apiKey: _apiKeyController.text.trim().isNotEmpty
+            ? _apiKeyController.text.trim()
+            : null,
+        mode: _connectionMode,
+      );
+
+      if (!mounted) return;
+      setState(() {});
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Switched to ${_providerManager.providerName}'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Switch failed: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   // ═══════════════════════════════════════════════════════════

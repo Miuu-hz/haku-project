@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import 'ai_action_service.dart';
 import 'deferred_task_service.dart';
-import 'mediapipe_llm_service.dart';
+import 'llm_provider.dart';
+import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 import 'web_search_service.dart';
 
@@ -35,7 +36,7 @@ class ManagerDispatchService {
   /// - payload: ข้อมูลจาก LLM output
   /// - actionData: ผลจากการ execute urgent action (ถ้ามี)
   Future<ManagerResult> classifyAndDispatch(String userMessage) async {
-    final llm = MediaPipeLLMService();
+    final llm = LLMProviderManager().provider;
     if (!llm.isInitialized) {
       return ManagerResult(intent: ManagerIntent.none, payload: '');
     }
