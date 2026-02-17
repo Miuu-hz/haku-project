@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'llm_provider.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 

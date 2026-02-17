@@ -2,7 +2,6 @@ import 'dart:math';
 
 import '../models/entry.dart';
 import 'context_retriever.dart';
-import 'llm_provider.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 

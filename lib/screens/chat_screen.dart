@@ -13,7 +13,6 @@ import '../services/mvp_trigger_service.dart';
 import '../services/notification_service.dart';
 import '../services/rag_service.dart';
 import '../services/chat_summary_service.dart';
-import '../services/llm_provider.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/smart_preprocessor.dart';
@@ -179,12 +178,12 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         // Replace searching message with real response
         state = state.where((m) => !m.isSearching).toList();
         addMessage(ChatMessage.assistant(
-          response ?? 'ไม่พบข้อมูลค่ะ',
+          response,
           sources: useContext ? _extractSources(contextStr) : null,
         ));
 
         // Save to lean context
-        if (response != null && response.isNotEmpty) {
+        if (response.isNotEmpty) {
           await SmartPreprocessor()
               .addToLeanContext(response, isUser: false);
         }
@@ -938,9 +937,9 @@ class _ChatBubble extends StatelessWidget {
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
-                borderRadius: const BorderRadius.only(
+              decoration: const BoxDecoration(
+                color: Color(0xFF2A2A3E),
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(20),
                   topRight: Radius.circular(20),
                   bottomLeft: Radius.circular(4),

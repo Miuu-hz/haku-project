@@ -69,7 +69,7 @@ class MCPClient {
           // Exponential backoff: 1s, 2s, 4s
           final delay = Duration(seconds: 1 << (attempt - 1));
           debugPrint('🔄 MCP retry $attempt after ${delay.inSeconds}s...');
-          await Future.delayed(delay);
+          await Future<void>.delayed(delay);
         }
 
         final response = await http

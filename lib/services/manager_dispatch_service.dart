@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import 'ai_action_service.dart';
-import 'deferred_task_service.dart';
-import 'llm_provider.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 import 'web_search_service.dart';
@@ -24,7 +22,6 @@ class ManagerDispatchService {
 
   final WebSearchService _webSearch = WebSearchService();
   final AIActionService _actionService = AIActionService();
-  final DeferredTaskService _deferredService = DeferredTaskService();
 
   // Deduplication: เก็บ recent searches (TTL 60s)
   static final Map<String, DateTime> _recentSearches = {};

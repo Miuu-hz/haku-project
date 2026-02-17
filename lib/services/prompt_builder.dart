@@ -137,10 +137,14 @@ Output ONLY the summary text, no JSON.<end_of_turn>
   static String buildDailySummaryPrompt({
     required String entriesContent,
     String? period,
+    String? context,
   }) {
     final now = _currentDateTime;
-    
-    return '<start_of_turn>user\nRole: Daily Summarizer. Current Date: $now\nTask: Summarize these entries in 3-5 sentences with emoji.\n\nEntries${period != null ? ' ($period)' : ''}:\n$entriesContent\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai summary with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
+    final contextSection = context != null && context.isNotEmpty
+        ? '\nContext:\n$context'
+        : '';
+
+    return '<start_of_turn>user\nRole: Daily Summarizer. Current Date: $now\nTask: Summarize these entries in 3-5 sentences with emoji.\n\nEntries${period != null ? ' ($period)' : ''}:\n$entriesContent$contextSection\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai summary with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
 
   /// 🔔 Proactive Message

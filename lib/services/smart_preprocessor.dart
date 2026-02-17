@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import 'lean_context_service.dart';
 import 'user_profile_service.dart';
-import 'web_search_service.dart';
 import 'workers/fact_worker.dart';
 import 'workers/calendar_worker.dart';
 import 'workers/reminder_worker.dart';
@@ -37,7 +36,6 @@ class SmartPreprocessor {
   factory SmartPreprocessor() => _instance;
   SmartPreprocessor._internal();
 
-  final WebSearchService _webSearch = WebSearchService();
   final UserProfileService _userProfile = UserProfileService();
   final LeanContextService _leanContext = LeanContextService();
 
