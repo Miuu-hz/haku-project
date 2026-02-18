@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'database_helper.dart';
 import 'lean_context_service.dart';
 import 'user_profile_service.dart';
 import 'workers/fact_worker.dart';
@@ -148,6 +149,31 @@ class SmartPreprocessor {
       intent = DetectedIntent.search;
     }
 
+    // 2.5 ⚡ Fast Path: SQL LIKE search (0 LLM, ทันที)
+    // ถ้า user ถามเรื่องเก่า เช่น "เคยไปทะเลเมื่อไหร่" → หา entry ดิบด้วย keyword
+    final pastDataKeyword = _extractPastDataKeyword(userMessage);
+    if (pastDataKeyword != null) {
+      try {
+        final found = await DatabaseHelper.instance
+            .searchEntries(pastDataKeyword)
+            .timeout(const Duration(seconds: 2));
+        if (found.isNotEmpty) {
+          final snippets = found
+              .take(2)
+              .map((e) {
+                final date = e.createdAt.toString().substring(0, 10);
+                final preview = e.content.length > 80
+                    ? '${e.content.substring(0, 80)}...'
+                    : e.content;
+                return '[$date] $preview';
+              })
+              .join('\n');
+          enrichedContext = 'Related entries:\n$snippets\n$enrichedContext';
+          debugPrint('⚡ Fast Path: found ${found.length} entries for "$pastDataKeyword"');
+        }
+      } catch (_) {}
+    }
+
     // 3. 📦 Build Context
     if (useLeanContext) {
       // Build lean context with worker data
@@ -241,6 +267,35 @@ class SmartPreprocessor {
       }
     }
 
+    return null;
+  }
+
+  /// ⚡ ดึง keyword สำหรับ Fast Path SQL search
+  ///
+  /// ตรวจจับว่า user ถามเรื่องข้อมูลเก่า เช่น "เคยไปทะเล", "ตอนนั้นกินอะไร"
+  /// Returns: keyword ที่จะใช้ LIKE search, หรือ null ถ้าไม่ใช่คำถามเรื่องเก่า
+  String? _extractPastDataKeyword(String message) {
+    // pattern บ่งบอกว่าถามเรื่องอดีต/ข้อมูลเก่า
+    final pastPatterns = [
+      RegExp(r'เคย(.+)', caseSensitive: false),
+      RegExp(r'ตอน(?:นั้น|ก่อน|ที่แล้ว)(.+)', caseSensitive: false),
+      RegExp(r'ครั้งที่แล้ว(.*)'),
+      RegExp(r'(.+)เมื่อไ(?:หร่|ร)'),
+      RegExp(r'(.+)วันไหน'),
+      RegExp(r'จำได้ไหม(.+)', caseSensitive: false),
+    ];
+
+    for (final pattern in pastPatterns) {
+      final match = pattern.firstMatch(message);
+      if (match != null) {
+        // ดึง capture group แรก ถ้ามี
+        final captured = match.groupCount > 0
+            ? (match.group(1) ?? '').trim()
+            : message;
+        if (captured.length >= 2) return captured;
+        return message.trim();
+      }
+    }
     return null;
   }
 

@@ -12,9 +12,12 @@ import '../services/manager_dispatch_service.dart';
 import '../services/mvp_trigger_service.dart';
 import '../services/notification_service.dart';
 import '../services/rag_service.dart';
+import '../services/background_task_handlers.dart';
 import '../services/chat_summary_service.dart';
+import '../services/deferred_task_service.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
+import '../services/secret_chat_service.dart';
 import '../services/smart_preprocessor.dart';
 import '../services/web_search_service.dart';
 
@@ -224,12 +227,11 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             .addToLeanContext(displayText, isUser: false);
 
         // ──────────────────────────────────────────────────────
-        // Stage 2 (Big Manager): async — classify + dispatch
+        // Secret Chat: async translate → English log → dispatch
         // ──────────────────────────────────────────────────────
-        // ทำเฉพาะเมื่อ SmartPreprocessor ไม่ได้ตรวจจับ intent เฉพาะ
-        if (llm.isInitialized &&
-            preprocessResult?.detectedIntent == DetectedIntent.general) {
-          _runManagerStage(userMessage);
+        // แปล Thai exchange เป็น English log หลัง Face ตอบ (ไม่ block UI)
+        if (llm.isInitialized) {
+          _runSecretChat(userMessage, displayText);
         }
       }
 
@@ -252,39 +254,32 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   }
 
   /// 🧠 Stage 2: Big Manager — async after Stage 1
+  /// 🤫 Secret Chat: แปล Thai exchange → English log → Big Manager dispatch
   ///
-  /// Classify intent + execute urgent actions (search, schedule, etc.)
-  /// Low priority → DeferredTaskService queue
-  void _runManagerStage(String userMessage) {
+  /// ทำ async หลัง Face ตอบ (ไม่ block UI)
+  /// Big Manager ใช้ intent จาก extraction result โดยตรง (0 LLM calls เพิ่ม)
+  void _runSecretChat(String userMessage, String aiResponse) {
     Future(() async {
       try {
-        debugPrint('🧠 Stage 2 (Big Manager): classifying...');
-        final manager = ManagerDispatchService();
-        final result = await manager.classifyAndDispatch(userMessage);
-        debugPrint('🧠 Manager result: ${result.intent.name}');
+        debugPrint('🤫 Secret Chat: translating exchange...');
+        final secretChat = SecretChatService();
+        final logEntry = await secretChat.logExchange(
+          userMessage: userMessage,
+          aiResponse: aiResponse,
+        );
 
-        // ถ้ามี urgent action result → เพิ่ม follow-up message
-        if (result.actionData != null && result.actionData!.isNotEmpty) {
-          final llm = LLMProviderManager().provider;
+        if (logEntry != null) {
+          debugPrint('🤫 Secret Chat done: ${logEntry.summaryEn}');
+          // Big Manager dispatch based on English log (no extra LLM call)
+          final actionData = await ManagerDispatchService()
+              .dispatchFromLog(logEntry, userMessage);
 
-          if (result.intent == ManagerIntent.search && llm.isInitialized) {
-            // สรุปผลค้นหาด้วย LLM
-            try {
-              final followUp = _buildSearchFollowUpPrompt(
-                  userMessage, result.actionData!);
-              final summary = await llm.generate(followUp);
-              final displayText = _extractResponseText(summary);
-              addMessage(ChatMessage.assistant(displayText));
-            } catch (e) {
-              addMessage(ChatMessage.assistant(result.actionData!));
-            }
-          } else {
-            // Schedule, Remind, Place → แสดงผล confirmation
-            addMessage(ChatMessage.assistant(result.actionData!));
+          if (actionData != null && actionData.isNotEmpty) {
+            addMessage(ChatMessage.assistant(actionData));
           }
         }
       } catch (e) {
-        debugPrint('⚠️ Manager stage failed: $e');
+        debugPrint('⚠️ Secret Chat failed: $e');
       }
     });
   }
@@ -489,7 +484,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       debugPrint('🔄 Initializing Chat Summary Service...');
       await ChatSummaryService().initialize();
       debugPrint('✅ Chat Summary Service initialized (Deferred to Charging)');
-      
+
+      // 🏭 Initialize Deferred Task Service + register background handlers
+      debugPrint('🔄 Initializing Deferred Task Service...');
+      await DeferredTaskService().initialize();
+      BackgroundTaskHandlers.registerAll();
+      debugPrint('✅ Deferred Task Service initialized');
+
       // Index entries ถ้ายังไม่มี
       if (RAGService().isInitialized) {
         debugPrint('🔄 Indexing entries...');

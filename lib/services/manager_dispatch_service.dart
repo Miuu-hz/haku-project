@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'ai_action_service.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
+import 'secret_chat_service.dart';
 import 'web_search_service.dart';
 
 /// 🧠 Manager Dispatch Service (Big Manager)
@@ -64,6 +65,35 @@ class ManagerDispatchService {
       debugPrint('⚠️ Manager dispatch failed: $e');
       return ManagerResult(intent: ManagerIntent.none, payload: '');
     }
+  }
+
+  /// 🤫 Dispatch from Secret Chat English log (0 extra LLM calls)
+  ///
+  /// Intent + tags มาจาก Secret Chat extraction แล้ว — ไม่ต้องเรียก LLM ซ้ำ
+  /// Returns action confirmation string ถ้ามี urgent action
+  Future<String?> dispatchFromLog(
+    EnglishLogEntry logEntry,
+    String originalUserMessage,
+  ) async {
+    debugPrint('🧠 Big Manager: dispatching from English log '
+        '(intent=${logEntry.intent})');
+
+    // Map Secret Chat intent → ManagerIntent
+    final intent = switch (logEntry.intent) {
+      'schedule' => ManagerIntent.schedule,
+      'search' => ManagerIntent.search,
+      'log' || 'chat' => ManagerIntent.none,
+      _ => ManagerIntent.none,
+    };
+
+    if (intent == ManagerIntent.none) return null;
+
+    final result = ManagerResult(
+      intent: intent,
+      payload: logEntry.tags.join(', '),
+    );
+
+    return _executeUrgent(result, originalUserMessage);
   }
 
   /// 📝 Parse manager LLM output (single line)

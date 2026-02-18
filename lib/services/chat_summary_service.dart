@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'deferred_task_service.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 
@@ -223,6 +224,15 @@ class ChatSummaryService {
     
     for (final job in pending) {
       await _processSummary(job);
+    }
+
+    // หลังสรุปแชทเสร็จ → enqueue daily analysis (ManagerSummaryStrategy)
+    if (pending.isNotEmpty) {
+      DeferredTaskService().enqueue(
+        taskType: 'manager_summary',
+        priority: TaskPriority.normal,
+        maxAge: const Duration(hours: 48),
+      );
     }
   }
 

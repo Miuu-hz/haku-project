@@ -116,6 +116,20 @@ Output ONLY the summary text, no JSON.<end_of_turn>
 ''';
   }
 
+  /// 🌐 Worker: Translate Thai diary entry to English (สำหรับ Vector DB + token saving)
+  static String buildTranslateEntryPrompt(String thaiContent) {
+    return '''<start_of_turn>user
+Translate this Thai diary entry to English (max 30 words).
+Keep: activities, places, people, emotions, dates.
+
+Thai:
+$thaiContent
+
+Output ONLY the English translation, no JSON.<end_of_turn>
+<start_of_turn>model
+''';
+  }
+
   /// 📅 Scheduler (ต้องเพิ่ม now เพื่อคำนวณ relative date)
   static String buildSchedulerPrompt(String text) {
     // เพิ่ม DateTime.now() เข้าไปใน Prompt

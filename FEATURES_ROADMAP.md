@@ -1,302 +1,382 @@
-# 🚀 Haku Features Roadmap - Proactive AI Assistant
+# Haku Features Roadmap - Proactive AI Assistant
 
 > วางแผนฟีเจอร์ AI ตาม Phase พร้อมโมเดลที่ใช้
+> อัปเดตล่าสุด: 2026-02-17
 
+
+
+[Project Context: Haku - Private Life OS]
+
+You are now acting as a strategic consultant and creative director for a deep-tech startup project named "Haku". Here is the comprehensive project DNA you need to understand:
+
+1. THE CORE IDENTITY:
+"Haku" is a "Private Life OS"—a proactive AI assistant that runs 100% on-device (offline). unlike ChatGPT or Gemini, Haku does NOT send user data to the cloud. It is designed for the "Post-Cloud Era" where privacy and data sovereignty are the ultimate luxuries.
+
+2. THE KEY PROBLEM IT SOLVES:
+Users want an AI that truly knows them (memories, secrets, habits) but are terrified of data leaks and corporate surveillance. Haku solves this by processing everything locally on the phone's NPU. "What happens on your phone, stays on your phone."
+
+3. KILLER FEATURES (USPs):
+- 100% On-Device Processing: Zero latency, works offline, absolute privacy.
+- Hybrid Context Technology: A proprietary method that mixes raw local data (Thai/English) with compressed vector memories, allowing the AI to recall complex past events accurately without consuming massive storage.
+- Proactive Intelligence: Instead of waiting for prompts, Haku nudges the user (e.g., "You seem stressed, here's a summary of your day," or "Leave now to beat traffic").
+- Secure Team Delegation (B2B): A protocol allowing one user's Haku to talk to another user's Haku to schedule meetings or assign tasks without exposing sensitive calendar details to a central server.
+
+4. BUSINESS MODEL (Razor & Blades):
+- Freemium Entry: The core app is free to acquire a massive user base (The Razor).
+- B2C Monetization: Users buy "AI Personas" (e.g., Strict Coach, Empathetic Friend) and Skill Modules via In-App Purchase (The Blades).
+- B2B Monetization: Enterprises pay a subscription for the "Team Delegation Protocol" to boost productivity.
+
+5. FUTURE ROADMAP:
+- Phase 1 (Now): A mobile app (iOS/Android) acting as a smart journal and assistant.
+- Phase 2: An Ecosystem with B2B integration.
+- Phase 3 (Vision): A full "Haku OS" or Launcher that replaces the standard Android interface, becoming the primary layer between the human and the digital world.
+
+Please use this context for all further tasks, ensuring the tone is innovative, trustworthy, and user-centric.
 ---
 
-## ✅ Phase 1: MVP (เสร็จแล้ว)
+## Phase 1: MVP ✅
+
 พื้นฐานที่ต้องมีก่อน AI จะทำงานได้
-- ✅ SQLite + SQLCipher Encryption
-- ✅ Biometric Lock
-- ✅ Basic Chat UI (Mock)
-- ✅ Android Widgets
+
+- [x] SQLite + SQLCipher Encryption
+- [x] Biometric Lock (Auto-lock 1-10 min)
+- [x] Basic Chat UI
+- [x] Android Widgets
+- [x] Data Export (JSON, Markdown, CSV, Backup)
+- [x] Profile Editor
 
 ---
 
-## 🔬 Phase 2: AI & Intelligence (Proactive Features)
+## Phase 2: AI & Intelligence (Proactive Features)
+
 **เป้าหมาย:** เปลี่ยนจาก "App" เป็น "Assistant" ที่ช่วยจัดการชีวิต
 
-### 2.1 Smart Search / RAG 🔍
-**ความสามารถ:** ค้นหาบันทึกจากความหมาย ไม่ใช่แค่ keyword
+### 2.1 On-Device LLM ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] Gemma 3 1B ผ่าน MediaPipe GenAI (LiteRT `.task` format)
+- [x] Auto-unload หลัง 5 นาทีไม่ใช้งาน (ประหยัดแบต)
+- [x] Lazy loading — โหลดเมื่อเรียก generate() ครั้งแรก
+- [x] Custom model path support
+- [x] Two-Stage Architecture:
+  - Stage 1 (The Face): ตอบสนทนาไทยธรรมชาติ
+  - Stage 2 (Big Manager): classify intent + dispatch งาน
+
+**Model:**
+```yaml
+primary_slm:
+  model: Gemma 3 1B (LiteRT .task format)
+  size: ~600 MB
+  runtime: MediaPipe GenAI
+  context: ~2048 tokens
+  note: เล็กกว่า Qwen 2.5 3B (1.8GB) มาก ลื่นบนมือถือ
+```
+
+---
+
+### 2.2 Cloud LLM Fallback (MCP Provider) ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] Gemini Flash (Google) — free tier
+- [x] Claude Haiku (Anthropic)
+- [x] GPT-4o-mini (OpenAI)
+- [x] MCP Client (Model Context Protocol) สำหรับ tunnel mode
+- [x] Direct API mode สำหรับ dev
+- [x] Settings UI: เลือก provider + กรอก API Key + Test Connection
+- [x] Fallback chain: Cloud → On-device → Mock
+
+**เข้าถึงผ่าน:** Settings > LLM Provider
+
+---
+
+### 2.3 Smart Search / RAG ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] Hybrid Vector Search (TF-IDF embedding + Cosine Similarity ใน Dart)
+- [x] Unified Vector Service — รวม Entry, Facts, Knowledge
+- [x] Context Retriever — ดึง context ที่เกี่ยวข้องให้ LLM
+- [x] Index entries จาก database
 
 **Technical:**
-- Vector DB: `sqlite-vec`
-- Embedding: `multilingual-e5-small` (~100MB)
-- LLM สำหรับสรุป: `Qwen 2.5 3B Q4` หรือ `Phi-4 Mini Q4`
+```yaml
+vector_search:
+  method: TF-IDF like embedding + Cosine Similarity
+  storage: SQLite BLOB (ไม่ใช้ sqlite-vec เพราะ Flutter ไม่รองรับ)
+  fallback: Keyword search
+  note: ไม่ต้องโหลด embedding model แยก
+```
 
 **ตัวอย่าง:**
-- "วันไหนที่ฉันมีความสุขที่สุด?" → หา mood=5
-- "ฉันไปเที่ยวทะเลเมื่อไหร่?" → หาจาก location + context
-
-**Complexity:** 🟢 ง่าย (มี library พร้อม)
+- "วันไหนที่ฉันมีความสุขที่สุด?" → ค้นจาก mood + context
+- "ฉันไปเที่ยวทะเลเมื่อไหร่?" → ค้นจาก location + content
 
 ---
 
-### 2.2 Entry Summarization 📝
-**ความสามารถ:** สรุปบันทึกยาว ๆ ให้สั้นลง
+### 2.4 SmartPreprocessor + Workers ✅
+**สถานะ:** เสร็จแล้ว
 
-**Technical:**
-- LLM: `Qwen 2.5 3B Instruct Q4` (~1.8GB) - ดีสุดสำหรับไทย
-- หรือ `Phi-4 Mini Q4` (~2.2GB) - ฉลาดสุด แต่ไทยพอใช้
+ใช้ rule-based (0 LLM tokens) ก่อนส่งเข้า LLM:
 
-**ตัวอย่าง:**
-- บันทึก 500 คำ → สรุปเป็น 3 ประโยค
-- สรุป "วันนี้" จากหลาย ๆ entry
-
-**Complexity:** 🟢 ง่าย (ใช้ LLM prompt เลย)
-
----
-
-### 2.3 AI Book Calendar (Auto-Scheduling) 📅 ⭐
-**ความสามารถ:** คุยกับ Haku แล้วให้ลงตารางงานใน Calendar เครื่องอัตโนมัติ
-
-**Flow:**
-1. User: "วันศุกร์หน้าต้องไปหาหมอฟันตอนบ่ายสอง"
-2. AI Extraction (LLM) → JSON:
-```json
-{
-  "intent": "create_event",
-  "title": "หาหมอฟัน",
-  "date": "2026-02-06",
-  "time": "14:00",
-  "duration_minutes": 60
-}
-```
-3. System API: เขียนลง Calendar (Android Calendar API / iOS EventKit)
-4. UI: Pop-up Confirm ก่อนเขียนจริง
-
-**Technical:**
-- LLM: `Qwen 2.5 3B` (เข้าใจไทยดี)
-- Intent Classification: บนเครื่อง (Lightweight)
-- Calendar API: Native Android/iOS
-
-**Complexity:** 🟡 ปานกลาง (ต้อง integrate กับ OS)
-
-**Model ที่ใช้:**
-```yaml
-# สำหรับดึง intent + entities
-llm_main: Qwen2.5-3B-Instruct-Q4_K_M.gguf (~1.8GB)
-
-# สำหรับ NER (Named Entity Recognition) ถ้าต้องการแยกโมเดล
-# อาจใช้ WangchanBERTa ขนาดเล็ก (~100MB) แยก
-```
+- [x] **FactWorker** — จดจำชื่อ, ชอบ/ไม่ชอบ, อาชีพ, เป้าหมาย, สถานที่
+- [x] **CalendarWorker** — ตรวจจับนัดหมายจากข้อความไทย (regex)
+- [x] **ReminderWorker** — ตรวจจับการเตือน + frequency (once/daily/weekly/monthly)
+- [x] **GoalWorker** — ตรวจจับเป้าหมาย + ติดตาม progress
+- [x] **HealthDoctor** — ตรวจจับ period, อาการปวด, แพ้, ยา
+- [x] Search intent detection (keyword-based)
+- [x] Quick action detection (ทักทาย, ถามชื่อ)
 
 ---
 
-### 2.4 Proactive Voice Alert 🗣️ ⭐
-**ความสามารถ:** AI พูดเตือนเมื่อใกล้ถึงเวลา (ไม่ต้องเปิดแอป)
+### 2.5 Lean Context Service ✅
+**สถานะ:** เสร็จแล้ว
 
-**Scenario:**
-- 15 นาทีก่อนนัด → Haku พูด: "อีก 15 นาทีมีนัดหมอฟัน รถเริ่มติดแล้วควรออกเลย"
+บีบ chat history ให้พอดี context window ของ Gemma 3 1B (~2048 tokens):
 
-**Technical:**
-
-**Android:**
-- Foreground Service + Text-to-Speech (TTS)
-- ใช้ Google TTS (มีบนเครื่องทุกเครื่องอยู่แล้ว)
-- หรือ Piper TTS (On-device, ไม่ต้อง Cloud)
-
-**iOS:**
-- Rich Notification + Siri Announce
-- จำกัด: ไม่สามารถพูดเองโดยไม่มีการกระทำจาก user
-
-**Complexity:** 🟡 ปานกลาง (ต้องจัดการ Battery + Permission)
-
-**Model ที่ใช้:**
-```yaml
-# TTS (Text-to-Speech)
-tts_engine: 
-  - android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB)
-  - ios: Siri Announce Notifications
-
-# LLM สำหรับสร้างข้อความเตือน:
-llm: Qwen2.5-3B-Instruct-Q4_K_M.gguf
-```
-
-**Note:** ใช้ LLM สร้างข้อความเตือนแบบ personalized (ไม่ใช่แค่ "ถึงเวลานัด") แต่เป็น "รถติดแล้วนะ ควรออกเลย"
+- [x] Chat 1-3: Full Thai (ไม่บีบ)
+- [x] Chat 4+: Lean Syntax (ตัดคำลงท้าย, ย่อคำ, max 50 chars)
+- [x] Session summaries (English, 1-line)
+- [x] ผลลัพธ์: 25 คู่แชทใน ~330 tokens (เดิม 5 คู่ใน ~750 tokens)
 
 ---
 
-## 🧪 Phase 3: Beta Testing (Insights & Analytics)
+### 2.6 Entry Summarization ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] สรุป Entry เดี่ยว (บันทึกยาว → สั้น)
+- [x] สรุปหลาย Entries (สรุปวัน/สัปดาห์)
+- [x] Extract Key Insights
+- [x] Sentiment Analysis (rule-based + mood)
+- [x] Fallback เมื่อไม่มี LLM
+
+---
+
+### 2.7 AI Auto-Scheduling ✅
+**สถานะ:** เสร็จแล้ว (basic)
+
+- [x] SchedulerService — ดึง event จากข้อความธรรมชาติ
+- [x] CalendarWorker — regex detection สำหรับวัน/เวลาไทย
+- [x] PromptBuilder.buildSchedulerPrompt — LLM extraction
+- [x] Native Calendar API (MethodChannel)
+- [x] Fallback regex เมื่อไม่มี LLM
+- [ ] Google Calendar sync (มี Mock Mode, real API พร้อมแต่ยังไม่เปิดใช้จริง)
+
+---
+
+### 2.8 Proactive Triggers ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] Time-based triggers (09:00 เช้า, 12:00 เที่ยง, 17:00 เย็น, 22:00 ก่อนนอน)
+- [x] Location-based triggers (revisit 200m, 2+ hr gap)
+- [x] No-entry reminder
+- [x] Battery-optimized: เช็คทุก 5 นาที, toggle location tracking
+- [x] Notification Service + Quick Reply จาก notification
+- [x] Deep link เข้าแอปพร้อม context
+- [ ] Proactive Voice Alert (TTS) — ยังไม่ implement
+
+---
+
+### 2.9 Background Processing (Deferred to Charging) ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] ChatSummaryService — เก็บแชท 24 ชม. แล้วสรุปตอนชาร์จ
+- [x] BatteryAwareService — ตรวจจับ charging/discharging
+- [x] DeferredTaskService — priority queue (high/normal/low) + auto-process ตอนชาร์จ
+- [x] ManagerSummaryStrategy — วิเคราะห์ health, behavior, preferences patterns
+- [x] BackgroundTaskHandlers — wire ManagerSummary + reindex vectors เข้ากับ DeferredTask
+- [x] Energy Profile (ultraSaver/batterySaver/balanced/performance)
+
+---
+
+### 2.10 Web Search Integration ✅
+**สถานะ:** เสร็จแล้ว
+
+- [x] WebSearchService
+- [x] SmartPreprocessor ตรวจจับ search intent อัตโนมัติ
+- [x] LLM สรุปผลค้นหาเป็นคำตอบ
+- [x] Intermediate "กำลังค้นหา..." message ใน UI
+
+---
+
+## Phase 3: Beta Testing (Insights & Analytics)
+
 **เป้าหมาย:** วิเคราะห์ pattern ชีวิตและให้ insights
 
-### 3.1 The Hidden Correlation 🔮 ⭐⭐
-**ความสามารถ:** หาความเชื่อมโยงที่ซ่อนอยู่ในชีวิต (เหมือนนักสืบ)
+### 3.1 The Hidden Correlation
+**สถานะ:** ยังไม่ implement
 
-**Wow Moment:**
-> "คุณรู้ไหม? 80% ของวันที่คุณปวดหัวไมเกรน คือวันที่คุณดื่มกาแฟร้าน A และนอนน้อยกว่า 6 ชม. ...วันนี้เลี่ยงร้าน A ดีไหม?"
+หาความเชื่อมโยงที่ซ่อนอยู่ในชีวิต เช่น:
+> "80% ของวันที่คุณปวดหัว คือวันที่คุณดื่มกาแฟร้าน A และนอนน้อยกว่า 6 ชม."
 
-**Technical:**
-- Correlation Analysis (สถิติพื้นฐาน ไม่ต้องใช้ AI หนัก)
-- Pattern Matching: [Food] + [Sleep] + [Mood] + [Health]
-- ใช้ Python (via Chaquopy บน Android) หรือ Dart native
+- [ ] Multivariate correlation analysis
+- [ ] Pattern matching: Food + Sleep + Mood + Health
+- [ ] Insight message generation ด้วย LLM
 
-**Model ที่ใช้:**
-```yaml
-# ไม่ต้องใช้ LLM ใหญ่ ใช้สถิติ + ML เบา ๆ
-ml_model: 
-  - scikit-learn บน device (via chaquopy)
-  - หรือ simple rule-based + correlation matrix
-
-# สำหรับ generate insight message:
-llm: Qwen2.5-3B (สรุป correlation ให้เป็นภาษาธรรมชาติ)
-```
-
-**Complexity:** 🟡 ปานกลาง (ต้องเก็บ data อย่างน้อย 1 เดือนก่อนมี pattern)
-
----
-
-### 3.2 Social Battery Forecast 🔋
-**ความสามารถ:** พยากรณ์ "พลังงานสังคม" และเตือนก่อน burn out
-
-**Wow Moment:**
-> กำลังจะกดรับนัดปาร์ตี้ → Haku เตือน: "แบตเตอรี่สังคมเหลือ 15% (สัปดาห์นี้ประชุม 12 ชม. แล้ว) ถ้าไปงานนี้ พรุ่งนี้คุณจะ Burnout แน่นอน"
+**Note:** ManagerSummaryStrategy มี basic pattern detection อยู่แล้ว (period, fatigue) สามารถต่อยอดได้
 
 **Technical:**
-- Energy Cost Scoring: ให้ LLM ให้คะแนนแต่ละกิจกรรม
-  - ประชุมลูกค้า = -20 Energy
-  - กินข้าวเพื่อน = +10 Energy
-  - อยู่คนเดียว = +5 Energy (สำหรับ Introvert)
-- Calculate cumulative score
-- Visual: Health Bar บนหน้า Home
-
-**Model ที่ใช้:**
 ```yaml
-llm: Qwen2.5-3B (ให้คะแนน energy cost ของกิจกรรม)
-# หรือใช้ simple classification ถ้าต้องการเร็วขึ้น
+approach: Rule-based correlation + simple statistics
+# ไม่ต้องใช้ ML หนัก ใช้ frequency analysis + co-occurrence
+llm: Gemma 3 1B หรือ Cloud LLM (สรุป correlation เป็นภาษาธรรมชาติ)
 ```
-
-**Complexity:** 🟡 ปานกลาง
 
 ---
 
-### 3.3 Music & News Context (Mood Tracking) 🎵📰
-**ความสามารถ:** รู้ว่าคุณฟังเพลงอะไร/อ่านข่าวอะไร เพื่อ context ที่ลึกขึ้น
+### 3.2 Social Battery Forecast
+**สถานะ:** ยังไม่ implement
 
-**Music:**
-- Android: Notification Listener → ดึงชื่อเพลงจาก Spotify/YT Music
-- iOS: Apple Music API / Spotify API
-- บันทึก: [Location: Gym] + [Music: Rock เร็ว] + [Mood: กระปรี้กระเปร่า]
+พยากรณ์ "พลังงานสังคม" และเตือนก่อน burnout
 
-**News (Smart Briefing):**
-- RSS Feed จากสำนักข่าวที่เลือก
-- LLM สรุป 10 ข่าว → เหลือ 3 ข่าวที่น่าสนใจ
-- TTS อ่านตอนเช้า (Morning Routine)
-
-**Model ที่ใช้:**
-```yaml
-# Music: ไม่ต้องใช้ model ดึงจาก notification ตรง ๆ
-# News Summarization:
-llm: Qwen2.5-3B (สรุปข่าว)
-# หรือใช้ seq2seq ขนาดเล็ก (~200MB) ถ้าต้องการเร็ว
-```
-
-**Complexity:** 🟢 ง่าย ( mostly data fetching + summarization)
+- [ ] Energy Cost Scoring สำหรับแต่ละกิจกรรม
+- [ ] Cumulative score calculation
+- [ ] Visual Health Bar บนหน้า Home
 
 ---
 
-## 🎖️ Phase 4: Production (Advanced Personalization)
+### 3.3 Music & News Context (Mood Tracking)
+**สถานะ:** ยังไม่ implement
+
+- [ ] Android Notification Listener → ดึงชื่อเพลงจาก Spotify/YT Music
+- [ ] RSS Feed สรุปข่าว
+- [ ] Morning Briefing (TTS อ่านข่าว + สรุปตาราง)
+
+---
+
+### 3.4 Proactive Voice Alert (TTS)
+**สถานะ:** ยังไม่ implement
+
+- [ ] Google TTS (pre-installed) หรือ Piper TTS (~50MB)
+- [ ] Personalized alert messages ผ่าน LLM
+- [ ] iOS: Siri Announce Notifications
+
+```yaml
+tts_engine:
+  android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB)
+  ios: Siri Announce Notifications
+```
+
+---
+
+## Phase 4: Production (Advanced Personalization)
+
 **เป้าหมาย:** AI ที่เข้าใจคุณในระดับลึก
 
-### 4.1 Shadow Mode (AI Writing Style) 👤
-**ความสามารถ:** AI เรียนรู้สไตล์การเขียนของคุณ และ Draft คำตอบให้เหมือนคุณพิมพ์เอง
+### 4.1 Shadow Mode (AI Writing Style)
+**สถานะ:** ยังไม่ implement
 
-**Wow Moment:**
-> มีคนทัก Line มาเรื่องงานยาวเหยียด → กดปุ่ม Haku → AI ร่างคำตอบ 3 ย่อหน้า โดยใช้ "คำติดปาก" ของคุณ, สไตล์การเว้นวรรค, Emoji ที่ชอบใช้
+AI เรียนรู้สไตล์การเขียนของคุณ และ Draft คำตอบให้เหมือนคุณพิมพ์เอง
 
-**Technical:**
-- Fine-tune small LLM บน device (LoRA) ด้วยข้อความของ user
-- หรือใช้ Few-shot prompting (ให้ตัวอย่างข้อความเก่า ๆ ใน prompt)
-- Privacy: ย้ำว่า train บนเครื่องนี้เท่านั้น
-
-**Model ที่ใช้:**
-```yaml
-# วิธีที่ 1: LoRA Fine-tuning (ยาก แต่ดีสุด)
-base_model: Gemma-2-2B (เล็กพอที่จะ fine-tune บนมือถือได้)
-lora_adapter: ~100MB (เทรนเองบนเครื่อง)
-
-# วิธีที่ 2: Few-shot Prompting (ง่ายกว่า)
-llm: Qwen2.5-3B
-context: เอาข้อความเก่าของ user 5-10 ข้อความใส่เป็น example
-```
-
-**Complexity:** 🔴 ยาก (ต้อง fine-tune หรือ context window ใหญ่)
+- [ ] Few-shot prompting (ใช้ข้อความเก่าเป็น example)
+- [ ] หรือ LoRA Fine-tune บน device (Gemma 2 2B base)
 
 ---
 
 ### 4.2 AR Memory Anchor (Future Concept)
-**ความสามารถ:** ชี้กล้องไปที่สถานที่ → Haku บอกว่าเคยมีความทรงจำอะไรที่นี่
+**สถานะ:** ยังไม่แน่ใจ technical feasibility
 
-**Status:** 🔴 ยังไม่แน่ใจ technical feasibility บน Flutter + On-device
-
-**อาจเลื่อนไป Phase 5 หรือทำเป็น Prototype only**
+ชี้กล้องไปที่สถานที่ → Haku บอกว่าเคยมีความทรงจำอะไรที่นี่
 
 ---
 
-## 📊 สรุปโมเดลที่ต้องใช้ทั้งหมด
+## สรุปโมเดลที่ใช้
 
 ```yaml
-# Core LLM (ใช้ทุกฟีเจอร์)
-primary_llm:
-  model: Qwen2.5-3B-Instruct-Q4_K_M.gguf
-  size: ~1.8 GB
-  reason: ดีสุดสำหรับภาษาไทย รองรับ Multilingual
-  alternative: Phi-4-Mini-Q4_K_M.gguf (~2.2GB, ฉลาดกว่าแต่ไทยอ่อน)
+# Core SLM — On-Device (ใช้ทุกฟีเจอร์)
+primary_slm:
+  model: Gemma 3 1B
+  format: LiteRT (.task) ผ่าน MediaPipe GenAI
+  size: ~600 MB
+  context: ~2048 tokens
+  features:
+    - auto-unload หลัง 5 นาที (ประหยัดแบต)
+    - lazy loading (โหลดเมื่อใช้จริง)
+    - custom model path support
 
-# Embedding (สำหรับ RAG)
-embedding_model:
-  model: multilingual-e5-small
-  size: ~100 MB
-  format: ONNX
+# Cloud LLM Fallback — ใช้แทน SLM เมื่อ user ต้องการ
+cloud_providers:
+  gemini_flash:
+    provider: Google
+    note: Free tier, เร็ว
+  claude_haiku:
+    provider: Anthropic
+    cost: $0.25/1M tokens
+  gpt4o_mini:
+    provider: OpenAI
+    cost: $0.15/1M tokens
+  connection:
+    - Tunnel mode (API key ฝั่ง server)
+    - Direct mode (API key ในแอป)
 
-# TTS (Text-to-Speech)
-tts_engine:
-  android: 
-    - Google TTS (pre-installed) - ฟรี แต่ต้องออนไลน์บางครั้ง
-    - Piper-TTS (~50MB) - ฟรี On-device 100%
-  ios:
-    - Siri Announce Notifications
+# Vector Search (สำหรับ RAG)
+vector_search:
+  method: TF-IDF embedding + Cosine Similarity (Dart)
+  storage: SQLite BLOB
+  note: ไม่ต้องโหลด embedding model แยก
 
-# STT (Speech-to-Text) - Optional Phase 2
+# Workers (Rule-based, 0 tokens)
+workers:
+  - FactWorker (ชื่อ, ชอบ, อาชีพ, เป้าหมาย)
+  - CalendarWorker (นัดหมาย, เวลา)
+  - ReminderWorker (เตือน, ความถี่)
+  - GoalWorker (เป้าหมาย, progress)
+  - HealthDoctor (ประจำเดือน, อาการ, ยา, แพ้)
+
+# STT (Speech-to-Text) — ยังไม่ implement
 stt_engine:
-  on_device:
-    model: Whisper-Tiny (~75MB)
-    quality: พอใช้สำหรับอังกฤษ ไทยไม่แม่น
-  cloud_fallback:
-    service: Google Speech-to-Text API
-    note: ต้องขอ permission user ก่อนใช้
+  on_device: Whisper-Tiny (~75MB) — ไทยไม่แม่น
+  cloud: Google Speech-to-Text API
 
-# สำหรับ Phase 3 (Correlation/Social Battery)
-# ไม่ต้องใช้โมเดลใหม่ ใช้สถิติ + LLM ที่มีอยู่
-
-# สำหรับ Phase 4 (Shadow Mode)
-lora_finetune:
-  base: Gemma-2-2B
-  adapter_size: ~100MB
-  training: On-device (ต้องมีข้อความ user อย่างน้อย 100 ข้อความ)
+# TTS (Text-to-Speech) — ยังไม่ implement
+tts_engine:
+  android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB)
+  ios: Siri Announce Notifications
 ```
 
 ---
 
-## 🎯 สรุป Recommendation
+## สรุป Progress
 
-### ถ้าเริ่ม Phase 2 ตอนนี้:
-1. **โหลดโมเดลหลักก่อน:** `Qwen2.5-3B-Instruct-Q4_K_M.gguf` (~1.8GB)
-2. **ทำ RAG ก่อน:** ง่ายสุด มี impact สูง (ค้นหาบันทึกเก่า)
-3. **ทำ Auto-Scheduling ต่อ:** ผู้ใช้จะรู้สึก "ว้าว" ทันที
-4. **Proactive Voice ทำคู่กัน:** ใช้ TTS ฟรีที่มีใน Android ก่อน
+| Phase | Feature | สถานะ |
+|-------|---------|-------|
+| 1 | SQLite + Encryption | ✅ |
+| 1 | Biometric Lock | ✅ |
+| 1 | Chat UI | ✅ |
+| 1 | Android Widgets | ✅ |
+| 2 | On-Device LLM (Gemma 3 1B) | ✅ |
+| 2 | Cloud LLM (Gemini/Claude/OpenAI) | ✅ |
+| 2 | Smart Search / RAG | ✅ |
+| 2 | SmartPreprocessor + Workers (5 ตัว) | ✅ |
+| 2 | Lean Context (token compression) | ✅ |
+| 2 | Entry Summarization | ✅ |
+| 2 | Auto-Scheduling (basic) | ✅ |
+| 2 | Proactive Triggers (time + location) | ✅ |
+| 2 | Background Processing (charging) | ✅ |
+| 2 | Web Search | ✅ |
+| 2 | Google Calendar (real API) | 🟡 Mock Mode |
+| 2 | Proactive Voice (TTS) | ❌ |
+| 3 | Hidden Correlation | ❌ |
+| 3 | Social Battery | ❌ |
+| 3 | Music/News Context | ❌ |
+| 4 | Shadow Mode | ❌ |
+| 4 | AR Memory Anchor | ❌ |
 
-### งบประมาณพื้นที่:
-- App ตอน Phase 1: ~30MB
-- + LLM (Qwen): ~1.8GB
-- + Embedding: ~100MB
-- **รวม:** ~2GB (รับได้สำหรับมือถือยุค 2024-2026)
-
-### งบประมาณ RAM:
-- Qwen 3B Q4 ใช้ RAM ~3-4GB เวลาทำงาน
-- มือถือ RAM 6GB+ รับได้สบาย
-- มือถือ RAM 4GB อาจช้า/ติดบ้าง
+**Phase 2 progress: ~90%** (เหลือ Google Calendar real + TTS)
 
 ---
 
-**ต้องการให้เริ่ม implement ฟีเจอร์ไหนก่อนครับ?** 🎌
+## งบประมาณพื้นที่
+
+```
+App base:          ~30 MB
+Gemma 3 1B (.task): ~600 MB
+----------------------------
+รวม:              ~630 MB (ลดจาก ~2GB ที่วางแผนไว้เดิม)
+```
+
+## งบประมาณ RAM
+
+```
+Gemma 3 1B: ~1-2 GB ขณะทำงาน (auto-unload หลัง 5 นาที)
+มือถือ RAM 4GB+: ใช้ได้สบาย
+Cloud mode: ไม่กิน RAM เพิ่ม (ส่ง API แทน)
+```

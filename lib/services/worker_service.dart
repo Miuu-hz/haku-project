@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/entry.dart';
 import 'battery_aware_service.dart';
+import 'database_helper.dart';
 import 'chat_history_service.dart';
 import 'deferred_task_service.dart';
 import 'llm_service.dart';
@@ -11,6 +13,7 @@ import 'rag_service.dart';
 import 'topic_service.dart';
 import 'user_profile_service.dart';
 import 'vector_service.dart';
+import 'workers/translator_worker.dart';
 
 /// 👷 Worker Service - Background Batch Processing
 ///
@@ -37,6 +40,7 @@ class WorkerService {
   final DeferredTaskService _deferredService = DeferredTaskService();
   final LLMService _llmService = LLMService();
   final RAGService _ragService = RAGService();
+  final TranslatorWorker _translatorWorker = TranslatorWorker();
 
   bool _isInitialized = false;
   bool _isProcessing = false;
@@ -62,8 +66,27 @@ class WorkerService {
     // Listen to charging
     _batteryService.onChargingStarted = _onChargingStarted;
 
+    // Check vector schema migration (tokenizer upgrade)
+    await _checkVectorMigration();
+
     _isInitialized = true;
     debugPrint('✅ Worker Service initialized');
+  }
+
+  /// 🔄 Check if vector re-index is needed (tokenizer changed)
+  Future<void> _checkVectorMigration() async {
+    const currentVersion = 2; // Bumped for Thai n-gram tokenizer
+    final prefs = await SharedPreferences.getInstance();
+    final storedVersion = prefs.getInt('vector_schema_version') ?? 0;
+
+    if (storedVersion < currentVersion) {
+      debugPrint('🔄 Vector schema upgrade $storedVersion → $currentVersion, queueing re-index');
+      _deferredService.enqueue(
+        taskType: 'reindex_vectors',
+        priority: TaskPriority.high,
+      );
+      await prefs.setInt('vector_schema_version', currentVersion);
+    }
   }
 
   /// 📝 Register deferred task handlers
@@ -73,6 +96,7 @@ class WorkerService {
     _deferredService.registerHandler('extract_facts', _handleExtractFacts);
     _deferredService.registerHandler('vectorize_topics', _handleVectorizeTopics);
     _deferredService.registerHandler('health_analysis', _handleHealthAnalysis);
+    _deferredService.registerHandler('translate_entries', _handleTranslateEntries);
   }
 
   /// 💊 Handle health analysis task
@@ -82,6 +106,22 @@ class WorkerService {
     // - Analyze health patterns from entries
     // - Check for period tracking
     // - Generate health insights
+  }
+
+  /// 🌐 Handle translate entries task
+  Future<void> _handleTranslateEntries(Map<String, dynamic> payload) async {
+    debugPrint('🌐 Running entry translation...');
+    await _translatorWorker.initialize();
+
+    final entries = await DatabaseHelper.instance.getAllEntries();
+    final translated = await _translatorWorker.translatePending(entries);
+
+    // NOTE: ไม่ re-index ด้วย English text เพราะ embedding ต้องเป็นไทย
+    // (user ค้นหาเป็นไทย → Thai query ต้อง match Thai embedding)
+    // English translations ใช้แค่ตอน buildContext() เพื่อประหยัด token
+    if (translated > 0) {
+      debugPrint('✅ Translated $translated entries (cached for context display)');
+    }
   }
 
   /// 🔌 On charging started
@@ -127,12 +167,17 @@ class WorkerService {
 
       // 4. Vectorize topics
       onStatusChanged?.call('Building search index...');
-      onProgressChanged?.call(0.8);
+      onProgressChanged?.call(0.7);
       await _vectorizeTopics();
 
-      // 5. Process deferred tasks
+      // 5. Translate entries (Thai → English)
+      onStatusChanged?.call('Translating entries...');
+      onProgressChanged?.call(0.85);
+      await _translateEntries();
+
+      // 6. Process deferred tasks
       onStatusChanged?.call('Processing deferred tasks...');
-      onProgressChanged?.call(0.9);
+      onProgressChanged?.call(0.95);
       await _deferredService.forceProcess();
 
       onStatusChanged?.call('Batch process complete!');
@@ -144,6 +189,17 @@ class WorkerService {
     } finally {
       _isProcessing = false;
     }
+  }
+
+  // ============================================================
+  // 🌐 TRANSLATION
+  // ============================================================
+
+  /// 🌐 Translate pending entries (Thai → English)
+  Future<void> _translateEntries() async {
+    await _translatorWorker.initialize();
+    final entries = await DatabaseHelper.instance.getAllEntries();
+    await _translatorWorker.translatePending(entries);
   }
 
   // ============================================================
@@ -380,6 +436,14 @@ JSON:''';
     _deferredService.enqueue(
       taskType: 'health_analysis',
       priority: TaskPriority.normal,
+    );
+  }
+
+  /// ➕ Queue entry translation
+  void queueTranslation() {
+    _deferredService.enqueue(
+      taskType: 'translate_entries',
+      priority: TaskPriority.low,
     );
   }
 
