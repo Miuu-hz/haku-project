@@ -168,23 +168,26 @@ class CloudLLMProvider implements LLMProvider {
     _mode = mode;
   }
 
-  /// ทดสอบ connection
+  /// ทดสอบ connection — throw Exception พร้อม error message ถ้าล้มเหลว
   Future<bool> testConnection() async {
     if (_mode == ConnectionMode.tunnel) {
-      return _client.healthCheck();
+      final healthy = await _client.healthCheck();
+      if (!healthy) {
+        throw Exception('Tunnel endpoint ไม่ตอบ: ${_client.baseUrl}');
+      }
+      return true;
     }
 
     // Direct mode: ส่ง simple prompt ทดสอบ
-    try {
-      final response = await _client.callDirect(
-        cloudProvider.name,
-        'Hello, respond with just "OK"',
-        maxTokens: 10,
-      );
-      return response.success;
-    } catch (e) {
-      return false;
+    final response = await _client.callDirect(
+      cloudProvider.name,
+      'Hello, respond with just "OK"',
+      maxTokens: 10,
+    );
+    if (!response.success) {
+      throw Exception(response.errorMessage ?? 'Unknown error');
     }
+    return true;
   }
 
   /// ดึง connection info

@@ -170,13 +170,17 @@ class MCPClient {
     }
 
     try {
-      final url =
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$_apiKey';
+      // ใช้ x-goog-api-key header แทน query param (recommended by Google)
+      const url =
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
       final response = await http
           .post(
             Uri.parse(url),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': _apiKey!,
+            },
             body: jsonEncode({
               'contents': [
                 {
@@ -191,6 +195,8 @@ class MCPClient {
             }),
           )
           .timeout(_timeout);
+
+      debugPrint('🔵 Gemini response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -213,12 +219,26 @@ class MCPClient {
             code: -1, message: 'Empty response from Gemini');
       }
 
+      // Parse error message from Gemini API response
+      String errorMsg = 'HTTP ${response.statusCode}';
+      try {
+        final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
+        final error = errorJson['error'] as Map<String, dynamic>?;
+        if (error != null) {
+          errorMsg = '${error['status'] ?? response.statusCode}: ${error['message'] ?? response.body}';
+        }
+      } catch (_) {
+        errorMsg = 'HTTP ${response.statusCode}: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}';
+      }
+
+      debugPrint('❌ Gemini API error: $errorMsg');
       return MCPResponse.error(
         code: response.statusCode,
-        message: 'Gemini API error: ${response.body}',
+        message: errorMsg,
       );
     } catch (e) {
-      return MCPResponse.error(code: -1, message: 'Gemini API failed: $e');
+      debugPrint('❌ Gemini API failed: $e');
+      return MCPResponse.error(code: -1, message: 'Gemini connection failed: $e');
     }
   }
 
