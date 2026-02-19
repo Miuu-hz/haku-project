@@ -76,44 +76,50 @@ class SecretChatService {
     }
   }
 
-  /// Parse extraction JSON จาก LLM (robust — fallback ถ้า JSON พัง)
+  /// Parse extraction JSON จาก LLM (robust)
+  ///
+  /// Gemma 3 1B อาจมี text ก่อน/หลัง JSON — ใช้ regex หา {...} block
   EnglishLogEntry? _parseExtraction(String raw, String originalUserMsg) {
-    try {
-      // ลบ markdown code block ถ้ามี
-      var clean = raw.trim();
-      if (clean.startsWith('```')) {
-        clean = clean.replaceAll(RegExp(r'```[a-z]*\n?'), '').trim();
+    // หา JSON block แรกใน response (รองรับ text ก่อนหน้า/code block)
+    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(raw);
+    if (jsonMatch != null) {
+      try {
+        final json = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
+        final data = json['extracted_data'] as Map<String, dynamic>? ?? {};
+        final tags = (data['tags'] as List<dynamic>?)
+                ?.whereType<String>()
+                .toList() ??
+            [];
+        final entities = (data['entities'] as List<dynamic>?)
+                ?.whereType<String>()
+                .toList() ??
+            [];
+        final summaryRaw = json['summary_en'];
+        final summaryEn = summaryRaw is String && summaryRaw.trim().isNotEmpty
+            ? summaryRaw.trim()
+            : originalUserMsg.substring(0, originalUserMsg.length.clamp(0, 60));
+
+        return EnglishLogEntry(
+          timestamp: DateTime.now(),
+          summaryEn: summaryEn,
+          intent: (json['intent'] as String?) ?? 'chat',
+          tags: [...tags, ...entities],
+          location: data['location'] as String?,
+          mood: (data['mood'] as num?)?.toInt(),
+        );
+      } catch (e) {
+        debugPrint('⚠️ Secret Chat: JSON decode failed: $e');
       }
-
-      final json = jsonDecode(clean) as Map<String, dynamic>;
-      final data = json['extracted_data'] as Map<String, dynamic>? ?? {};
-      final tags = (data['tags'] as List<dynamic>?)
-              ?.map((t) => t.toString())
-              .toList() ??
-          [];
-      final entities = (data['entities'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [];
-
-      return EnglishLogEntry(
-        timestamp: DateTime.now(),
-        summaryEn: (json['summary_en'] as String?)?.trim() ?? '',
-        intent: (json['intent'] as String?) ?? 'chat',
-        tags: [...tags, ...entities],
-        location: data['location'] as String?,
-        mood: (data['mood'] as num?)?.toInt(),
-      );
-    } catch (_) {
-      // Fallback: ถ้า JSON พัง เก็บเป็น plain log
-      debugPrint('⚠️ Secret Chat: JSON parse failed, using fallback');
-      return EnglishLogEntry(
-        timestamp: DateTime.now(),
-        summaryEn: raw.trim().substring(0, raw.trim().length.clamp(0, 100)),
-        intent: 'chat',
-        tags: [],
-      );
     }
+
+    // Fallback: ไม่มี JSON เลย → log ภาษาไทยดิบแทน
+    debugPrint('⚠️ Secret Chat: no JSON found, using raw fallback');
+    return EnglishLogEntry(
+      timestamp: DateTime.now(),
+      summaryEn: originalUserMsg.substring(0, originalUserMsg.length.clamp(0, 80)),
+      intent: 'chat',
+      tags: [],
+    );
   }
 
   Future<void> _persist() async {

@@ -452,10 +452,10 @@ class ChatEntry {
 
   factory ChatEntry.fromJson(Map<String, dynamic> json) => ChatEntry(
         timestamp: DateTime.parse(json['timestamp'] as String),
-        isUser: json['isUser'] as bool,
-        message: json['message'] as String,
-        intent: json['intent'] as String,
-        length: json['length'] as int,
+        isUser: json['isUser'] == true,
+        message: json['message'] as String? ?? '',
+        intent: json['intent'] as String? ?? 'chat',
+        length: (json['length'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
