@@ -60,15 +60,37 @@ class SchedulerService {
   /// 📅 สร้าง event ใน Calendar
   Future<bool> createCalendarEvent(EventInfo event) async {
     try {
+      // Android ต้องการ startTime/endTime เป็น milliseconds since epoch
+      final now = DateTime.now();
+      DateTime startDateTime = event.date ?? now.add(const Duration(hours: 1));
+
+      // ถ้ามี time string เช่น "15:00" หรือ "15" → parse แล้วใส่ใน startDateTime
+      if (event.time != null) {
+        final timeParts = event.time!.split(':');
+        final hour = int.tryParse(timeParts[0]) ?? 9;
+        final minute = timeParts.length > 1 ? (int.tryParse(timeParts[1]) ?? 0) : 0;
+        startDateTime = DateTime(
+          startDateTime.year,
+          startDateTime.month,
+          startDateTime.day,
+          hour,
+          minute,
+        );
+      }
+
+      final endDateTime = startDateTime.add(Duration(minutes: event.durationMinutes));
+
       final result = await _channel.invokeMethod('createEvent', {
         'title': event.title,
-        'date': event.date?.toIso8601String(),
-        'time': event.time,
-        'durationMinutes': event.durationMinutes,
+        'description': '',
+        'startTime': startDateTime.millisecondsSinceEpoch,
+        'endTime': endDateTime.millisecondsSinceEpoch,
         'location': event.location,
+        'addReminder': true,
+        'reminderMinutes': 15,
       });
-      
-      return result == true;
+
+      return result != null; // Android returns eventId (Long) on success
     } on PlatformException catch (e) {
       if (kDebugMode) print('❌ Create calendar event failed: ${e.message}');
       return false;

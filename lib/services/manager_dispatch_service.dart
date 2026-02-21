@@ -81,7 +81,7 @@ class ManagerDispatchService {
     // Map Secret Chat intent → ManagerIntent
     final intent = switch (logEntry.intent) {
       'schedule' => ManagerIntent.schedule,
-      'search' => ManagerIntent.search,
+      'search' || 'query' => ManagerIntent.search, // query = search intent
       'log' || 'chat' => ManagerIntent.none,
       _ => ManagerIntent.none,
     };

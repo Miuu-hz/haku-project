@@ -85,6 +85,12 @@ You are a data extraction worker. Extract structured information from this conve
 User said: "$userMessage"
 AI replied: "$aiResponse"
 
+Intent rules:
+- "log"      = user sharing personal event/activity/experience (went somewhere, did something, felt something)
+- "schedule" = user mentions future appointment, plan, reminder
+- "query"    = user asking a question or searching for information
+- "chat"     = casual greeting or small talk with no actionable info
+
 Output JSON ONLY:
 {
   "intent": "log|schedule|query|chat",

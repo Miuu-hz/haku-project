@@ -25,27 +25,33 @@ class MCPClient {
   String? _apiKey;
   final Duration _timeout;
   final int _maxRetries;
+  String _openRouterModel;
 
   MCPClient({
     required String baseUrl,
     String? apiKey,
     Duration timeout = const Duration(seconds: 30),
     int maxRetries = 3,
+    String openRouterModel = 'google/gemini-2.0-flash-001',
   })  : _baseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl,
         _apiKey = apiKey,
         _timeout = timeout,
-        _maxRetries = maxRetries;
+        _maxRetries = maxRetries,
+        _openRouterModel = openRouterModel;
 
   // ── Configuration ──
 
   String get baseUrl => _baseUrl;
 
-  void updateConfig({String? baseUrl, String? apiKey}) {
+  void updateConfig({String? baseUrl, String? apiKey, String? openRouterModel}) {
     if (baseUrl != null) {
       _baseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     }
     if (apiKey != null) {
       _apiKey = apiKey;
+    }
+    if (openRouterModel != null) {
+      _openRouterModel = openRouterModel;
     }
   }
 
@@ -155,6 +161,8 @@ class MCPClient {
         return _callClaude(prompt, maxTokens);
       case 'openai':
         return _callOpenAI(prompt, maxTokens);
+      case 'openrouter':
+        return _callOpenRouter(prompt, maxTokens);
       default:
         return MCPResponse.error(
           code: -1,
@@ -342,6 +350,61 @@ class MCPClient {
       );
     } catch (e) {
       return MCPResponse.error(code: -1, message: 'OpenAI API failed: $e');
+    }
+  }
+
+  /// 🟠 OpenRouter API (OpenAI-compatible, routes to any model)
+  Future<MCPResponse> _callOpenRouter(String prompt, int maxTokens) async {
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      return MCPResponse.error(code: 401, message: 'OpenRouter API key required (sk-or-v1-...)');
+    }
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_apiKey',
+              'HTTP-Referer': 'https://github.com/haku-app',
+              'X-Title': 'Haku',
+            },
+            body: jsonEncode({
+              'model': _openRouterModel,
+              'max_tokens': maxTokens,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+            }),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final choices = json['choices'] as List? ?? [];
+        if (choices.isNotEmpty) {
+          final message = choices[0]['message'] as Map<String, dynamic>? ?? {};
+          final text = message['content'] as String? ?? '';
+          final usage = json['usage'] as Map<String, dynamic>? ?? {};
+          return MCPResponse.success(
+            text: text,
+            provider: 'openrouter/$_openRouterModel',
+            tokensUsed: usage['total_tokens'] as int? ?? 0,
+          );
+        }
+        return MCPResponse.error(code: -1, message: 'Empty response from OpenRouter');
+      }
+
+      String errorMsg = 'HTTP ${response.statusCode}';
+      try {
+        final err = jsonDecode(response.body) as Map<String, dynamic>;
+        errorMsg = err['error']?['message'] as String? ?? errorMsg;
+      } catch (_) {}
+
+      debugPrint('❌ OpenRouter error: $errorMsg');
+      return MCPResponse.error(code: response.statusCode, message: errorMsg);
+    } catch (e) {
+      return MCPResponse.error(code: -1, message: 'OpenRouter connection failed: $e');
     }
   }
 

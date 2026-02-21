@@ -19,6 +19,7 @@ enum ProviderType {
   cloudGemini,
   cloudClaude,
   cloudOpenai,
+  cloudOpenRouter,
 }
 
 class LLMProviderManager {
@@ -42,6 +43,7 @@ class LLMProviderManager {
   CloudLLMProvider? _geminiProvider;
   CloudLLMProvider? _claudeProvider;
   CloudLLMProvider? _openaiProvider;
+  CloudLLMProvider? _openRouterProvider;
   final MockLLMProvider _mockProvider = MockLLMProvider();
 
   // ── Shared MCP client ──
@@ -196,6 +198,13 @@ class LLMProviderManager {
           icon: '🟢',
           requiresApiKey: true,
         ),
+        ProviderInfo(
+          type: ProviderType.cloudOpenRouter,
+          name: 'OpenRouter',
+          description: 'key เดียวใช้ได้ทุก model (Gemini, Claude, Llama, ...)',
+          icon: '🟠',
+          requiresApiKey: true,
+        ),
       ];
 
   /// 📊 Get current config
@@ -243,6 +252,14 @@ class LLMProviderManager {
           mode: mode,
         );
         return _openaiProvider!;
+
+      case ProviderType.cloudOpenRouter:
+        _openRouterProvider ??= CloudLLMProvider(
+          cloudProvider: CloudProvider.openrouter,
+          client: _getOrCreateMCPClient(),
+          mode: mode,
+        );
+        return _openRouterProvider!;
     }
   }
 
@@ -266,6 +283,8 @@ class LLMProviderManager {
         return CloudProvider.claude;
       case ProviderType.cloudOpenai:
         return CloudProvider.openai;
+      case ProviderType.cloudOpenRouter:
+        return CloudProvider.openrouter;
       case ProviderType.onDevice:
         return null;
     }

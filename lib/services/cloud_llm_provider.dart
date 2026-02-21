@@ -18,6 +18,7 @@ enum CloudProvider {
   gemini,
   claude,
   openai,
+  openrouter,
 }
 
 enum ConnectionMode {
@@ -52,6 +53,8 @@ class CloudLLMProvider implements LLMProvider {
         return 'Claude Haiku (Cloud)';
       case CloudProvider.openai:
         return 'GPT-4o-mini (Cloud)';
+      case CloudProvider.openrouter:
+        return 'OpenRouter (Cloud)';
     }
   }
 
@@ -158,9 +161,9 @@ class CloudLLMProvider implements LLMProvider {
 
   // ── Cloud-specific methods ──
 
-  /// อัพเดท config (URL, API key)
-  void updateConfig({String? baseUrl, String? apiKey}) {
-    _client.updateConfig(baseUrl: baseUrl, apiKey: apiKey);
+  /// อัพเดท config (URL, API key, OpenRouter model)
+  void updateConfig({String? baseUrl, String? apiKey, String? openRouterModel}) {
+    _client.updateConfig(baseUrl: baseUrl, apiKey: apiKey, openRouterModel: openRouterModel);
   }
 
   /// เปลี่ยน mode
