@@ -67,3 +67,7 @@ coverage/
 *.g.dart
 *.freezed.dart
 *.config.dart
+
+# CLI Test (contains API keys)
+bin/test_cli.dart
+

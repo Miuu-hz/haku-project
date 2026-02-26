@@ -112,6 +112,28 @@ class LeanContextService {
   // 📝 ADD MESSAGES
   // ============================================================
 
+  /// 🔄 Update the last AI message's lean content with English translation
+  /// Called after SecretChatService produces an English summary.
+  /// English is ~3-5x more token-efficient than Thai for Gemma tokenizer.
+  void updateLastPairWithEnglish(String englishSummary) {
+    if (_leanMessages.isEmpty) return;
+    for (int i = _leanMessages.length - 1; i >= 0; i--) {
+      if (_leanMessages[i].role == MessageRole.assistant) {
+        final msg = _leanMessages[i];
+        _leanMessages[i] = LeanMessage(
+          role: msg.role,
+          content: msg.content,
+          leanContent: englishSummary,
+          timestamp: msg.timestamp,
+          actions: msg.actions,
+        );
+        _saveToStorage();
+        debugPrint('📦 Lean→EN: "$englishSummary"');
+        return;
+      }
+    }
+  }
+
   /// ➕ Add user message
   Future<void> addUserMessage(String content) async {
     _ensureSessionStarted();

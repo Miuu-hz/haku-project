@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'context_retriever.dart';
 import 'database_helper.dart';
 import 'location_service.dart';
+import 'workers/calendar_worker.dart';
 
 /// ⚡ MVP Trigger Service - ตัวกระตุ้นอัตโนมัติตามบริบท
 ///
@@ -114,28 +115,27 @@ class MVPTriggerService {
     if (minute > 9) return;
 
     TriggerType? triggerType;
-    String? message;
     String triggerKey = '';
 
     switch (hour) {
       case 9:
         triggerType = TriggerType.morningStart;
-        message = 'สวัสดีตอนเช้า! พร้อมเริ่มวันใหม่ไหมคะ?';
         triggerKey = 'morning_${now.year}${now.month}${now.day}';
         break;
       case 12:
         triggerType = TriggerType.lunchTime;
-        message = 'ถึงเวลาพักเที่ยงแล้ว วันนี้กินอะไรดีนะ?';
         triggerKey = 'lunch_${now.year}${now.month}${now.day}';
         break;
       case 17:
         triggerType = TriggerType.eveningEnd;
-        message = 'เลิกงานแล้ว! วันนี้เป็นยังไงบ้างคะ?';
         triggerKey = 'evening_${now.year}${now.month}${now.day}';
+        break;
+      case 20:
+        triggerType = TriggerType.eveningSummary;
+        triggerKey = 'evening_summary_${now.year}${now.month}${now.day}';
         break;
       case 22:
         triggerType = TriggerType.bedtime;
-        message = 'ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ';
         triggerKey = 'bedtime_${now.year}${now.month}${now.day}';
         break;
     }
@@ -143,7 +143,72 @@ class MVPTriggerService {
     // Deduplication: ตรวจสอบว่า trigger นี้ยิงไปแล้วหรือยัง
     if (triggerType != null && !_triggeredToday.contains(triggerKey)) {
       _triggeredToday.add(triggerKey);
-      _fireTrigger(triggerType, message: message);
+      _fireTriggerAsync(triggerType, now).catchError((Object e) {
+        debugPrint('⚠️ Trigger async error (non-fatal): $e');
+      });
+    }
+  }
+
+  /// 🔥 Fire trigger พร้อม build message async (ดึง calendar events)
+  Future<void> _fireTriggerAsync(TriggerType type, DateTime now) async {
+    String message;
+    switch (type) {
+      case TriggerType.morningStart:
+        message = await _buildMorningMessage(now);
+        break;
+      case TriggerType.eveningSummary:
+        message = await _buildEveningSummaryMessage(now);
+        break;
+      case TriggerType.lunchTime:
+        message = 'ถึงเวลาพักเที่ยงแล้ว วันนี้กินอะไรดีนะ?';
+        break;
+      case TriggerType.eveningEnd:
+        message = 'เลิกงานแล้ว! วันนี้เป็นยังไงบ้างคะ?';
+        break;
+      case TriggerType.bedtime:
+        message = 'ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ';
+        break;
+      default:
+        message = '';
+    }
+    await _fireTrigger(type, message: message);
+  }
+
+  /// 🌅 สร้าง morning message พร้อม agenda วันนี้
+  Future<String> _buildMorningMessage(DateTime now) async {
+    try {
+      final worker = CalendarWorker();
+      await worker.initialize();
+      final events = worker.getEventsForDate(now);
+      if (events.isEmpty) {
+        return 'สวัสดีตอนเช้า! วันนี้ไม่มีนัดหมาย พร้อมเริ่มวันใหม่ไหมคะ?';
+      }
+      final list = events.take(3).map((e) {
+        final timeStr = e.time != null
+            ? ' ${e.time!.hour.toString().padLeft(2, '0')}:${e.time!.minute.toString().padLeft(2, '0')}'
+            : '';
+        return '${e.title}$timeStr';
+      }).join(', ');
+      final more = events.length > 3 ? ' (+${events.length - 3})' : '';
+      return 'สวัสดีตอนเช้า! วันนี้มี ${events.length} นัด: $list$more';
+    } catch (_) {
+      return 'สวัสดีตอนเช้า! พร้อมเริ่มวันใหม่ไหมคะ?';
+    }
+  }
+
+  /// 🌆 สร้าง evening summary message
+  Future<String> _buildEveningSummaryMessage(DateTime now) async {
+    try {
+      final worker = CalendarWorker();
+      await worker.initialize();
+      final events = worker.getEventsForDate(now);
+      if (events.isEmpty) {
+        return 'เย็นแล้ว! วันนี้ไม่มีนัดหมาย พักผ่อนให้เต็มที่นะคะ';
+      }
+      final list = events.take(3).map((e) => e.title).join(', ');
+      return 'เย็นแล้ว! วันนี้มีนัด ${events.length} รายการ: $list วันนี้เป็นยังไงบ้างคะ?';
+    } catch (_) {
+      return 'เย็นแล้ว! วันนี้เป็นยังไงบ้างคะ? อย่าลืมพักผ่อนด้วยนะ';
     }
   }
 
@@ -295,6 +360,8 @@ class MVPTriggerService {
         return ['กินแล้ว', 'ยังไม่กิน', 'ไปกินข้าวข้างนอก'];
       case TriggerType.eveningEnd:
         return ['เหนื่อยมาก', 'สบายดี', 'เลิกงานแล้ว!'];
+      case TriggerType.eveningSummary:
+        return ['วันดีมาก', 'เหนื่อยหน่อย', 'สรุปวันนี้'];
       case TriggerType.bedtime:
         return ['วันนี้ดีมาก', 'เหนื่อย', 'พรุ่งนี้สู้ๆ'];
       case TriggerType.locationRevisit:
@@ -358,9 +425,10 @@ class MVPTriggerService {
 
 /// 🔔 Trigger Types
 enum TriggerType {
-  morningStart,    // 09:00 - เริ่มวัน
+  morningStart,    // 09:00 - เริ่มวัน (พร้อม agenda)
   lunchTime,       // 12:00 - พักเที่ยง
   eveningEnd,      // 17:00 - เลิกงาน
+  eveningSummary,  // 20:00 - สรุปวัน (2.12)
   bedtime,         // 22:00 - ก่อนนอน
   locationRevisit, // กลับมาที่เดิม
   noEntryReminder, // ไม่มีบันทึกนานเกินไป
@@ -390,6 +458,8 @@ class TriggerEvent {
         return 'พักเที่ยง 🍜';
       case TriggerType.eveningEnd:
         return 'เลิกงานแล้ว 🌆';
+      case TriggerType.eveningSummary:
+        return 'สรุปวันนี้ 📋';
       case TriggerType.bedtime:
         return 'ก่อนนอน 🌙';
       case TriggerType.locationRevisit:

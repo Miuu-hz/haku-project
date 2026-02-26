@@ -261,41 +261,36 @@ class HybridVectorSearch {
   String _extractText(Entry entry) =>
       '${entry.content} ${entry.tags.join(' ')} ${entry.locationName ?? ''}';
   
-  /// 🧠 Create embedding (TF-IDF like)
+  /// 🧠 Create embedding (TF-IDF hash-based)
   List<double> _createEmbedding(String text) {
-    final normalized = text.toLowerCase()
-        .replaceAll(RegExp(r'[^\u0E00-\u0E7Fa-z0-9\s]'), ' ')
-        .trim();
-    
-    final words = normalized.split(RegExp(r'\s+'))
-        .where((w) => w.length > 1)
-        .toList();
-    
+    final normalized = text.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
+    final tokens = normalized.split(RegExp(r'\s+'));
+
     final vector = List<double>.filled(_vectorDim, 0.0);
-    
+
     // Term Frequency
-    for (final word in words) {
-      final hash = _hashString(word) % _vectorDim;
+    for (final token in tokens) {
+      final hash = _hashString(token) % _vectorDim;
       vector[hash] += 1.0;
     }
-    
-    // ลดน้ำหนัก stop words
+
+    // ลดน้ำหนัก English stop words
     final stopWords = _getStopWords();
-    for (final word in words) {
-      if (stopWords.contains(word)) {
-        final hash = _hashString(word) % _vectorDim;
+    for (final token in tokens) {
+      if (stopWords.contains(token)) {
+        final hash = _hashString(token) % _vectorDim;
         vector[hash] *= 0.1;
       }
     }
-    
-    // Normalize
+
+    // L2 Normalize
     final magnitude = sqrt(vector.fold(0.0, (sum, v) => sum + v * v));
     if (magnitude > 0) {
       for (var i = 0; i < vector.length; i++) {
         vector[i] /= magnitude;
       }
     }
-    
+
     return vector;
   }
   

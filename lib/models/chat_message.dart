@@ -14,6 +14,7 @@ enum ChatMessageType {
   loading,
   error,
   welcome,
+  searching,
 }
 
 class ChatMessage {
@@ -43,6 +44,7 @@ class ChatMessage {
   bool get isLoading => type == ChatMessageType.loading;
   bool get isError => type == ChatMessageType.error;
   bool get isWelcome => type == ChatMessageType.welcome;
+  bool get isSearching => type == ChatMessageType.searching;
   bool get hasActions => actions != null && actions!.isNotEmpty;
 
   // Factory constructors
@@ -81,6 +83,11 @@ class ChatMessage {
   factory ChatMessage.error(String message) => ChatMessage(
         type: ChatMessageType.error,
         content: message,
+      );
+
+  factory ChatMessage.searching(String content) => ChatMessage(
+        type: ChatMessageType.searching,
+        content: content,
       );
 
   factory ChatMessage.welcome() => ChatMessage(

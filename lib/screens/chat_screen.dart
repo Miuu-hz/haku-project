@@ -6,16 +6,20 @@ import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
-import '../services/ai_action_service.dart';
 import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
+import '../services/manager_dispatch_service.dart';
 import '../services/mvp_trigger_service.dart';
 import '../services/notification_service.dart';
 import '../services/rag_service.dart';
+import '../services/background_task_handlers.dart';
 import '../services/chat_summary_service.dart';
-import '../services/mediapipe_llm_service.dart';
+import '../services/deferred_task_service.dart';
+import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
+import '../services/secret_chat_service.dart';
 import '../services/smart_preprocessor.dart';
+import '../services/web_search_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
 /// 
@@ -46,8 +50,10 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   /// 🔧 Extract response text from JSON or plain text
   String _extractResponseText(String response) {
     try {
+      // 🧹 Strip Gemma template tokens ที่รั่วออกมาจาก cloud models
+      var cleanResponse = PromptBuilder.cleanResponse(response);
+
       // ลบ Markdown code block ถ้ามี
-      var cleanResponse = response.trim();
       if (cleanResponse.startsWith('```json')) {
         cleanResponse = cleanResponse.substring(7);
       }
@@ -72,12 +78,15 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🤖 ส่งข้อความไปให้ AI พร้อม Smart Preprocessing
+  /// 🤖 ส่งข้อความไปให้ AI — Two-Stage Architecture
+  ///
+  /// Stage 1 (The Face): ตอบสนทนาไทยธรรมชาติ พร้อม context/RAG
+  /// Stage 2 (Big Manager): lean classify + dispatch งาน urgent/deferred
   Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
     debugPrint('🚀 ============================================');
     debugPrint('🚀 sendToAI called: $userMessage');
-    
-    // เพิ่มข้อความผู้ใช้ (จะถูกบันทึกอัตโนมัติใน addMessage)
+
+    // เพิ่มข้อความผู้ใช้
     addMessage(ChatMessage.user(userMessage));
 
     // แสดง "กำลังพิมพ์..."
@@ -88,147 +97,249 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     try {
       String contextStr = '';
       PreprocessResult? preprocessResult;
-      
-      // 🧠 Smart Preprocessor: วิเคราะห์ intent + ดึง context (NEW)
+
+      // ──────────────────────────────────────────────────────
+      // 0. Quick Action (rule-based, 0 LLM tokens) — greeting, name, etc.
+      // ──────────────────────────────────────────────────────
+      final preprocessor = SmartPreprocessor();
+      final quickAction = preprocessor.detectQuickAction(userMessage);
+      if (quickAction != null) {
+        debugPrint('⚡ Quick action: ${quickAction.type.name}');
+        state = state.where((m) => !m.isLoading).toList();
+        addMessage(ChatMessage.assistant(quickAction.response));
+        await preprocessor.addToLeanContext(userMessage, isUser: true);
+        await preprocessor.addToLeanContext(quickAction.response, isUser: false);
+        return;
+      }
+
+      // ──────────────────────────────────────────────────────
+      // 1. SmartPreprocessor (rule-based workers, 0 LLM tokens)
+      // ──────────────────────────────────────────────────────
       if (useContext) {
         try {
           debugPrint('🧠 Running SmartPreprocessor...');
-          final preprocessor = SmartPreprocessor();
           preprocessResult = await preprocessor.preprocess(
             userMessage,
-            useLeanContext: true, // ใช้ Lean Context ประหยัด token
+            useLeanContext: true,
           );
           contextStr = preprocessResult.enrichedContext;
           debugPrint('✅ Preprocessing complete:');
           debugPrint('   - Intent: ${preprocessResult.detectedIntent}');
           debugPrint('   - Context length: ${contextStr.length}');
           debugPrint('   - Worker results: ${preprocessResult.workerResults.getSummary()}');
-          
-          // บันทึก message เข้า LeanContext สำหรับใช้ใน session ต่อไป
+
           await preprocessor.addToLeanContext(userMessage, isUser: true);
         } catch (e, stackTrace) {
           debugPrint('⚠️ SmartPreprocessor failed: $e');
           debugPrint('Stack: $stackTrace');
-          // Fallback to ContextRetriever
           try {
             final contextData = await ContextRetriever().retrieveFullContext(
               userQuery: userMessage,
             );
             contextStr = ContextRetriever().buildContextString(contextData);
-            debugPrint('✅ Fallback: ContextRetriever succeeded');
           } catch (e2) {
             debugPrint('⚠️ Fallback also failed: $e2');
           }
         }
       }
-      
-      // 🎯 เรียก MediaPipe LLM แบบ Lazy Loading
-      final llm = MediaPipeLLMService();
 
-      // 🔋 Lazy Loading
+      // เตรียม LLM
+      final llm = LLMProviderManager().provider;
       if (!llm.isInitialized && !llm.isLoading) {
         await llm.initialize();
       }
 
-      if (llm.isInitialized) {
+      // ──────────────────────────────────────────────────────
+      // PATH A: Search detected by SmartPreprocessor (keyword)
+      // ──────────────────────────────────────────────────────
+      final needsSearch =
+          preprocessResult?.detectedIntent == DetectedIntent.search;
+
+      if (needsSearch) {
+        debugPrint('🔍 Search path: showing intermediate message...');
+
+        // แสดง intermediate message แทน loading
+        state = state.where((m) => !m.isLoading).toList();
+        addMessage(
+            ChatMessage.searching('รับทราบค่ะ กำลังค้นหาให้นะคะ... 🔍'));
+
+        // Execute web search
+        final searchQuery = preprocessResult!.searchQuery ?? userMessage;
+        ManagerDispatchService.markSearched(searchQuery); // dedup
+        String? webResult;
         try {
-          debugPrint('🔄 Calling MediaPipe LLM with Gemma-3 prompt...');
-          // สร้าง prompt ที่มี system prompt + context + user message
-          final prompt = PromptBuilder.buildGemmaPrompt(
-            userMessage: userMessage,
-            context: contextStr.isNotEmpty ? contextStr : null,
-          );
-          response = await llm.generate(prompt);
-          
-          // บันทึก AI response เข้า LeanContext
-          if (response.isNotEmpty) {
-            final displayResponse = _extractResponseText(response);
-            await SmartPreprocessor().addToLeanContext(displayResponse, isUser: false);
-          }
+          final webService = WebSearchService();
+          await webService.initialize();
+          webResult = await webService.searchForAI(searchQuery);
+          debugPrint('✅ Web search completed: $searchQuery');
         } catch (e) {
-          response = null;
+          debugPrint('⚠️ Web search failed: $e');
+        }
+
+        // Follow-up LLM: สรุปผลค้นหาเป็นคำตอบ
+        if (llm.isInitialized &&
+            webResult != null &&
+            webResult.isNotEmpty) {
+          try {
+            final followUpPrompt =
+                _buildSearchFollowUpPrompt(userMessage, webResult);
+            response = await llm.generate(followUpPrompt);
+            response = _extractResponseText(response);
+          } catch (e) {
+            debugPrint('⚠️ Follow-up generation failed: $e');
+            response = webResult;
+          }
+        } else {
+          response = webResult ?? 'ไม่พบข้อมูลค่ะ';
+        }
+
+        // Replace searching message with real response
+        state = state.where((m) => !m.isSearching).toList();
+        addMessage(ChatMessage.assistant(
+          response,
+          sources: useContext ? _extractSources(contextStr) : null,
+        ));
+
+        // Save to lean context
+        if (response.isNotEmpty) {
+          await SmartPreprocessor()
+              .addToLeanContext(response, isUser: false);
+        }
+      } else {
+        // ──────────────────────────────────────────────────────
+        // PATH B: General message — Secret Chat First Architecture
+        //
+        // Step 1: PreClassify (LLM) if rule-based intent = general
+        //   → language-agnostic intent detection
+        //   → Face gets context hint for correct response
+        // Step 2: Face LLM — Thai natural response + intent hint
+        // Step 3: [async] logExchange reuses preClassify (0 extra LLM call)
+        // ──────────────────────────────────────────────────────
+
+        // 1. PreClassify — runs only when rule-based couldn't classify
+        PreClassifyResult? preClassify;
+        final ruleIntent = preprocessResult?.detectedIntent ?? DetectedIntent.general;
+        if (llm.isInitialized && ruleIntent == DetectedIntent.general) {
+          debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
+          preClassify = await SecretChatService().preClassify(userMessage);
+          if (preClassify != null && preClassify.contextHint.isNotEmpty) {
+            // Inject intent hint at front of context for Face
+            contextStr = '${preClassify.contextHint}\n$contextStr';
+            debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+          }
+        }
+
+        // 2. Face LLM — Stage 1 (The Face)
+        debugPrint('🎭 Stage 1 (The Face): generating natural response...');
+
+        if (llm.isInitialized) {
+          try {
+            final isCloud = LLMProviderManager().activeType != ProviderType.onDevice;
+            final prompt = isCloud
+                ? PromptBuilder.buildCloudPrompt(
+                    userMessage: userMessage,
+                    context: contextStr.isNotEmpty ? contextStr : null,
+                  )
+                : PromptBuilder.buildGemmaPrompt(
+                    userMessage: userMessage,
+                    context: contextStr.isNotEmpty ? contextStr : null,
+                  );
+            response = await llm.generate(prompt);
+          } catch (e) {
+            response = null;
+          }
+        }
+
+        // Fallback to mock
+        if (response == null || response.isEmpty) {
+          response = await AIService.getMockResponse(userMessage);
+        }
+
+        final displayText = _extractResponseText(response);
+
+        // แสดงคำตอบ
+        state = state.where((m) => !m.isLoading).toList();
+        addMessage(ChatMessage.assistant(
+          displayText,
+          sources: useContext ? _extractSources(contextStr) : null,
+        ));
+
+        // Save to lean context
+        await SmartPreprocessor()
+            .addToLeanContext(displayText, isUser: false);
+
+        // 3. [async] Secret Chat log — reuses preClassify (0 extra LLM call)
+        if (llm.isInitialized) {
+          _runSecretChat(userMessage, displayText, preClassify: preClassify);
         }
       }
 
-      // Fallback ไป Mock ถ้า LLM ไม่พร้อม
-      if (response == null || response.isEmpty) {
-        response = await AIService.getMockResponse(userMessage);
-      }
-      
-      // 🔍 Parse AI Actions (WEB_SEARCH, etc.)
-      final actionService = AIActionService();
-      final parseResult = actionService.parseResponse(response);
-      
-      // Execute actions ถ้ามี
-      String? actionResult;
-      if (parseResult.hasActions) {
-        debugPrint('🎯 Found ${parseResult.actions.length} actions');
-        for (final action in parseResult.actions) {
-          debugPrint('  - Executing: ${action.displayName}');
-          final result = await actionService.executeAction(action);
-          if (result.hasDataForAI) {
-            actionResult = result.data;
-            debugPrint('  - Action result: ${actionResult?.substring(0, actionResult.length > 100 ? 100 : actionResult.length)}...');
-          }
-        }
-      }
-      
-      // ถ้ามี action result (เช่น ผลค้นหาเว็บ) ส่งกลับไปให้ AI สรุป
-      if (actionResult != null && actionResult.isNotEmpty) {
-        debugPrint('🔄 Sending action result back to AI for summary...');
-        try {
-          final followUpPrompt = _buildFollowUpPrompt(userMessage, actionResult);
-          final followUpResponse = await llm.generate(followUpPrompt);
-          if (followUpResponse.isNotEmpty) {
-            response = followUpResponse;
-          }
-        } catch (e) {
-          debugPrint('⚠️ Follow-up generation failed: $e');
-          // ถ้าไม่สำเร็จ ใช้ action result ตรงๆ
-          response = actionResult;
-        }
-      }
-      
-      debugPrint('🔄 Removing loading message...');
-      // ลบ "กำลังพิมพ์..." ออก
-      state = state.where((m) => !m.isLoading).toList();
-      
-      debugPrint('🔄 Adding assistant message...');
-      // 🔧 Parse JSON response แล้ว extract แค่ response field
-      final displayText = _extractResponseText(response);
-      
-      // เพิ่มคำตอบ
-      addMessage(ChatMessage.assistant(
-        displayText,
-        sources: useContext ? _extractSources(contextStr) : null,
-      ));
       debugPrint('✅ sendToAI completed successfully');
       debugPrint('🚀 ============================================');
-      
     } catch (e, stackTrace) {
       debugPrint('❌❌❌ CRITICAL ERROR in sendToAI: $e');
       debugPrint('Stack: $stackTrace');
-      
-      // ลบ loading ถ้ายังมี
-      state = state.where((m) => !m.isLoading).toList();
-      
-      // แสดงข้อความ error ที่ user เข้าใจ
+
+      state = state
+          .where((m) => !m.isLoading && !m.isSearching)
+          .toList();
+
       addMessage(ChatMessage.error(
         'ขอโทษค่ะ เกิดข้อผิดพลาด (${e.runtimeType})\n'
-        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ'
+        'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ',
       ));
       debugPrint('🚀 ============================================');
     }
   }
 
-  /// 🔨 สร้าง prompt สำหรับส่งผลลัพธ์ action กลับไปให้ AI
-  String _buildFollowUpPrompt(String originalQuestion, String actionResult) => '''<start_of_turn>user
+  /// 🧠 Stage 2: Big Manager — async after Stage 1
+  /// 🤫 Secret Chat: แปล Thai exchange → English log → Big Manager dispatch
+  ///
+  /// ทำ async หลัง Face ตอบ (ไม่ block UI)
+  /// Big Manager ใช้ intent จาก extraction result โดยตรง (0 LLM calls เพิ่ม)
+  void _runSecretChat(
+    String userMessage,
+    String aiResponse, {
+    PreClassifyResult? preClassify,
+  }) {
+    Future(() async {
+      try {
+        debugPrint('🤫 Secret Chat: translating exchange...');
+        final secretChat = SecretChatService();
+        final logEntry = await secretChat.logExchange(
+          userMessage: userMessage,
+          aiResponse: aiResponse,
+          preClassifyResult: preClassify,
+        );
+
+        if (logEntry != null) {
+          debugPrint('🤫 Secret Chat done: ${logEntry.summaryEn}');
+          // 📦 Replace Thai lean context with compact English (saves ~3-5x tokens)
+          SmartPreprocessor().updateLeanContextWithEnglish(logEntry.summaryEn);
+          // Big Manager dispatch based on English log (no extra LLM call)
+          final actionData = await ManagerDispatchService()
+              .dispatchFromLog(logEntry, userMessage);
+
+          if (actionData != null && actionData.isNotEmpty) {
+            addMessage(ChatMessage.assistant(actionData));
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Secret Chat failed: $e');
+      }
+    });
+  }
+
+  /// 🔨 สร้าง prompt สำหรับสรุปผลค้นหาให้ผู้ใช้
+  String _buildSearchFollowUpPrompt(
+          String originalQuestion, String searchResult) =>
+      '''<start_of_turn>user
 You are Haku, a helpful Thai-speaking AI assistant.
 
 User asked: "$originalQuestion"
 
 Search Results:
-$actionResult
+$searchResult
 
 Task: Answer the user's question naturally in Thai based on the search results above.
 Be helpful, concise, and friendly. Use emoji if appropriate.
@@ -247,7 +358,7 @@ Reply in Thai (1-2 sentences):
       final prompt = await _buildTriggerPrompt(trigger);
       
       String response;
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
       if (!llm.isInitialized && !llm.isLoading) {
@@ -337,7 +448,7 @@ Reply in Thai (1-2 sentences):
       );
 
       String response;
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
       if (!llm.isInitialized && !llm.isLoading) {
@@ -405,7 +516,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
       
-      // 📝 NOTE: LLM (MediaPipe) จะถูกโหลดแบบ Lazy Loading
+      // 🎛️ Initialize LLM Provider Manager (load saved preference)
+      debugPrint('🔄 Initializing LLM Provider Manager...');
+      await LLMProviderManager().initialize();
+      debugPrint('✅ LLM Provider: ${LLMProviderManager().providerName}');
+
+      // 📝 NOTE: LLM จะถูกโหลดแบบ Lazy Loading
       // เมื่อมีการเรียก generate() ครั้งแรกเท่านั้น
       // ไม่โหลดตอน initState เพื่อประหยัดแบตเตอรี่
       debugPrint('💡 LLM จะโหลดแบบ Lazy Loading (เมื่อใช้งานจริง)');
@@ -414,7 +530,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       debugPrint('🔄 Initializing Chat Summary Service...');
       await ChatSummaryService().initialize();
       debugPrint('✅ Chat Summary Service initialized (Deferred to Charging)');
-      
+
+      // 🏭 Initialize Deferred Task Service + register background handlers
+      debugPrint('🔄 Initializing Deferred Task Service...');
+      await DeferredTaskService().initialize();
+      BackgroundTaskHandlers.registerAll();
+      debugPrint('✅ Deferred Task Service initialized');
+
       // Index entries ถ้ายังไม่มี
       if (RAGService().isInitialized) {
         debugPrint('🔄 Indexing entries...');
@@ -535,7 +657,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatHistoryProvider);
-    final llmService = MediaPipeLLMService();
+    final llmService = LLMProviderManager().provider;
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
@@ -564,7 +686,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 const Text('Haku AI', style: TextStyle(fontSize: 16)),
                 Text(
-                  llmService.isInitialized ? 'Gemma-3 🟢' : 'Mock Mode 🟡',
+                  llmService.isInitialized ? '${LLMProviderManager().providerName} 🟢' : 'Mock Mode 🟡',
                   style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.normal),
                 ),
               ],
@@ -745,6 +867,11 @@ class _ChatBubble extends StatelessWidget {
       );
     }
 
+    // 🔍 Searching Message (intermediate)
+    if (message.isSearching) {
+      return _buildSearchingBubble(message);
+    }
+
     // 🔔 Proactive Message (จาก Trigger)
     if (message.isProactive) {
       return _buildProactiveBubble(message);
@@ -830,6 +957,85 @@ class _ChatBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
     );
+
+  /// 🔍 แสดง Searching Bubble (intermediate message)
+  Widget _buildSearchingBubble(ChatMessage message) {
+    final timeFormat = DateFormat('HH:mm');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [Color(0xFF9B7CB6), Color(0xFF6B4E71)]),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+                child: Text('箱', style: TextStyle(fontSize: 14))),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF2A2A3E),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF9B7CB6),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          message.content,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 15,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    timeFormat.format(message.timestamp),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// 🔔 แสดง Proactive Bubble (Trigger message)
   Widget _buildProactiveBubble(ChatMessage message) {

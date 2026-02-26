@@ -351,31 +351,26 @@ class UnifiedVectorService {
   // 🧠 EMBEDDING
   // ============================================================
 
+  /// 🧠 Create embedding (TF-IDF hash-based)
   List<double> _createEmbedding(String text) {
-    final normalized = text.toLowerCase()
-        .replaceAll(RegExp(r'[^\u0E00-\u0E7Fa-z0-9\s]'), ' ')
-        .trim();
-
-    final words = normalized.split(RegExp(r'\s+'))
-        .where((w) => w.length > 1)
-        .toList();
+    final normalized = text.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
+    final tokens = normalized.split(RegExp(r'\s+'));
 
     final vector = List<double>.filled(_vocabSize, 0.0);
 
     // Term frequency with position boost
-    for (var i = 0; i < words.length; i++) {
-      final word = words[i];
-      final hash = _hashString(word) % _vocabSize;
-      // Earlier words get slightly more weight
-      final positionBoost = 1.0 + (0.1 * (words.length - i) / words.length);
+    for (var i = 0; i < tokens.length; i++) {
+      final token = tokens[i];
+      final hash = _hashString(token) % _vocabSize;
+      final positionBoost = 1.0 + (0.1 * (tokens.length - i) / tokens.length);
       vector[hash] += positionBoost;
     }
 
-    // Reduce weight of stop words
+    // Reduce weight of English stop words
     final stopWords = _getStopWords();
-    for (final word in words) {
-      if (stopWords.contains(word)) {
-        final hash = _hashString(word) % _vocabSize;
+    for (final token in tokens) {
+      if (stopWords.contains(token)) {
+        final hash = _hashString(token) % _vocabSize;
         vector[hash] *= 0.1;
       }
     }

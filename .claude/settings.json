@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dart analyze:*)",
+      "Bash(flutter pub get:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\haiki\\.claude\\projects\\f--Haku-Project-haku\\memory"
+    ]
+  }
+}

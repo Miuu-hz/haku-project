@@ -15,7 +15,14 @@
       "Bash(cmd /c \"cd /d f:\\\\Haku Project\\\\haku && flutter clean\")",
       "Bash(cmd /c \"cd /d f:\\\\Haku Project\\\\haku && flutter build apk --debug 2>&1\")",
       "Bash(cmd /c \"cd /d \"\"f:\\\\Haku Project\\\\haku\"\" && flutter build apk --debug\")",
-      "Bash(cmd //c \"flutter --version\")"
+      "Bash(cmd //c \"flutter --version\")",
+      "Bash(flutter analyze:*)",
+      "Bash(cmd.exe /c \"where flutter\")",
+      "Bash(cmd.exe /c \"flutter analyze lib\\\\services\\\\background_task_handlers.dart lib\\\\services\\\\chat_summary_service.dart lib\\\\screens\\\\chat_screen.dart\")",
+      "Bash(cmd.exe /c \"flutter analyze 2>&1\")",
+      "Bash(powershell.exe:*)",
+      "Bash(\"F:/flutter/bin/flutter.bat\" analyze:*)",
+      "Bash(\"F:/flutter/bin/flutter.bat\" analyze lib/)"
     ]
   }
 }

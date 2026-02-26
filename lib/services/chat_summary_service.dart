@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'mediapipe_llm_service.dart';
+import 'deferred_task_service.dart';
+import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 
 /// 🔋 Chat Summary Service - Deferred Processing
@@ -224,6 +225,15 @@ class ChatSummaryService {
     for (final job in pending) {
       await _processSummary(job);
     }
+
+    // หลังสรุปแชทเสร็จ → enqueue daily analysis (ManagerSummaryStrategy)
+    if (pending.isNotEmpty) {
+      DeferredTaskService().enqueue(
+        taskType: 'manager_summary',
+        priority: TaskPriority.normal,
+        maxAge: const Duration(hours: 48),
+      );
+    }
   }
 
   /// 🤖 ประมวลผลสรุปด้วย LLM
@@ -240,7 +250,7 @@ class ChatSummaryService {
           .join('\n');
       
       // เรียก LLM (ตอนนี้ชาร์จอยู่ ไม่ต้องห่วงแบต)
-      final llm = MediaPipeLLMService();
+      final llm = LLMProviderManager().provider;
       
       if (!llm.isInitialized) {
         debugPrint('⚠️ LLM not available, skipping summary');
@@ -442,10 +452,10 @@ class ChatEntry {
 
   factory ChatEntry.fromJson(Map<String, dynamic> json) => ChatEntry(
         timestamp: DateTime.parse(json['timestamp'] as String),
-        isUser: json['isUser'] as bool,
-        message: json['message'] as String,
-        intent: json['intent'] as String,
-        length: json['length'] as int,
+        isUser: json['isUser'] == true,
+        message: json['message'] as String? ?? '',
+        intent: json['intent'] as String? ?? 'chat',
+        length: (json['length'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {

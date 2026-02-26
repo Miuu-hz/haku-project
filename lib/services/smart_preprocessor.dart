@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import 'database_helper.dart';
 import 'lean_context_service.dart';
+import 'scheduler_service.dart';
 import 'user_profile_service.dart';
-import 'web_search_service.dart';
 import 'workers/fact_worker.dart';
 import 'workers/calendar_worker.dart';
 import 'workers/reminder_worker.dart';
@@ -37,7 +38,6 @@ class SmartPreprocessor {
   factory SmartPreprocessor() => _instance;
   SmartPreprocessor._internal();
 
-  final WebSearchService _webSearch = WebSearchService();
   final UserProfileService _userProfile = UserProfileService();
   final LeanContextService _leanContext = LeanContextService();
 
@@ -59,9 +59,10 @@ class SmartPreprocessor {
     RegExp(r'หา(.+)ให้ที', caseSensitive: false),
     RegExp(r'(.+)คืออะไร', caseSensitive: false),
     RegExp(r'(.+)หมายความว่าอะไร', caseSensitive: false),
-    RegExp(r'อากาศ(.*)วันนี้', caseSensitive: false),
-    RegExp(r'อากาศ(.*)พรุ่งนี้', caseSensitive: false),
+    RegExp(r'อากาศ.*วันนี้', caseSensitive: false),
+    RegExp(r'อากาศ.*พรุ่งนี้', caseSensitive: false),
     RegExp(r'พยากรณ์อากาศ', caseSensitive: false),
+    RegExp(r'สภาพอากาศ', caseSensitive: false),
     RegExp(r'ข่าว(.+)', caseSensitive: false),
     RegExp(r'ราคา(.+)', caseSensitive: false),
     RegExp(r'วิธี(.+)', caseSensitive: false),
@@ -142,21 +143,37 @@ class SmartPreprocessor {
       }),
     ]);
 
-    // 2. ตรวจจับว่าต้องการค้นหาข้อมูลไหม
+    // 2. ตรวจจับว่าต้องการค้นหาข้อมูลไหม (detect only, ไม่ execute)
+    // Search execution ย้ายไปทำใน sendToAI() flow เพื่อไม่ให้ซ้ำซ้อน
     final searchQuery = _detectSearchIntent(userMessage);
     if (searchQuery != null) {
       debugPrint('🔍 Detected search intent: $searchQuery');
       intent = DetectedIntent.search;
+    }
 
+    // 2.5 ⚡ Fast Path: SQL LIKE search (0 LLM, ทันที)
+    // ถ้า user ถามเรื่องเก่า เช่น "เคยไปทะเลเมื่อไหร่" → หา entry ดิบด้วย keyword
+    final pastDataKeyword = _extractPastDataKeyword(userMessage);
+    if (pastDataKeyword != null) {
       try {
-        final searchResult = await _webSearch.searchForAI(searchQuery);
-        if (searchResult.isNotEmpty) {
-          enrichedContext += '\n\n📊 ข้อมูลจากการค้นหา:\n$searchResult';
-          debugPrint('✅ Web search completed');
+        final found = await DatabaseHelper.instance
+            .searchEntries(pastDataKeyword)
+            .timeout(const Duration(seconds: 2));
+        if (found.isNotEmpty) {
+          final snippets = found
+              .take(2)
+              .map((e) {
+                final date = e.createdAt.toString().substring(0, 10);
+                final preview = e.content.length > 80
+                    ? '${e.content.substring(0, 80)}...'
+                    : e.content;
+                return '[$date] $preview';
+              })
+              .join('\n');
+          enrichedContext = 'Related entries:\n$snippets\n$enrichedContext';
+          debugPrint('⚡ Fast Path: found ${found.length} entries for "$pastDataKeyword"');
         }
-      } catch (e) {
-        debugPrint('⚠️ Web search failed: $e');
-      }
+      } catch (_) {}
     }
 
     // 3. 📦 Build Context
@@ -175,6 +192,43 @@ class SmartPreprocessor {
       // Calendar (upcoming)
       final calendarLean = _calendarWorker.getLeanFormat();
       if (calendarLean.isNotEmpty) contextParts.add(calendarLean);
+
+      // 🔍 Conflict check — ถ้า detect schedule intent ให้ตรวจ overlap + เสนอ slot ว่าง (2.11)
+      if (intent == DetectedIntent.schedule &&
+          workerResults.calendarEvents.isNotEmpty) {
+        final first = workerResults.calendarEvents.first;
+        final timeStr = first.time != null
+            ? '${first.time!.hour.toString().padLeft(2, '0')}:${first.time!.minute.toString().padLeft(2, '0')}'
+            : null;
+        final eventInfo = EventInfo(
+          title: first.title,
+          date: first.date,
+          time: timeStr,
+          originalText: '',
+        );
+        try {
+          final scheduler = SchedulerService();
+          final conflict = await scheduler
+              .checkConflicts(eventInfo)
+              .timeout(const Duration(seconds: 3));
+          if (conflict.hasConflict) {
+            final names = conflict.conflicts
+                .map((e) => e['title'] as String? ?? 'กิจกรรม')
+                .join(', ');
+            final freeSlot = await scheduler
+                .findNextFreeSlot(
+                    conflict.proposedStart, eventInfo.durationMinutes)
+                .timeout(const Duration(seconds: 3));
+            final slotStr = freeSlot != null
+                ? '[FreeSlot:${freeSlot.hour.toString().padLeft(2, '0')}:${freeSlot.minute.toString().padLeft(2, '0')}]'
+                : '';
+            contextParts.add('[Conflict:$names]$slotStr');
+            debugPrint('⚠️ Conflict: $names | FreeSlot: $freeSlot');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Conflict check skipped: $e');
+        }
+      }
 
       // Reminders
       final reminderLean = _reminderWorker.getLeanFormat();
@@ -220,6 +274,12 @@ class SmartPreprocessor {
     }
   }
 
+  /// 🔄 Update last AI lean entry with English (Secret Chat output)
+  /// English is ~3-5x more token-efficient than Thai for on-device models
+  void updateLeanContextWithEnglish(String englishSummary) {
+    _leanContext.updateLastPairWithEnglish(englishSummary);
+  }
+
   /// 📊 Get Lean Context stats
   Map<String, dynamic> getLeanContextStats() => _leanContext.getSessionInfo();
 
@@ -252,6 +312,35 @@ class SmartPreprocessor {
       }
     }
 
+    return null;
+  }
+
+  /// ⚡ ดึง keyword สำหรับ Fast Path SQL search
+  ///
+  /// ตรวจจับว่า user ถามเรื่องข้อมูลเก่า เช่น "เคยไปทะเล", "ตอนนั้นกินอะไร"
+  /// Returns: keyword ที่จะใช้ LIKE search, หรือ null ถ้าไม่ใช่คำถามเรื่องเก่า
+  String? _extractPastDataKeyword(String message) {
+    // pattern บ่งบอกว่าถามเรื่องอดีต/ข้อมูลเก่า
+    final pastPatterns = [
+      RegExp(r'เคย(.+)', caseSensitive: false),
+      RegExp(r'ตอน(?:นั้น|ก่อน|ที่แล้ว)(.+)', caseSensitive: false),
+      RegExp(r'ครั้งที่แล้ว(.*)'),
+      RegExp(r'(.+)เมื่อไ(?:หร่|ร)'),
+      RegExp(r'(.+)วันไหน'),
+      RegExp(r'จำได้ไหม(.+)', caseSensitive: false),
+    ];
+
+    for (final pattern in pastPatterns) {
+      final match = pattern.firstMatch(message);
+      if (match != null) {
+        // ดึง capture group แรก ถ้ามี
+        final captured = match.groupCount > 0
+            ? (match.group(1) ?? '').trim()
+            : message;
+        if (captured.length >= 2) return captured;
+        return message.trim();
+      }
+    }
     return null;
   }
 

@@ -3,6 +3,26 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    // 🔧 Force Java 21 + Kotlin JVM 21 ให้กับทุก plugin/subproject
+    subprojects {
+        afterEvaluate { project ->
+            if (project.hasProperty("android")) {
+                project.android {
+                    compileOptions {
+                        sourceCompatibility JavaVersion.VERSION_21
+                        targetCompatibility JavaVersion.VERSION_21
+                    }
+                }
+                // Force Kotlin JVM target 21 สำหรับทุก Kotlin compile task
+                project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                    kotlinOptions {
+                        jvmTarget = "21"
+                    }
+                }
+            }
+        }
+    }
 }
 
 rootProject.buildDir = '../build'

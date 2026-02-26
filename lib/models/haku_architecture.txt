@@ -5,17 +5,63 @@
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                      REAL-TIME LAYER (ขณะแชท)                          │ │
 │  │                                                                         │ │
-│  │   Chat 1-3: Full Thai                 Chat 4+: Lean Syntax (Thai)      │ │
-│  │   ┌─────────────────────┐            ┌─────────────────────────────┐   │ │
-│  │   │ U: วันนี้เหนื่อยมาก   │     ──▶    │ U:เหนื่อย,งานเยอะ,เป็นเมน    │   │ │
-│  │   │ A: เหนื่อยเพราะอะไร   │            │ A:แนะนำร้านบิงซู             │   │ │
-│  │   └─────────────────────┘            └─────────────────────────────┘   │ │
+│  │  ① SmartPreprocessor (rule-based, 0 LLM tokens)                        │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ User message (Thai)                                              │   │ │
+│  │  │  → FactWorker / CalendarWorker / HealthDoctor (0 tok, regex)    │   │ │
+│  │  │  → [Fast Path] SQL LIKE search on Thai entries                  │   │ │
+│  │  │    (e.g. "เคยไปทะเล" → SELECT * WHERE content LIKE '%ทะเล%')    │   │ │
+│  │  │  → Build lean context (profile + history + found entries)       │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ② Stage 1: The Face (ตอบ user ทันที)                                  │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ Gemma 3 1B — ตอบภาษาไทยธรรมชาติ (1-2 ประโยค)                    │   │ │
+│  │  │ Input: lean context + user message                              │   │ │
+│  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ③ Secret Chat (async หลัง Face ตอบ — ไม่ block UI)                    │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ Input: Thai exchange (user msg + AI response)                   │   │ │
+│  │  │ LLM: buildWorkerExtractPrompt() → JSON extraction               │   │ │
+│  │  │ Output: EnglishLogEntry {                                       │   │ │
+│  │  │   summaryEn: "User went to beach with partner"                  │   │ │
+│  │  │   intent: log | schedule | query | chat                        │   │ │
+│  │  │   tags: ["beach", "partner"]                                    │   │ │
+│  │  │   location: "beach", mood: 8                                    │   │ │
+│  │  │ }                                                               │   │ │
+│  │  │ → Store in SharedPreferences (english_chat_log, 50 entries)    │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ④ Big Manager (async — dispatch from English log)                      │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ Reads EnglishLogEntry (no LLM call — intent already extracted)  │   │ │
+│  │  │ dispatch:                                                        │   │ │
+│  │  │   intent=schedule → CalendarWorker.addEvent()                   │   │ │
+│  │  │   intent=log      → FactWorker.extractFacts()                   │   │ │
+│  │  │   intent=search   → WebSearchService.search()                   │   │ │
+│  │  │   intent=chat     → (no action, logged only)                    │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │                      SEARCH STRATEGY                                    │ │
 │  │                                                                         │ │
-│  │   Workers (Rule-based, 0 tokens):                                       │ │
-│  │   ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐                  │ │
-│  │   │FactWork  │ │Calendar  │ │Reminder  │ │WebSearch │                  │ │
-│  │   │ชื่อ,ชอบ   │ │นัดหมาย    │ │เตือน     │ │ค้นหา     │                  │ │
-│  │   └──────────┘ └──────────┘ └──────────┘ └──────────┘                  │ │
+│  │  Fast Path (ทันที, 0 LLM):                                              │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ SmartPreprocessor → keyword extraction (regex)                  │   │ │
+│  │  │ → SQL LIKE search on raw Thai entries                           │   │ │
+│  │  │ → ถ้าเจอ → เพิ่มใน context ก่อนส่ง Face                         │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                                                                         │ │
+│  │  Slow Path (future, LLM-assisted):                                      │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ ถ้า Fast Path ไม่เจอ → แสดง "thinking..." animation             │   │ │
+│  │  │ → Translate Thai query → English                                │   │ │
+│  │  │ → Vector search English DB (whitespace tokenizer ใช้ได้)        │   │ │
+│  │  │ → ส่ง context ให้ Face ตอบ                                       │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -33,11 +79,14 @@
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                 BACKGROUND LAYER (จบวัน/ตอนชาร์จ)                       │ │
 │  │                                                                         │ │
+│  │   Input: English chat logs (from Secret Chat) +                         │ │
+│  │          English diary translations (from TranslatorWorker)             │ │
+│  │                                                                         │ │
 │  │   ┌─────────────────────────────────────────────────────────────────┐  │ │
 │  │   │              ManagerSummaryStrategy (Orchestrator)              │  │ │
 │  │   │                                                                  │  │ │
-│  │   │  1. รวม Session Summaries ทั้งวัน                                │  │ │
-│  │   │  2. วิเคราะห์ + จับใจความ                                        │  │ │
+│  │   │  1. รวม English logs ทั้งวัน                                     │  │ │
+│  │   │  2. วิเคราะห์ pattern + extract insights                         │  │ │
 │  │   │  3. Dispatch ไปยัง Specialists                                   │  │ │
 │  │   └─────────────────────────────────────────────────────────────────┘  │ │
 │  │                              │                                          │ │
@@ -46,16 +95,17 @@
 │  │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │ │
 │  │   │HealthDoctor│   │FactWorker   │   │CalendarWork │                  │ │
 │  │   │             │   │             │   │             │                  │ │
-│  │   │ • เป็นเมน    │   │ • ชอบร้าน   │   │ • คาดการณ์  │                  │ │
-│  │   │ • อาจปวดท้อง │   │   KidsHouse │   │   ปวดท้อง   │                  │ │
-│  │   │ • ติดตาม2-5d│   │ • สลัดผลไม้  │   │   2-5 วัน   │                  │ │
+│  │   │ • period    │   │ • fav place │   │ • predict   │                  │ │
+│  │   │ • symptoms  │   │   KidsHouse │   │   events    │                  │ │
+│  │   │ • track 2-5d│   │ • fruit salad│  │   2-5 days  │                  │ │
 │  │   └─────────────┘   └─────────────┘   └─────────────┘                  │ │
 │  │          │                 │                  │                         │ │
 │  │          ▼                 ▼                  ▼                         │ │
 │  │   ┌─────────────────────────────────────────────────┐                  │ │
-│  │   │              💾 RAG Storage (SQLite)            │                  │ │
-│  │   │  • health_facts    • favorite_places            │                  │ │
-│  │   │  • preferences     • scheduled_reminders        │                  │ │
+│  │   │           💾 RAG Storage (SQLite, English)       │                  │ │
+│  │   │  • health_facts    • favorite_places             │                  │ │
+│  │   │  • preferences     • scheduled_reminders         │                  │ │
+│  │   │  • english_chat_log (from Secret Chat)           │                  │ │
 │  │   └─────────────────────────────────────────────────┘                  │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
@@ -69,6 +119,13 @@
 │  │   │ วันนี้ไม่มีนัดหมาย    │       │ • ไม่มีนัดหมาย       │                │ │
 │  │   └─────────────────────┘       └─────────────────────┘                │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  TOKEN BUDGET (per exchange):                                                │
+│  ① Face LLM:     1 call  (ตอบ user)                                         │
+│  ③ Secret Chat:  1 call  (แปล + extract → English log)                      │
+│  ④ Big Manager:  0 calls (อ่าน intent จาก Secret Chat result โดยตรง)        │
+│  ─────────────────────────────────────────────────────                      │
+│  Total: 2 calls/exchange (เท่าเดิม แต่ได้ English log + structured data)    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -93,16 +150,27 @@
 │   │ facts: [], events: [หมอ], health: [period]         │  │
 │   └─────────────────────────────────────────────────────┘  │
 │                         │                                    │
+│        ┌────────────────┘                                    │
+│        ▼                                                     │
+│   [Fast Path Search] SQL LIKE '%หมอ%', '%เมน%'               │
+│   → เจอ entry เก่า? → เพิ่มใน context                        │
+│                         │                                    │
 │                         ▼                                    │
 │   ┌─────────────────────────────────────────────────────┐  │
 │   │              Lean Context Builder                    │  │
 │   │ [Name:ฟุกิ][Health:Period:0d][Cal:หมอ,พรุ่งนี้]       │  │
 │   │ [Context] U:...|H:...|U:...|H:...                   │  │
 │   │ [Recent] Full Thai                                   │  │
+│   │ [Found] entry: "ไปหาหมอ 3 เดือนก่อน..."              │  │
 │   └─────────────────────────────────────────────────────┘  │
 │                         │                                    │
 │                         ▼                                    │
-│                    Gemma 3 1B                                │
+│                    Gemma 3 1B (Face)                         │
+│                         │                                    │
+│                         ▼ (async, หลังตอบ user)              │
+│                    Secret Chat                               │
+│                    → English log                             │
+│                    → Big Manager dispatch                    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
@@ -122,10 +190,10 @@
 │           └────────────────┼──────────────────────┘              │
 │                            ▼                                     │
 │                  ┌─────────────────────┐                        │
-│                  │ UnifiedVectorService│                        │
-│                  │ • Entry (diary)     │                        │
-│                  │ • Facts (learned)   │                        │
-│                  │ • Knowledge         │                        │
+│                  │  RAG Storage        │                        │
+│                  │ (English — from     │                        │
+│                  │  Secret Chat +      │                        │
+│                  │  TranslatorWorker)  │                        │
 │                  └─────────────────────┘                        │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
