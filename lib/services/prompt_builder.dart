@@ -14,26 +14,16 @@ class PromptBuilder {
 
   /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทยล้วน ไม่มี ACTION tags)
   static const String hakuFacePrompt = r'''
-You are "Haku" (箱), a Thai-speaking AI assistant on the user's phone.
+You are "Haku" (箱), a Thai-speaking AI personal assistant.
 
-PERSONALITY:
-- Smart, empathetic, proactive but not intrusive
-- Minimalist responses (1-2 sentences usually)
-- Uses Thai language naturally with occasional emoji
-- Remembers context from previous messages
+PERSONALITY: Smart, warm, concise. Use natural Thai with 1 emoji max.
 
-RULES:
-1. Reply in NATURAL Thai (conversational, NOT JSON)
-2. Be concise but warm
-3. If user shares personal info (name, preferences), acknowledge it
-4. If user mentions events/locations, show you remember
-5. NEVER output JSON format - just chat naturally
-6. NEVER output action tags like [ACTION:...] - just answer naturally
-
-EXAMPLE RESPONSES:
-- "สวัสดีค่ะ วันนี้เป็นยังไงบ้างคะ? 😊"
-- "เข้าใจค่ะ จะจำไว้ว่าคุณชื่อ Arm"
-- "เหนื่อยเหรอคะ? พักผ่อนบ้างนะ 💪"
+STRICT RULES:
+1. Reply in NATURAL Thai only — NO JSON, NO tags, NO markdown
+2. Keep it SHORT: 1-2 sentences max unless the user asks for detail
+3. Answer EXACTLY what was asked — do not assume the user is tired, sad, or needs rest unless they say so
+4. If context is provided, use it only if directly relevant
+5. NEVER combine unrelated topics in one response
 ''';
 
   // ═══════════════════════════════════════════════════════════
@@ -55,6 +45,7 @@ Output:''';
   static String get _currentDateTime => DateTime.now().toString().substring(0, 16);
 
   /// 🗣️ Stage 1: THE FACE — General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
+  /// ใช้สำหรับ On-device Gemma (ต้องการ chat template tokens)
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
@@ -68,9 +59,67 @@ Output:''';
     return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
   }
 
+  /// ☁️ Stage 1: THE FACE — Cloud LLM (OpenRouter, Gemini, Claude, OpenAI)
+  /// ไม่ใช้ Gemma template tokens เพราะ cloud models ไม่ต้องการ
+  static String buildCloudPrompt({
+    required String userMessage,
+    String? context,
+  }) {
+    final timeContext = 'Current DateTime: $_currentDateTime';
+
+    final contextSection = context != null && context.isNotEmpty
+        ? '\n\nContext (use ONLY if relevant):\n$context'
+        : '';
+
+    return '$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage\nHaku:';
+  }
+
+  /// 🧹 Strip Gemma template tokens จาก response (safety net)
+  static String cleanResponse(String raw) {
+    return raw
+        .replaceAll('</start_of_turn>', '')
+        .replaceAll('<end_of_turn>', '')
+        .replaceAll(RegExp(r'<start_of_turn>\w*'), '')
+        .trim();
+  }
+
   /// 🧠 Stage 2: BIG MANAGER — Lean classification (ไม่มี RAG/context)
   static String buildManagerPrompt({required String userMessage}) {
     return '<start_of_turn>user\n$hakuManagerPrompt\nMsg: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔬 Pre-Classify — LLM intent from user message only (before Face)
+  // ═══════════════════════════════════════════════════════════
+
+  /// 🔬 Pre-Classify Prompt — language-agnostic intent extraction
+  ///
+  /// ใช้ก่อน Face LLM เพื่อให้ Face รู้ intent และตอบได้ถูกต้อง
+  /// ทำงานได้ทุกภาษา (LLM เข้าใจ) — ไม่ต้องพึ่ง Thai regex
+  static String buildPreClassifyPrompt({required String userMessage}) {
+    final now = _currentDateTime;
+    return '''<start_of_turn>user
+Role: Intent Classifier. Current Date: $now
+
+Classify this message. Output JSON ONLY (no markdown).
+
+Message: "$userMessage"
+
+Intent rules:
+- "schedule" = future appointment/plan/meeting/event
+- "remind"   = wants reminder/alert
+- "search"   = asking for info, news, weather, prices
+- "log"      = sharing past activity/experience
+- "chat"     = casual conversation
+
+Output JSON ONLY:
+{
+  "intent": "schedule|remind|search|log|chat",
+  "summary_en": "max 12 word English summary",
+  "action": {"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}
+}<end_of_turn>
+<start_of_turn>model
+''';
   }
 
   // ═══════════════════════════════════════════════════════════

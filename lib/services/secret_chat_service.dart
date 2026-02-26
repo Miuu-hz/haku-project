@@ -44,31 +44,86 @@ class SecretChatService {
     }
   }
 
-  /// แปล Thai exchange → EnglishLogEntry (async, ไม่ block UI)
-  Future<EnglishLogEntry?> logExchange({
-    required String userMessage,
-    required String aiResponse,
-  }) async {
-    await initialize();
+  // ──────────────────────────────────────────────────────────
+  // 🔬 PRE-CLASSIFY — runs BEFORE Face LLM (language-agnostic)
+  // ──────────────────────────────────────────────────────────
+
+  /// 🔬 Classify user message intent before Face responds
+  ///
+  /// ทำงานทุกภาษา — LLM แปล + classify ก่อนที่ Face จะตอบ
+  /// Face จะได้รับ context hint เพื่อตอบได้ถูกต้อง
+  /// Returns null ถ้า LLM ไม่พร้อมหรือ fail
+  Future<PreClassifyResult?> preClassify(String userMessage) async {
     try {
       final llm = LLMProviderManager().provider;
       if (!llm.isInitialized) return null;
 
-      final prompt = PromptBuilder.buildWorkerExtractPrompt(userMessage, aiResponse);
+      final prompt = PromptBuilder.buildPreClassifyPrompt(userMessage: userMessage);
       final raw = await llm.generate(prompt);
 
-      final entry = _parseExtraction(raw, userMessage);
-      if (entry == null) return null;
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(raw);
+      if (jsonMatch == null) return null;
 
-      _log.add(entry);
+      final json = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
+      final intent = (json['intent'] as String?) ?? 'chat';
+      final summaryEn = (json['summary_en'] as String?) ?? userMessage.substring(0, userMessage.length.clamp(0, 60));
+      final action = json['action'] as Map<String, dynamic>?;
 
-      // เก็บแค่ _maxEntries ล่าสุด
-      if (_log.length > _maxEntries) {
-        _log.removeAt(0);
+      final result = PreClassifyResult(
+        intent: intent,
+        summaryEn: summaryEn,
+        title: action?['title'] as String?,
+        date: action?['date'] as String?,
+        time: action?['time'] as String?,
+      );
+      debugPrint('🔬 PreClassify: intent=$intent summary="$summaryEn"');
+      return result;
+    } catch (e) {
+      debugPrint('⚠️ PreClassify failed: $e');
+      return null;
+    }
+  }
+
+  /// แปล Thai exchange → EnglishLogEntry (async, ไม่ block UI)
+  ///
+  /// ถ้ามี [preClassifyResult] → ใช้ intent+summary จาก pre-classify (ไม่ต้อง LLM ซ้ำ)
+  Future<EnglishLogEntry?> logExchange({
+    required String userMessage,
+    required String aiResponse,
+    PreClassifyResult? preClassifyResult,
+  }) async {
+    await initialize();
+    try {
+      EnglishLogEntry? entry;
+
+      // ถ้ามี preClassifyResult → ใช้ intent+summary โดยตรง (ไม่ต้อง LLM ซ้ำ)
+      if (preClassifyResult != null) {
+        entry = EnglishLogEntry(
+          timestamp: DateTime.now(),
+          summaryEn: preClassifyResult.summaryEn,
+          intent: preClassifyResult.intent,
+          tags: [
+            if (preClassifyResult.title != null) preClassifyResult.title!,
+          ],
+          location: null,
+          mood: null,
+        );
+        debugPrint('🤫 Secret Chat (from preClassify): ${entry.summaryEn}');
+      } else {
+        // ไม่มี preClassify → run LLM extraction ตามปกติ
+        final llm = LLMProviderManager().provider;
+        if (!llm.isInitialized) return null;
+
+        final prompt = PromptBuilder.buildWorkerExtractPrompt(userMessage, aiResponse);
+        final raw = await llm.generate(prompt);
+        entry = _parseExtraction(raw, userMessage);
+        if (entry == null) return null;
+        debugPrint('🤫 Secret Chat logged: ${entry.summaryEn}');
       }
 
+      _log.add(entry);
+      if (_log.length > _maxEntries) _log.removeAt(0);
       await _persist();
-      debugPrint('🤫 Secret Chat logged: ${entry.summaryEn}');
       return entry;
     } catch (e) {
       debugPrint('⚠️ SecretChatService.logExchange failed: $e');
@@ -99,13 +154,14 @@ class SecretChatService {
             ? summaryRaw.trim()
             : originalUserMsg.substring(0, originalUserMsg.length.clamp(0, 60));
 
+        final moodRaw = data['mood'];
         return EnglishLogEntry(
           timestamp: DateTime.now(),
           summaryEn: summaryEn,
           intent: (json['intent'] as String?) ?? 'chat',
           tags: [...tags, ...entities],
-          location: data['location'] as String?,
-          mood: (data['mood'] as num?)?.toInt(),
+          location: data['location'] is String ? data['location'] as String : null,
+          mood: moodRaw is num ? moodRaw.toInt() : null,
         );
       } catch (e) {
         debugPrint('⚠️ Secret Chat: JSON decode failed: $e');
@@ -135,6 +191,46 @@ class SecretChatService {
   /// ดึง recent log สำหรับ ManagerSummaryStrategy
   List<EnglishLogEntry> getRecentLog({int limit = 20}) {
     return _log.reversed.take(limit).toList();
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 🔬 Pre-Classify Result
+// ──────────────────────────────────────────────────────────────────
+
+/// ผลจาก preClassify() — intent จาก user message ก่อน Face ตอบ
+class PreClassifyResult {
+  final String intent;      // schedule | remind | search | log | chat
+  final String summaryEn;   // English summary สำหรับ lean context
+  final String? title;      // สำหรับ schedule/remind
+  final String? date;       // YYYY-MM-DD
+  final String? time;       // HH:MM
+
+  const PreClassifyResult({
+    required this.intent,
+    required this.summaryEn,
+    this.title,
+    this.date,
+    this.time,
+  });
+
+  /// Context hint ที่ Face LLM จะได้รับ เพื่อตอบให้ถูกต้อง
+  String get contextHint {
+    switch (intent) {
+      case 'schedule':
+        final parts = [
+          if (title != null) title!,
+          if (date != null) date!,
+          if (time != null) time!,
+        ].join(',');
+        return '[INTENT:SCHEDULE:$parts]';
+      case 'remind':
+        return '[INTENT:REMIND:${title ?? ""}]';
+      case 'search':
+        return '[INTENT:SEARCH]';
+      default:
+        return ''; // log/chat ไม่ต้อง hint
+    }
   }
 }
 

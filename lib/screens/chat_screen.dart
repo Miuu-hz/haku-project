@@ -50,8 +50,10 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   /// 🔧 Extract response text from JSON or plain text
   String _extractResponseText(String response) {
     try {
+      // 🧹 Strip Gemma template tokens ที่รั่วออกมาจาก cloud models
+      var cleanResponse = PromptBuilder.cleanResponse(response);
+
       // ลบ Markdown code block ถ้ามี
-      var cleanResponse = response.trim();
       if (cleanResponse.startsWith('```json')) {
         cleanResponse = cleanResponse.substring(7);
       }
@@ -97,12 +99,25 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       PreprocessResult? preprocessResult;
 
       // ──────────────────────────────────────────────────────
-      // 0. SmartPreprocessor (rule-based workers, 0 LLM tokens)
+      // 0. Quick Action (rule-based, 0 LLM tokens) — greeting, name, etc.
+      // ──────────────────────────────────────────────────────
+      final preprocessor = SmartPreprocessor();
+      final quickAction = preprocessor.detectQuickAction(userMessage);
+      if (quickAction != null) {
+        debugPrint('⚡ Quick action: ${quickAction.type.name}');
+        state = state.where((m) => !m.isLoading).toList();
+        addMessage(ChatMessage.assistant(quickAction.response));
+        await preprocessor.addToLeanContext(userMessage, isUser: true);
+        await preprocessor.addToLeanContext(quickAction.response, isUser: false);
+        return;
+      }
+
+      // ──────────────────────────────────────────────────────
+      // 1. SmartPreprocessor (rule-based workers, 0 LLM tokens)
       // ──────────────────────────────────────────────────────
       if (useContext) {
         try {
           debugPrint('🧠 Running SmartPreprocessor...');
-          final preprocessor = SmartPreprocessor();
           preprocessResult = await preprocessor.preprocess(
             userMessage,
             useLeanContext: true,
@@ -192,16 +207,43 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         }
       } else {
         // ──────────────────────────────────────────────────────
-        // PATH B: General message — Stage 1 (The Face)
+        // PATH B: General message — Secret Chat First Architecture
+        //
+        // Step 1: PreClassify (LLM) if rule-based intent = general
+        //   → language-agnostic intent detection
+        //   → Face gets context hint for correct response
+        // Step 2: Face LLM — Thai natural response + intent hint
+        // Step 3: [async] logExchange reuses preClassify (0 extra LLM call)
         // ──────────────────────────────────────────────────────
+
+        // 1. PreClassify — runs only when rule-based couldn't classify
+        PreClassifyResult? preClassify;
+        final ruleIntent = preprocessResult?.detectedIntent ?? DetectedIntent.general;
+        if (llm.isInitialized && ruleIntent == DetectedIntent.general) {
+          debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
+          preClassify = await SecretChatService().preClassify(userMessage);
+          if (preClassify != null && preClassify.contextHint.isNotEmpty) {
+            // Inject intent hint at front of context for Face
+            contextStr = '${preClassify.contextHint}\n$contextStr';
+            debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+          }
+        }
+
+        // 2. Face LLM — Stage 1 (The Face)
         debugPrint('🎭 Stage 1 (The Face): generating natural response...');
 
         if (llm.isInitialized) {
           try {
-            final prompt = PromptBuilder.buildGemmaPrompt(
-              userMessage: userMessage,
-              context: contextStr.isNotEmpty ? contextStr : null,
-            );
+            final isCloud = LLMProviderManager().activeType != ProviderType.onDevice;
+            final prompt = isCloud
+                ? PromptBuilder.buildCloudPrompt(
+                    userMessage: userMessage,
+                    context: contextStr.isNotEmpty ? contextStr : null,
+                  )
+                : PromptBuilder.buildGemmaPrompt(
+                    userMessage: userMessage,
+                    context: contextStr.isNotEmpty ? contextStr : null,
+                  );
             response = await llm.generate(prompt);
           } catch (e) {
             response = null;
@@ -226,12 +268,9 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         await SmartPreprocessor()
             .addToLeanContext(displayText, isUser: false);
 
-        // ──────────────────────────────────────────────────────
-        // Secret Chat: async translate → English log → dispatch
-        // ──────────────────────────────────────────────────────
-        // แปล Thai exchange เป็น English log หลัง Face ตอบ (ไม่ block UI)
+        // 3. [async] Secret Chat log — reuses preClassify (0 extra LLM call)
         if (llm.isInitialized) {
-          _runSecretChat(userMessage, displayText);
+          _runSecretChat(userMessage, displayText, preClassify: preClassify);
         }
       }
 
@@ -258,7 +297,11 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   ///
   /// ทำ async หลัง Face ตอบ (ไม่ block UI)
   /// Big Manager ใช้ intent จาก extraction result โดยตรง (0 LLM calls เพิ่ม)
-  void _runSecretChat(String userMessage, String aiResponse) {
+  void _runSecretChat(
+    String userMessage,
+    String aiResponse, {
+    PreClassifyResult? preClassify,
+  }) {
     Future(() async {
       try {
         debugPrint('🤫 Secret Chat: translating exchange...');
@@ -266,10 +309,13 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         final logEntry = await secretChat.logExchange(
           userMessage: userMessage,
           aiResponse: aiResponse,
+          preClassifyResult: preClassify,
         );
 
         if (logEntry != null) {
           debugPrint('🤫 Secret Chat done: ${logEntry.summaryEn}');
+          // 📦 Replace Thai lean context with compact English (saves ~3-5x tokens)
+          SmartPreprocessor().updateLeanContextWithEnglish(logEntry.summaryEn);
           // Big Manager dispatch based on English log (no extra LLM call)
           final actionData = await ManagerDispatchService()
               .dispatchFromLog(logEntry, userMessage);

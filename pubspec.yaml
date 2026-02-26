@@ -52,7 +52,7 @@ dependencies:
   shared_preferences: ^2.2.2        # บันทึกการตั้งค่า
 
   # 📱 Widgets (Android)
-  home_widget: ^0.5.0                # สื่อสารกับ Home Screen Widgets
+  home_widget: ^0.7.0                # สื่อสารกับ Home Screen Widgets (อัพเกรดรองรับ Java 17)
   
   # 🤖 TFLite - ใช้ Gemma-2 (Google, ไม่ crash)
   tflite_flutter: ^0.10.4

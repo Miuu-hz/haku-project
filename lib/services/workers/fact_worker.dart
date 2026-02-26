@@ -41,13 +41,12 @@ class FactWorker {
     RegExp(r'เรียกสั้นๆ?\s*(?:ว่า)?\s*(.+?)(?:\s|ก็ได้|นะ|$)', caseSensitive: false),
   ];
 
-  /// ความชอบ
+  /// ความชอบ (ต้องมี subject + object ชัดเจน เพื่อกัน false positive)
   static final List<RegExp> _likePatterns = [
-    RegExp(r'(?:ฉัน|ผม|หนู|เรา)?ชอบ\s*(.+?)(?:มาก|สุด|$|ค่ะ|ครับ|นะ)', caseSensitive: false),
-    RegExp(r'(?:ฉัน|ผม|หนู|เรา)?รัก\s*(.+?)(?:มาก|$|ค่ะ|ครับ)', caseSensitive: false),
-    RegExp(r'(?:ฉัน|ผม|หนู)?ติดใจ\s*(.+?)(?:มาก|$|ค่ะ|ครับ)', caseSensitive: false),
-    RegExp(r'(.+?)อร่อย(?:มาก)?(?:เลย)?', caseSensitive: false),
-    RegExp(r'(.+?)ดี(?:มาก)?(?:เลย)?(?:จัง)?', caseSensitive: false),
+    RegExp(r'(?:ฉัน|ผม|หนู|เรา)ชอบ\s*(.+?)(?:มาก|สุด|ค่ะ|ครับ|นะ|$)', caseSensitive: false),
+    RegExp(r'(?:ฉัน|ผม|หนู|เรา)รัก\s*(.+?)(?:มาก|ค่ะ|ครับ|$)', caseSensitive: false),
+    RegExp(r'(?:ฉัน|ผม|หนู)ติดใจ\s*(.+?)(?:มาก|ค่ะ|ครับ|$)', caseSensitive: false),
+    RegExp(r'(?:ร้าน|อาหาร|เมนู)\s*(.+?)\s*อร่อย(?:มาก)?', caseSensitive: false),
   ];
 
   /// ไม่ชอบ
@@ -58,11 +57,11 @@ class FactWorker {
     RegExp(r'(.+?)ไม่อร่อย', caseSensitive: false),
   ];
 
-  /// อาชีพ
+  /// อาชีพ (subject pronoun บังคับ เพื่อกัน false positive)
   static final List<RegExp> _rolePatterns = [
-    RegExp(r'(?:ฉัน|ผม|หนู)?(?:ทำงาน|เป็น)\s*(.+?)(?:\s|อยู่|ค่ะ|ครับ|$)', caseSensitive: false),
+    RegExp(r'(?:ฉัน|ผม|หนู)(?:ทำงาน|เป็น)\s*(.+?)(?:\s|อยู่|ค่ะ|ครับ|$)', caseSensitive: false),
     RegExp(r'อาชีพ(?:ของฉัน)?(?:คือ)?\s*(.+?)(?:\s|ค่ะ|ครับ|$)', caseSensitive: false),
-    RegExp(r'(?:ฉัน|ผม|หนู)?ทำ\s*(.+?)(?:อยู่)?(?:\s|ค่ะ|ครับ|$)', caseSensitive: false),
+    RegExp(r'(?:ฉัน|ผม|หนู)ทำ\s*(.+?)(?:อยู่)?(?:\s|ค่ะ|ครับ|$)', caseSensitive: false),
   ];
 
   /// เป้าหมาย
@@ -311,9 +310,9 @@ class FactWorker {
     return health;
   }
 
-  /// Clean extracted value
+  /// Clean extracted value (ใช้ whole-word เพื่อไม่ strip อักษรที่ไม่เกี่ยว)
   String _cleanValue(String value) => value
-      .replaceAll(RegExp(r'[ครับค่ะนะจ้าจ๊ะเลย]+$'), '')
+      .replaceAll(RegExp(r'(?:ครับ|ค่ะ|นะ|จ้า|จ๊ะ|เลย|ค่ะ)+$'), '')
       .replaceAll(RegExp(r'^\s+|\s+$'), '')
       .trim();
 
@@ -325,17 +324,27 @@ class FactWorker {
       name.length <= 30 &&
       !name.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
-  bool _isValidPreference(String pref) => pref.length >= 2 &&
+  bool _isValidPreference(String pref) => pref.length >= 3 &&
       pref.length <= 50 &&
       !pref.startsWith('ที่') &&
-      !pref.startsWith('ว่า');
+      !pref.startsWith('ว่า') &&
+      !pref.contains('อะไร') &&
+      !pref.contains('อะไ') &&
+      !pref.contains('ไหม') &&
+      !pref.contains('หรือ');
 
   bool _isValidRole(String role) => role.length >= 2 &&
       role.length <= 50 &&
       !role.startsWith('ที่');
 
   bool _isValidGoal(String goal) {
-    return goal.length >= 3 && goal.length <= 100;
+    return goal.length >= 4 &&
+        goal.length <= 100 &&
+        !goal.contains('อะไร') &&
+        !goal.contains('คุณ') &&
+        !goal.contains('ไหม') &&
+        !goal.contains('หรือ') &&
+        !goal.contains('ได้บ้าง');
   }
 
   // ============================================================

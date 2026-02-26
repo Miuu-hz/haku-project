@@ -29,15 +29,31 @@ class CalendarWorker {
   // 🔍 DETECTION PATTERNS
   // ============================================================
 
-  /// นัดหมาย
+  /// นัดหมาย (title-first: นัด/ไป + title + day + time)
   static final List<RegExp> _appointmentPatterns = [
-    RegExp(r'นัด(.+?)(วันนี้|พรุ่งนี้|มะรืน|วัน.+?)(?:\s*(\d+)\s*(?:โมง|:))?', caseSensitive: false),
-    RegExp(r'ไป(.+?)(วันนี้|พรุ่งนี้|มะรืน|วัน.+?)(?:\s*(\d+)\s*(?:โมง|:))?', caseSensitive: false),
+    RegExp(r'นัด(.+?)(วันนี้|พรุ่งนี้|พรุ้งนี้|มะรืน|วัน.+?)(?:\s*(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|:))?', caseSensitive: false),
+    RegExp(r'ไป(.+?)(วันนี้|พรุ่งนี้|พรุ้งนี้|มะรืน|วัน.+?)(?:\s*(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|:))?', caseSensitive: false),
+  ];
+
+  /// นัดหมาย (day-first: day + มีนัด + title + time) เช่น "พรุ้งนี้มีนัดที่ศาลากลาง 9โมงเช้า"
+  static final List<RegExp> _dayFirstPatterns = [
+    RegExp(
+      r'(วันนี้|พรุ่งนี้|พรุ้งนี้|มะรืน|วัน[ก-ฮ]+)\s*(?:มี)?นัด(?:ที่|ใน|กับ)?\s*(.+?)(?:\s+(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|นาฬิกา))?$',
+      caseSensitive: false,
+    ),
+  ];
+
+  /// นัดหมาย (มีนัด-first: มีนัด + title + day + time) เช่น "มีนัดที่โรงพยาบาล พรุ่งนี้ 10 โมง"
+  static final List<RegExp> _naedFirstPatterns = [
+    RegExp(
+      r'(?:มี)?นัด(?:ที่|ใน|กับ)?\s*(.+?)\s+(วันนี้|พรุ่งนี้|พรุ้งนี้|มะรืน|วัน[ก-ฮ]+)(?:\s+(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|นาฬิกา))?$',
+      caseSensitive: false,
+    ),
   ];
 
   /// ประชุม
   static final List<RegExp> _meetingPatterns = [
-    RegExp(r'ประชุม(.+?)(วันนี้|พรุ่งนี้|วัน.+?)(?:\s*(\d+)\s*(?:โมง|:))?', caseSensitive: false),
+    RegExp(r'ประชุม(.+?)(วันนี้|พรุ่งนี้|พรุ้งนี้|วัน.+?)(?:\s*(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|:))?', caseSensitive: false),
     RegExp(r'meeting(.+?)(วันนี้|พรุ่งนี้|today|tomorrow)', caseSensitive: false),
   ];
 
@@ -46,6 +62,7 @@ class CalendarWorker {
     'วันนี้': 0,
     'today': 0,
     'พรุ่งนี้': 1,
+    'พรุ้งนี้': 1,  // typo variant
     'tomorrow': 1,
     'มะรืน': 2,
     'วันจันทร์': -1, // special handling
@@ -133,6 +150,40 @@ class CalendarWorker {
           timeStr: match.group(3),
         );
         if (event != null) {
+          events.add(event);
+          await addEvent(event);
+        }
+      }
+    }
+
+    // ตรวจจับ day-first: "พรุ้งนี้มีนัดที่ศาลากลาง 9โมงเช้า" → group(1)=day, group(2)=title, group(3)=time
+    for (final pattern in _dayFirstPatterns) {
+      final match = pattern.firstMatch(message);
+      if (match != null) {
+        final event = _parseEvent(
+          type: EventType.appointment,
+          title: match.group(2)?.trim() ?? '',
+          dayStr: match.group(1)?.trim() ?? '',
+          timeStr: match.group(3),
+        );
+        if (event != null && !events.any((e) => e.title == event.title)) {
+          events.add(event);
+          await addEvent(event);
+        }
+      }
+    }
+
+    // ตรวจจับ มีนัด-first: "มีนัดที่โรงพยาบาล พรุ่งนี้ 10 โมง" → group(1)=title, group(2)=day, group(3)=time
+    for (final pattern in _naedFirstPatterns) {
+      final match = pattern.firstMatch(message);
+      if (match != null) {
+        final event = _parseEvent(
+          type: EventType.appointment,
+          title: match.group(1)?.trim() ?? '',
+          dayStr: match.group(2)?.trim() ?? '',
+          timeStr: match.group(3),
+        );
+        if (event != null && !events.any((e) => e.title == event.title)) {
           events.add(event);
           await addEvent(event);
         }

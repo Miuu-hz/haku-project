@@ -1,7 +1,7 @@
 # Haku Features Roadmap - Proactive AI Assistant
 
 > วางแผนฟีเจอร์ AI ตาม Phase พร้อมโมเดลที่ใช้
-> อัปเดตล่าสุด: 2026-02-26
+> อัปเดตล่าสุด: 2026-02-27
 
 
 
@@ -114,23 +114,31 @@ vector_search:
 ---
 
 ### 2.4 SmartPreprocessor + Workers ✅
-**สถานะ:** เสร็จแล้ว (6 workers)
+**สถานะ:** เสร็จแล้ว (6 workers) + Bug fixes
 
 ใช้ rule-based (0 LLM tokens) ก่อนส่งเข้า LLM:
 
 - [x] **FactWorker** — จดจำชื่อ, ชอบ/ไม่ชอบ, อาชีพ, เป้าหมาย, สถานที่
+  - [x] Fixed: require subject pronoun in `_likePatterns`/`_rolePatterns` (ลด false positive)
+  - [x] Fixed: `_cleanValue` ใช้ whole-word replacement (ไม่ตัด "ร" ออกจาก "อะไร")
+  - [x] Fixed: `_isValidPreference` + `_isValidGoal` มี question-word exclusion
 - [x] **CalendarWorker** — ตรวจจับนัดหมายจากข้อความไทย (regex) + SharedPreferences
+  - [x] Fixed: เพิ่ม day-first patterns → `"พรุ้งนี้มีนัดที่ศาลากลาง 9โมงเช้า"` ✓
+  - [x] Fixed: เพิ่ม `มีนัด-first` patterns → `"มีนัดที่โรงพยาบาล พรุ่งนี้ 10 โมง"` ✓
+  - [x] Fixed: เพิ่ม `"พรุ้งนี้"` (typo ของ "พรุ่งนี้") ใน `_dayOffsets`
+  - [x] Fixed: เพิ่ม `(?:เช้า|เย็น|กลางคืน)?` suffix สำหรับ "9โมงเช้า" / "6โมงเย็น"
 - [x] **ReminderWorker** — ตรวจจับการเตือน + frequency (once/daily/weekly/monthly)
 - [x] **GoalWorker** — ตรวจจับเป้าหมาย + ติดตาม progress → lean format `[Goal:ออกกำลัง,0/3d/w]`
 - [x] **HealthDoctor** — ตรวจจับ period, อาการปวด, แพ้, ยา
-- [x] **TranslatorWorker** 🆕 — batch Thai→English แบบ background (ตอนชาร์จ) สำหรับ RAG
-- [x] Search intent detection (keyword-based)
-- [x] Quick action detection (ทักทาย, ถามชื่อ)
+- [x] **TranslatorWorker** — batch Thai→English แบบ background (ตอนชาร์จ) สำหรับ RAG
+- [x] Search intent detection (keyword-based) — fixed weather pattern (no capture groups)
+- [x] Quick action detection (ทักทาย, ถามชื่อ) — fixed: wired into sendToAI() before LLM
+- [x] `updateLeanContextWithEnglish()` — expose Secret Chat English result to lean context
 
 ---
 
 ### 2.5 Lean Context Service ✅
-**สถานะ:** เสร็จแล้ว
+**สถานะ:** เสร็จแล้ว + English compression upgrade
 
 บีบ chat history ให้พอดี context window ของ Gemma 3 1B (~2048 tokens):
 
@@ -138,6 +146,45 @@ vector_search:
 - [x] Chat 4+: Lean Syntax (ตัดคำลงท้าย, ย่อคำ, max 50 chars)
 - [x] Session summaries (English, 1-line)
 - [x] ผลลัพธ์: 25 คู่แชทใน ~330 tokens (เดิม 5 คู่ใน ~750 tokens)
+- [x] **`updateLastPairWithEnglish()`** 🆕 — หลัง Secret Chat แปลเสร็จ → แทน Thai leanContent ด้วย English summary
+  - English ประหยัด ~3-5x tokens เทียบกับ Thai ในทุก tokenizer
+  - เรียกจาก SmartPreprocessor.updateLeanContextWithEnglish() หลัง Secret Chat dispatch
+
+---
+
+### 2.5b PreClassify + Secret Chat First Architecture ✅ 🆕
+**สถานะ:** เสร็จแล้ว (2026-02-27)
+
+**ปัญหาเดิม:** Face LLM ตอบก่อน แล้ว Secret Chat แปลทีหลัง → Big Manager dispatch ช้า, Face ไม่รู้ intent
+
+**แก้ไข:** PreClassify LLM ทำงาน**ก่อน** Face เพื่อให้ Face รู้ intent ล่วงหน้า + รองรับทุกภาษา
+
+```
+New flow:
+User msg
+  → SmartPreprocessor (Thai fast-path, 0 LLM tokens)
+     ├─ rule-based จับได้ (schedule/remind/etc.) → skip preClassify
+     └─ intent = general → 🔬 preClassify LLM (language-agnostic)
+         → inject [INTENT:SCHEDULE:ศาลากลาง,2026-02-28,09:00] ใน context
+  → Face LLM (รู้ intent → ตอบถูกต้อง)
+  → [async] logExchange(preClassifyResult: ✓) → 0 extra LLM call
+```
+
+- [x] **`PromptBuilder.buildPreClassifyPrompt()`** — lean JSON prompt, classify ทุกภาษา
+- [x] **`SecretChatService.preClassify()`** → `PreClassifyResult {intent, summaryEn, title, date, time}`
+- [x] **`PreClassifyResult.contextHint`** — สร้าง `[INTENT:SCHEDULE:...]` hint สำหรับ Face
+- [x] **`logExchange(preClassifyResult:)`** — ถ้ามี preClassify → ข้าม LLM extraction (0 extra call)
+- [x] **chat_screen.dart wired** — preClassify → inject context → Face → async log
+
+**ผลลัพธ์ Token Budget (per exchange):**
+
+| Scenario | LLM calls |
+|---|---|
+| Rule-based จับ intent ได้ | 1 (Face only) + async log ด้วย preClassify |
+| Rule-based ไม่จับ → preClassify | 2 (PreClassify + Face) + 0 async log |
+| เดิม (ไม่มี preClassify) | 1 (Face) + 1 async (SecretChat) = 2 |
+
+**Language support:** PreClassify LLM เข้าใจทุกภาษา — ไม่ต้องเพิ่ม Thai regex สำหรับ global launch
 
 ---
 
@@ -425,9 +472,9 @@ tts_engine:
 | 2 | Cloud LLM (Gemini/Claude/OpenAI/OpenRouter) | ✅ |
 | 2 | Smart Search / RAG | ✅ |
 | 2 | SmartPreprocessor + Workers (6 ตัว) | ✅ |
-| 2 | Lean Context (token compression) | ✅ |
+| 2 | Lean Context (token compression) + English update | ✅ |
 | 2 | Entry Summarization | ✅ |
-| 2 | Secret Chat Architecture | ✅ |
+| 2 | Secret Chat Architecture + PreClassify First | ✅ |
 | 2 | Auto-Scheduling + MethodChannel fix | ✅ |
 | 2 | Proactive Triggers (time + location) | ✅ |
 | 2 | Background Processing (charging) | ✅ |
@@ -435,6 +482,7 @@ tts_engine:
 | 2 | CLI Test Tool (`/batch`, `/schedule`, `/translate`) | ✅ |
 | 2 | Google Calendar (real API) | 🟡 Mock Mode |
 | 2 | Proactive Voice (TTS) | ❌ |
+| 2 | CalendarWorker day-first + typo support | ✅ |
 | 2 | ผู้ช่วยจัดตารางอัจฉริยะ (2.11) | ✅ conflict detection |
 | 2 | ผู้ช่วยวางแผนวันทำงาน (2.12) | ✅ morning agenda + evening summary |
 | 2 | บอทช่วยเลิกผัดวันประกันพรุ่ง (2.13) | 🟡 70% goal-linked MVP |
@@ -444,7 +492,7 @@ tts_engine:
 | 4 | Shadow Mode | ❌ |
 | 4 | AR Memory Anchor | ❌ |
 
-**Phase 2 progress: ~95%** (เหลือ Google Calendar real, TTS, Deep Work notification)
+**Phase 2 progress: ~97%** (เหลือ Google Calendar real, TTS, Deep Work notification)
 
 ---
 
@@ -483,24 +531,32 @@ Cloud mode: ไม่กิน RAM เพิ่ม (ส่ง API แทน)
 │  │  │  → Build lean context (profile + history + found entries)       │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ② Stage 1: The Face (ตอบ user ทันที)                                  │ │
+│  │  ② 🔬 PreClassify (🆕 ถ้า intent=general — language-agnostic)          │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ buildPreClassifyPrompt(userMessage) → JSON                      │   │ │
+│  │  │ Input: user message only (any language)                         │   │ │
+│  │  │ Output: {intent, summaryEn, title?, date?, time?}               │   │ │
+│  │  │ → inject [INTENT:SCHEDULE:...] ใน context ก่อน Face             │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ③ Stage 1: The Face (ตอบ user พร้อม intent context)                   │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
 │  │  │ Gemma 3 1B — ตอบภาษาไทยธรรมชาติ (1-2 ประโยค)                    │   │ │
-│  │  │ Input: lean context + user message                              │   │ │
+│  │  │ Input: lean context + [INTENT:...] hint + user message          │   │ │
 │  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ③ Secret Chat (async หลัง Face ตอบ — ไม่ block UI)                    │ │
+│  │  ④ Secret Chat (async — 0 extra LLM call ถ้ามี preClassify) 🆕        │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Input: Thai exchange (user msg + AI response)                   │   │ │
-│  │  │ LLM: buildWorkerExtractPrompt() → JSON extraction               │   │ │
+│  │  │ ถ้ามี preClassifyResult → ใช้ intent+summaryEn โดยตรง           │   │ │
+│  │  │ ถ้าไม่มี → run buildWorkerExtractPrompt() ตามปกติ               │   │ │
 │  │  │ Output: EnglishLogEntry {                                       │   │ │
-│  │  │   summaryEn: "User went to beach with partner"                  │   │ │
+│  │  │   summaryEn: "appointment city hall tmrw 9am"                   │   │ │
 │  │  │   intent: log | schedule | query | chat                        │   │ │
-│  │  │   tags: ["beach", "partner"]                                    │   │ │
-│  │  │   location: "beach", mood: 8                                    │   │ │
+│  │  │   tags: ["city hall"]                                           │   │ │
 │  │  │ }                                                               │   │ │
 │  │  │ → Store in SharedPreferences (english_chat_log, 50 entries)    │   │ │
+│  │  │ → updateLastPairWithEnglish(summaryEn) → lean context EN 🆕    │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
 │  │  ④ Big Manager (async — dispatch from English log)                      │ │
@@ -590,11 +646,20 @@ Cloud mode: ไม่กิน RAM เพิ่ม (ส่ง API แทน)
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
 │  TOKEN BUDGET (per exchange):                                                │
-│  ① Face LLM:     1 call  (ตอบ user)                                         │
-│  ③ Secret Chat:  1 call  (แปล + extract → English log)                      │
-│  ④ Big Manager:  0 calls (อ่าน intent จาก Secret Chat result โดยตรง)        │
+│                                                                              │
+│  Fast path (rule-based จับ intent ได้):                                      │
+│  🔬 PreClassify: 0 calls (skipped)                                          │
+│  🎭 Face LLM:    1 call  (ตอบ user พร้อม context hint)                      │
+│  🤫 Secret Chat: 0 calls (ใช้ preClassify result โดยตรง)                    │
 │  ─────────────────────────────────────────────────────                      │
-│  Total: 2 calls/exchange (เท่าเดิม แต่ได้ English log + structured data)    │
+│  Total: 1 call/exchange                                                     │
+│                                                                              │
+│  Fallback (rule-based ไม่จับ intent):                                        │
+│  🔬 PreClassify: 1 call  (language-agnostic intent + English summary)       │
+│  🎭 Face LLM:    1 call  (ตอบ user พร้อม [INTENT:...] hint)                 │
+│  🤫 Secret Chat: 0 calls (ใช้ preClassify result โดยตรง)                    │
+│  ─────────────────────────────────────────────────────                      │
+│  Total: 2 calls/exchange (เท่าเดิม แต่ Face รู้ intent ก่อนตอบ)             │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 

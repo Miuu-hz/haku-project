@@ -59,9 +59,10 @@ class SmartPreprocessor {
     RegExp(r'หา(.+)ให้ที', caseSensitive: false),
     RegExp(r'(.+)คืออะไร', caseSensitive: false),
     RegExp(r'(.+)หมายความว่าอะไร', caseSensitive: false),
-    RegExp(r'อากาศ(.*)วันนี้', caseSensitive: false),
-    RegExp(r'อากาศ(.*)พรุ่งนี้', caseSensitive: false),
+    RegExp(r'อากาศ.*วันนี้', caseSensitive: false),
+    RegExp(r'อากาศ.*พรุ่งนี้', caseSensitive: false),
     RegExp(r'พยากรณ์อากาศ', caseSensitive: false),
+    RegExp(r'สภาพอากาศ', caseSensitive: false),
     RegExp(r'ข่าว(.+)', caseSensitive: false),
     RegExp(r'ราคา(.+)', caseSensitive: false),
     RegExp(r'วิธี(.+)', caseSensitive: false),
@@ -271,6 +272,12 @@ class SmartPreprocessor {
     } else {
       await _leanContext.addAIMessage(content);
     }
+  }
+
+  /// 🔄 Update last AI lean entry with English (Secret Chat output)
+  /// English is ~3-5x more token-efficient than Thai for on-device models
+  void updateLeanContextWithEnglish(String englishSummary) {
+    _leanContext.updateLastPairWithEnglish(englishSummary);
   }
 
   /// 📊 Get Lean Context stats
