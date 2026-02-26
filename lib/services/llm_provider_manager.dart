@@ -169,7 +169,7 @@ class LLMProviderManager {
   }
 
   /// 📋 Get all available provider types with info
-  List<ProviderInfo> getAvailableProviders() => [
+  List<ProviderInfo> getAvailableProviders() => const [
         ProviderInfo(
           type: ProviderType.onDevice,
           name: 'On-device (Gemma 3 1B)',

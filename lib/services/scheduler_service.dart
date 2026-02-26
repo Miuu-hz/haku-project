@@ -116,6 +116,122 @@ class SchedulerService {
     }
   }
 
+  // ============================================================
+  // 📅 CALENDAR READ & CONFLICT DETECTION (Feature 2.11)
+  // ============================================================
+
+  /// 📋 ดึง events จาก Android Calendar ในช่วงเวลาที่กำหนด
+  Future<List<Map<String, dynamic>>> getCalendarEvents(
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final result = await _channel.invokeMethod<List<dynamic>>('getEvents', {
+        'startTime': start.millisecondsSinceEpoch,
+        'endTime': end.millisecondsSinceEpoch,
+      });
+      if (result == null) return [];
+      return result
+          .whereType<Map<dynamic, dynamic>>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('⚠️ getCalendarEvents failed: ${e.message}');
+      return [];
+    }
+  }
+
+  /// 🔍 ตรวจสอบว่า EventInfo ชนกับ event ที่มีอยู่หรือไม่
+  Future<ConflictResult> checkConflicts(EventInfo event) async {
+    // สร้าง DateTime ของ event ใหม่ (เหมือน createCalendarEvent)
+    final now = DateTime.now();
+    DateTime startDT = event.date ?? now.add(const Duration(hours: 1));
+    if (event.time != null) {
+      final parts = event.time!.split(':');
+      final hour = int.tryParse(parts[0]) ?? 9;
+      final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+      startDT = DateTime(startDT.year, startDT.month, startDT.day, hour, minute);
+    }
+    final endDT = startDT.add(Duration(minutes: event.durationMinutes));
+
+    // ดึง events ทั้งวัน
+    final dayStart = DateTime(startDT.year, startDT.month, startDT.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    final existing = await getCalendarEvents(dayStart, dayEnd);
+
+    final conflicts = <Map<String, dynamic>>[];
+    for (final e in existing) {
+      final eStart = e['startTime'];
+      final eEnd = e['endTime'];
+      if (eStart == null || eEnd == null) continue;
+      final existingStart =
+          DateTime.fromMillisecondsSinceEpoch(eStart as int);
+      final existingEnd = DateTime.fromMillisecondsSinceEpoch(eEnd as int);
+      // overlap ถ้า newStart < existingEnd && newEnd > existingStart
+      if (startDT.isBefore(existingEnd) && endDT.isAfter(existingStart)) {
+        conflicts.add(e);
+      }
+    }
+
+    return ConflictResult(
+      hasConflict: conflicts.isNotEmpty,
+      conflicts: conflicts,
+      proposedStart: startDT,
+      proposedEnd: endDT,
+    );
+  }
+
+  /// 🕐 หา time slot ว่างถัดไปในวันเดียวกัน
+  ///
+  /// scan ทุก 30 นาทีจาก [fromTime] ไปข้างหน้า
+  /// คืน DateTime ของ slot แรกที่ว่าง หรือ null ถ้าไม่มีก่อน 21:00
+  Future<DateTime?> findNextFreeSlot(
+    DateTime fromTime,
+    int durationMinutes,
+  ) async {
+    final dayStart = DateTime(fromTime.year, fromTime.month, fromTime.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    final events = await getCalendarEvents(dayStart, dayEnd);
+
+    // เริ่มจาก fromTime + duration (ข้ามช่วงที่ขอไป) แล้ว round ขึ้นไป :00 หรือ :30
+    DateTime candidate = fromTime.add(Duration(minutes: durationMinutes));
+    final extra = candidate.minute % 30;
+    if (extra != 0) {
+      candidate = candidate.add(Duration(minutes: 30 - extra));
+    }
+    candidate = DateTime(
+        candidate.year, candidate.month, candidate.day, candidate.hour, candidate.minute);
+
+    final cutoff = DateTime(fromTime.year, fromTime.month, fromTime.day, 21, 0);
+
+    while (candidate.isBefore(cutoff)) {
+      final candidateEnd = candidate.add(Duration(minutes: durationMinutes));
+      final hasConflict = events.any((e) {
+        final eStart = e['startTime'];
+        final eEnd = e['endTime'];
+        if (eStart == null || eEnd == null) return false;
+        final s = DateTime.fromMillisecondsSinceEpoch(eStart as int);
+        final en = DateTime.fromMillisecondsSinceEpoch(eEnd as int);
+        return candidate.isBefore(en) && candidateEnd.isAfter(s);
+      });
+      if (!hasConflict) return candidate;
+      candidate = candidate.add(const Duration(minutes: 30));
+    }
+    return null;
+  }
+
+  /// 📅 สร้าง event พร้อมตรวจ conflict ก่อน
+  ///
+  /// คืน [ScheduleResult] ที่มี [success] และ [conflictWarning] ถ้าชนนัด
+  Future<ScheduleResult> createCalendarEventWithCheck(EventInfo event) async {
+    final conflict = await checkConflicts(event);
+    final success = await createCalendarEvent(event);
+    return ScheduleResult(
+      success: success,
+      conflictWarning: conflict.hasConflict ? conflict : null,
+    );
+  }
+
   /// 🔍 Simple fallback ถ้าไม่มี LLM
   EventInfo? _fallbackExtract(String text) {
     // หาเวลาแบบง่าย ๆ
@@ -181,4 +297,39 @@ class EventInfo {
     }
     return 'ยังไม่ระบุเวลา';
   }
+}
+
+/// 🔍 ผลการตรวจ conflict
+class ConflictResult {
+  final bool hasConflict;
+  final List<Map<String, dynamic>> conflicts;
+  final DateTime proposedStart;
+  final DateTime proposedEnd;
+
+  const ConflictResult({
+    required this.hasConflict,
+    required this.conflicts,
+    required this.proposedStart,
+    required this.proposedEnd,
+  });
+
+  /// ชื่อ event ที่ชนกัน (สำหรับแสดงใน UI)
+  String get conflictSummary {
+    if (!hasConflict) return '';
+    final names = conflicts.map((e) => e['title'] as String? ?? 'กิจกรรม').join(', ');
+    return 'ชนกับ: $names';
+  }
+}
+
+/// 📅 ผลการสร้าง calendar event
+class ScheduleResult {
+  final bool success;
+  final ConflictResult? conflictWarning;
+
+  const ScheduleResult({
+    required this.success,
+    this.conflictWarning,
+  });
+
+  bool get hadConflict => conflictWarning?.hasConflict == true;
 }

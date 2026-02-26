@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'screens/lock_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/background_task_service.dart';
 import 'services/biometric_service.dart';
 import 'services/encryption_service.dart';
 import 'services/widget_service.dart';
@@ -24,9 +25,17 @@ import 'services/widget_service.dart';
 /// - ✅ Android Widgets
 /// - ✅ AI Chat UI (Mock)
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // ⏰ zonedSchedule: background time triggers (09:00 morning, 20:00 evening)
+  try {
+    await BackgroundTaskService.initialize();
+    await BackgroundTaskService.scheduleDailyTriggers();
+  } catch (e) {
+    debugPrint('⚠️ BackgroundTaskService init failed (non-fatal): $e');
+  }
+
   runApp(
     const ProviderScope(
       child: HakuApp(),

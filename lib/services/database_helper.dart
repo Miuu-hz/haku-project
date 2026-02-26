@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
@@ -55,13 +56,30 @@ class DatabaseHelper {
     // 🔐 ดึง encryption key
     final String password = await EncryptionService.getOrCreateDatabaseKey();
 
-    return openDatabase(
-      path,
-      version: _databaseVersion,
-      password: password,  // 🔐 รหัสผ่านสำหรับ SQLCipher
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+    try {
+      return await openDatabase(
+        path,
+        version: _databaseVersion,
+        password: password,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      );
+    } catch (e) {
+      // ไฟล์เดิมเป็น plain SQLite (ไม่ได้ encrypt) → ลบแล้วสร้าง encrypted ใหม่
+      debugPrint('⚠️ DB open failed, migrating to encrypted DB: $e');
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('🗑️ Deleted old unencrypted DB, creating new encrypted DB');
+      }
+      return openDatabase(
+        path,
+        version: _databaseVersion,
+        password: password,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      );
+    }
   }
 
   /// 🏗️ สร้างตารางเมื่อเปิดครั้งแรก

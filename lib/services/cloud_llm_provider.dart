@@ -74,7 +74,7 @@ class CloudLLMProvider implements LLMProvider {
     _maxTokens = maxTokens;
 
     try {
-      debugPrint('☁️ Initializing ${providerName}...');
+      debugPrint('☁️ Initializing $providerName...');
 
       if (_mode == ConnectionMode.tunnel) {
         // Tunnel mode: health check the tunnel endpoint
@@ -93,7 +93,7 @@ class CloudLLMProvider implements LLMProvider {
       _isLoading = false;
 
       if (_isInitialized) {
-        debugPrint('✅ ${providerName} initialized (mode: ${_mode.name})');
+        debugPrint('✅ $providerName initialized (mode: ${_mode.name})');
       }
       return _isInitialized;
     } catch (e) {
@@ -106,11 +106,11 @@ class CloudLLMProvider implements LLMProvider {
   @override
   Future<String> generate(String prompt) async {
     if (!_isInitialized) {
-      throw StateError('${providerName} not initialized');
+      throw StateError('$providerName not initialized');
     }
 
     try {
-      debugPrint('☁️ Generating with ${providerName} (${_mode.name})...');
+      debugPrint('☁️ Generating with $providerName (${_mode.name})...');
 
       MCPResponse response;
 
@@ -132,11 +132,11 @@ class CloudLLMProvider implements LLMProvider {
 
       if (response.success) {
         debugPrint(
-            '✅ ${providerName} generated ${response.text.length} chars (${response.tokensUsed} tokens)');
+            '✅ $providerName generated ${response.text.length} chars (${response.tokensUsed} tokens)');
         return response.text;
       } else {
         debugPrint(
-            '❌ ${providerName} error: ${response.errorCode} - ${response.errorMessage}');
+            '❌ $providerName error: ${response.errorCode} - ${response.errorMessage}');
 
         // ถ้า tunnel ล้มเหลว ลอง fallback ไป direct mode
         if (_mode == ConnectionMode.tunnel) {
@@ -156,7 +156,7 @@ class CloudLLMProvider implements LLMProvider {
   @override
   Future<void> dispose() async {
     _isInitialized = false;
-    debugPrint('🗑️ ${providerName} disposed');
+    debugPrint('🗑️ $providerName disposed');
   }
 
   // ── Cloud-specific methods ──

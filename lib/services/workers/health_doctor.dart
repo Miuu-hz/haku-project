@@ -346,7 +346,7 @@ class HealthDoctor {
     }
 
     if (_healthData.symptoms.isNotEmpty) {
-      final recent = _healthData.symptoms.take(3).map((s) => s.symptom).join(", ");
+      final recent = _healthData.symptoms.take(3).map((s) => s.symptom).join(', ');
       parts.add('Recent symptoms: $recent');
     }
 

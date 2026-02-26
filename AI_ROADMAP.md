@@ -1,264 +1,215 @@
-# 🤖 Haku AI Roadmap - วางแผน AI ตามความจำเป็น
+# 🤖 Haku AI Roadmap
 
-> สรุป: AI ขนาดเล็ก (2-4B) ทำอะไรได้/ไม่ได้ และควรใช้ยังไงดี
-
----
-
-## 📋 สิ่งที่ AI ควรทำใน Haku (เรียงตาม Priority)
-
-### 🎯 Tier 1: MUST HAVE (ควรทำก่อน)
-สิ่งที่ On-device AI ทำได้ดี + มีความจำเป็นสูง
-
-#### 1.1 **Smart Search / RAG** 🔍
-```
-ความสามารถ: ค้นหาบันทึกจาก "ความหมาย" ไม่ใช่แค่ keyword
-
-ตัวอย่างคำถาม:
-- "วันไหนที่ฉันมีความสุขที่สุด?" → หาบันทึก mood=5
-- "ฉันไปเที่ยวทะเลเมื่อไหร่?" → หาจาก location + context
-- "ตอนนี้รู้สึกยังไง?" → วิเคราะห์ trend จากบันทึกล่าสุด
-
-โมเดลที่ใช้:
-- Embedding Model: multilingual-e5-small (~100MB) - ทำบนเครื่องได้
-- Vector DB: sqlite-vec
-- LLM: Phi-4 Mini หรือ Qwen 3B (สำหรับสรุปคำตอบ)
-
-สถานะ: 🟢 ทำได้ดีบน On-device
-```
-
-#### 1.2 **Entry Summarization** 📝
-```
-ความสามารถ: สรุปบันทึกยาว ๆ ให้สั้นลง
-
-ตัวอย่าง:
-- บันทึก 500 คำ → สรุปเป็น 3 ประโยค
-- สรุป "วันนี้" จากหลาย ๆ entry
-
-โมเดลที่ใช้:
-- Phi-4 Mini (3.8B, 4-bit ~2GB)
-- หรือ Gemma 2 2B (~1.2GB) ถ้าเน้นประหยัด
-
-สถานะ: 🟢 ทำได้ดี (ภาษาอังกฤษดี ไทยพอใช้)
-```
-
-#### 1.3 **Quick Reply / Chat Assistant** 💬
-```
-ความสามารถ: ตอบคำถามสั้น ๆ จากบันทึก
-
-ตัวอย่าง (ที่ทำได้จริง):
-- "วันนี้กินอะไรมา?" → ดึงจาก entry ที่มี "กิน" หรือ "อาหาร"
-- "สรุปอารมณ์ฉันหน่อย" → นับ mood จากบันทึก
-- "เมื่อวานไปไหนมา?" → ดึง location
-
-ตัวอย่าง (ที่ยาก - อาจตอบผิด):
-- "ทำไมฉันถึงเศร้า?" → ต้อง infer จาก context ยาก
-- "อนาคตฉันจะเป็นยังไง?" → ไม่มีข้อมูลจริง
-
-โมเดลที่ใช้:
-- Qwen 2.5 3B (ดีสุดสำหรับไทย)
-- Phi-4 Mini (ฉลาดสุด แต่ไทยอ่อน)
-
-สถานะ: 🟡 ทำได้ แต่ต้องจำกัด scope คำถาม
-```
+> อัพเดทล่าสุด: 2026-02-26
+> สถาปัตยกรรมจริงที่ใช้อยู่ปัจจุบัน + แผนต่อไป
 
 ---
 
-### 🎯 Tier 2: NICE TO HAVE (ทำถ้ามีเวลา)
-สิ่งที่ต้อง trade-off ระหว่างความสามารถกับขนาดโมเดล
+## ✅ Architecture ที่ Implement แล้ว
 
-#### 2.1 **Speech-to-Text (STT) สำหรับบันทึก** 🎙️
-```
-ความสามารถ: พูดแล้วเป็น text บันทึกได้เลย
+### 🧠 On-Device LLM
 
-ตัวเลือก:
-A) On-device (Whisper Tiny ~75MB)
-   - ✅ Privacy 100%
-   - ✅ ไม่ต้อง internet
-   - ❌ ภาษาไทยพอใช้ (ไม่ค่อยแม่น)
-   - ❌ ช้ากว่า Cloud
+| ส่วน | รายละเอียด |
+|------|------------|
+| **Model** | Gemma 3 1B (`.task` format, LiteRT) |
+| **Runtime** | MediaPipe Tasks GenAI (Google AAR) |
+| **Bridge** | `MediaPipeLLMBridge.kt` → MethodChannel `com.example.haku/llm` |
+| **Dart side** | `mediapipe_llm_provider.dart` → `LLMProviderManager` |
+| **llama.cpp / Vulkan** | ❌ ลบออกแล้ว (`llm_native_bridge.dart` เหลือแต่ stub deprecated) |
 
-B) Cloud API (Google Speech-to-Text)
-   - ✅ แม่นยำมาก (ทุกภาษา)
-   - ✅ เร็ว
-   - ❌ ต้องส่งเสียงออก (privacy ลดลง)
-   - ❌ อาจมีค่าใช้จ่าย
+### ☁️ Cloud Providers (fallback / dev mode)
 
-C) Hybrid (แนะนำ)
-   - ใช้ On-device ก่อน (speed + privacy)
-   - ถ้าไม่แม่น ค่อย fallback ไป Cloud (opt-in)
+| Provider | Model | Key format |
+|----------|-------|------------|
+| Gemini | Flash (Google) | `AIza...` |
+| Claude | Haiku (Anthropic) | `sk-ant-...` |
+| OpenAI | GPT-4o-mini | `sk-...` |
+| **OpenRouter** 🆕 | ปรับได้ (default: `google/gemini-2.0-flash-001`) | `sk-or-v1-...` |
 
-สถานะ: 🟡 ต้องเลือกระหว่าง Privacy vs Accuracy
-```
-
-#### 2.2 **Image Caption / Understanding** 🖼️
-```
-ความสามารถ: อธิบายรูปภาพที่แนบในบันทึก
-
-ตัวเลือก:
-A) On-device (MobileNet/CLIP)
-   - ✅ เร็ว ไม่กินแบต
-   - ✅ พื้นฐาน: รู้ว่าเป็น "อาหาร", "คน", "ทะเล"
-   - ❌ ไม่ละเอียด: "พิซซ่าหน้าฮาวายเอี้ยนบนโต๊ะไม้" ← ทำไม่ได้
-
-B) Cloud Vision API
-   - ✅ ละเอียดมาก
-   - ❌ ส่งรูปออก
-
-สถานะ: 🟡 ถ้าเน้น privacy ต้องยอมรับความง่ายของ caption
-```
-
-#### 2.3 **Sentiment Analysis ละเอียด** 😊😢
-```
-ความสามารถ: วิเคราะห์อารมณ์จากข้อความ (ไม่ใช่แค่ user กด mood)
-
-ตัวอย่าง:
-- "วันนี้เหนื่อยมาก แต่ก็มีความสุข" → Mixed sentiment
-- ตรวจจับ stress, anxiety จาก pattern การเขียน
-
-โมเดลที่ใช้:
-- Thai-specific model (wangchanberta)
-- หรือ Multilingual BERT (~400MB)
-
-สถานะ: 🟡 ต้องมีโมเดลเฉพาะภาษาไทย
-```
+Provider switching: `LLMProviderManager` + บันทึกใน SharedPreferences
+ตั้งค่าได้จาก Settings Screen (`settings_screen.dart`)
 
 ---
 
-### 🎯 Tier 3: DREAM FEATURES (ยาก/ไม่แนะนำตอนนี้)
-สิ่งที่ On-device ยังทำไม่ดี หรือต้องใช้ Cloud
+### 🏗️ Secret Chat Architecture (Core)
 
-#### 3.1 **Voice Conversation (เหมือน Siri/Google)** 🗣️
 ```
-ความสามารถ: คุยกลับไปกลับแบบเป็นธรรมชาติ
-
-ปัญหา:
-- ต้องใช้โมเดลขนาดใหญ่ (>7B) ถึงจะ "คุย" สนุก
-- ภาษาไทยบน On-device ยังไม่ลื่น
-- ใช้แบตเยอะมาก
-
-สถานะ: 🔴 ไม่แนะนำ On-device ตอนนี้
-แนะนำ: ใช้ Cloud API ถ้าอยากได้จริง ๆ (แต่เสีย privacy)
-```
-
-#### 3.2 **Image Generation** 🎨
-```
-ความสามารถ: สร้างรูปจากบันทึก
-
-ปัญหา:
-- Stable Diffusion แม้แต่ 1B ก็ยังหนักมากบน mobile
-- ใช้เวลานาน (นาที)
-- กิน RAM เยอะ
-
-สถานะ: 🔴 ไม่เหมาะกับ On-device
+User พิมพ์ภาษาไทย
+  │
+  ▼
+Face LLM (Gemma 3 1B / Cloud)
+  └─ ตอบ user เป็นภาษาไทย  [Stage 1 — ต่อหน้า]
+  │
+  └─ [async, ไม่ block UI] SecretChatService.logExchange()
+       │
+       ▼
+       LLM extract → EnglishLogEntry {
+         summaryEn, intent, tags, location, mood
+       }
+       │
+       ├─ persist → SharedPreferences (50 entries)
+       │
+       └─ ManagerDispatchService.dispatchFromLog()
+            │
+            ├─ intent=schedule → SchedulerService → Android Calendar API
+            ├─ intent=log      → FactWorker → User Profile + RAG
+            ├─ intent=query    → WebSearchService (DuckDuckGo)
+            └─ intent=chat     → log only, no action
 ```
 
-#### 3.3 **Translation ไทย ↔ อังกฤษ** 🌐
-```
-ความสามารถ: แปลบันทึกเป็นภาษาอื่น
-
-ตัวเลือก:
-- Small models (~500MB) แปลได้พอเข้าใจ แต่ไม่สละสลวย
-- Cloud: Google Translate API (แม่นยำ)
-
-สถานะ: 🟡 ทำได้ แต่คุณภาพต่ำกว่า Cloud
-```
+**Status**: ✅ DONE — CLI tested 6/6 intent accuracy
 
 ---
 
-## 🎭 สรุป: ควรเลือกแบบไหน?
+### 📝 Prompt System
 
-### ถ้าคุณเน้น **Privacy 100%** (ไม่ส่งอะไรออกเลย):
-```
-✅ ทำได้ดี:
-   - Smart Search (RAG)
-   - Entry Summarization (ภาษาอังกฤษดี)
-   - Simple Chat (ตอบจากข้อมูลจริง)
-   - Basic Image Caption (CLIP)
+ทุก prompt อยู่ใน `lib/services/prompt_builder.dart` — ใช้ Gemma turn format สำหรับ on-device, ตัด tags อัตโนมัติเมื่อส่ง Cloud
 
-⚠️ ทำได้ แต่คุณภาพต่ำ:
-   - Thai STT (Whisper tiny ไทยไม่แม่น)
-   - Thai Sentiment (พอใช้)
-
-❌ ไม่ควรทำ:
-   - Voice Conversation แบบ Siri
-   - Image Generation
-```
-
-### ถ้าคุณยอมรับ **Hybrid** (บางอย่างใช้ Cloud):
-```
-ทำ On-device ก่อน:
-   - Search + Summarize (privacy สำคัญ)
-   
-Fallback ไป Cloud ถ้าจำเป็น:
-   - STT ไทย (ใช้ Google Speech)
-   - Image Caption ละเอียด (ใช้ GPT-4V)
-   - Translation (ใช้ Google Translate)
-
-วิธีนี้:
-   - คำถามทั่วไป → AI บนเครื่องตอบ (เร็ว + privacy)
-   - คำถามซับซ้อน/เสียง → ขอ permission ส่ง Cloud
-```
+| Method | หน้าที่ |
+|--------|---------|
+| `hakuFacePrompt` | Face LLM system prompt (Thai chat) |
+| `buildWorkerExtractPrompt` | Secret Chat → EnglishLogEntry JSON |
+| `buildSchedulerPrompt` | Thai text → EventInfo JSON (date/time parsing) |
+| `buildTranslateEntryPrompt` | Thai diary → English (สำหรับ RAG) |
+| `buildWorkerSummarizePrompt` | สรุป chat session |
+| `buildWorkerFacePrompt` | Face prompt + context injection |
 
 ---
 
-## 💡 ข้อเสนอแนะสำหรับ Haku Phase 2
+### 🔍 Vector Search / RAG
 
-### แผน A: Pure On-Device (Privacy Max)
-```
-โมเดลที่โหลด:
-1. multilingual-e5-small (100MB) - Embedding
-2. Phi-4 Mini Q4 (2GB) หรือ Qwen 2.5 3B Q4 (1.8GB) - LLM
-3. Whisper Tiny (75MB) - STT (ภาษาอังกฤษ)
-รวม: ~2-2.5 GB
+| ส่วน | รายละเอียด |
+|------|------------|
+| **Embedding** | Hash-based TF-IDF (ไม่ใช้ embedding model จริง) — 2000-dim |
+| **Storage** | `haku_hybrid_vectors.db` (SQLite BLOB via sqflite) |
+| **Search** | BM25 + cosine hybrid (`hybrid_vector_search.dart`) |
+| **Fast Path** | SQL LIKE search ก่อน ถ้า user ถามเรื่องอดีต (0 LLM calls) |
+| **Context assembly** | `smart_preprocessor.dart` รวม lean context ก่อนส่ง Face LLM |
 
-ความสามารถ:
-- ค้นหาฉลาด ✅
-- สรุปบันทึก ✅ (อังกฤษดี ไทยพอใช้)
-- ตอบคำถามจากข้อมูลจริง ✅
-- รู้เสียงภาษาอังกฤษ ✅
-- รู้เสียงภาษาไทย ❌ (พอใช้)
-```
-
-### แผน B: Hybrid (Balance)
-```
-โมเดลบนเครื่อง:
-1. multilingual-e5-small (100MB)
-2. Qwen 2.5 3B Q4 (1.8GB) - ดีสุดสำหรับไทย
-รวม: ~2 GB
-
-ใช้ Cloud เมื่อจำเป็น (opt-in):
-- Google Speech-to-Text (สำหรับเสียงไทย)
-- แจ้งเตือน user ก่อนส่ง: 
-  "คำถามนี้ต้องใช้ Cloud เพื่อความแม่นยำ ยอมรับไหม?"
-
-ความสามารถ:
-- ทุกอย่างในแผน A ✅
-- รู้เสียงไทยแม่น (ด้วย Cloud) ✅
-```
+> หมายเหตุ: ไม่มี embedding model จริง (multilingual-e5 ฯลฯ) — ใช้ hash แทนเพื่อประหยัด RAM
 
 ---
 
-## 🎯 คำถามสำคัญก่อนเริ่ม Phase 2
+### 👷 Workers (Rule-based, 0 LLM cost)
 
-ตอบคำถามนี้ก่อน จะได้เลือกโมเดลถูก:
+Workers ทุกตัวทำงานแบบ rule-based regex — ไม่เรียก LLM เพิ่ม
 
-1. **ผู้ใช้ Haku พูดภาษาอะไรเป็นหลัก?**
-   - อังกฤษ → ใช้ Phi-4 (ฉลาดสุด)
-   - ไทย → ใช้ Qwen 2.5 (ไทยดีสุด)
-   - ทั้งสอง → Qwen 2.5
-
-2. **ยอมให้ส่งข้อมูลออกบางอย่างไหม?**
-   - ไม่เลย → On-device 100% (ยอมรับข้อจำกัด)
-   - ยอมถ้าขอ permission ก่อน → Hybrid (แนะนำ)
-
-3. **ต้องการ Voice ไทยแม่นยำไหม?**
-   - ต้อง → ต้องใช้ Cloud STT
-   - ไม่จำเป็น → Whisper Tiny พอได้
-
-4. **รับได้ไหมถ้า AI ตอบช้า (~2-5 วิ)?**
-   - รับได้ → ใช้ LLM 3-4B
-   - ต้องเร็ว <1 วิ → ใช้ Gemma 2B + จำกัดความสามารถ
+| Worker | ตรวจจับ | Output format |
+|--------|---------|---------------|
+| `fact_worker.dart` | ชื่อ, งาน, ชอบ/ไม่ชอบ, สถานที่ | User profile + RAG |
+| `calendar_worker.dart` | นัดหมาย, ประชุม, กิจกรรม (regex) | SharedPreferences |
+| `goal_worker.dart` | เป้าหมาย, ความตั้งใจ | `[Goal:ออกกำลัง,0/3d/w]` |
+| `health_doctor.dart` | ยา, อาการ, period, โรค | `[Health:...]` |
+| `reminder_worker.dart` | คำขอแจ้งเตือน | SharedPreferences |
+| `translator_worker.dart` | Thai diary → English (batch, background) | RAG vector DB |
 
 ---
 
-**ตอบมาแล้วจะช่วยเลือกโมเดลและวางแผนการ implement ให้ค่ะ!** 🎌
+### 📅 Calendar / Scheduling
+
+```
+SchedulerService.createCalendarEvent()
+  └─ แปลง date(String) + time(String) → Long milliseconds  ← fixed (ก่อนหน้า bug)
+  └─ MethodChannel('com.example.haku/scheduler') → MainActivity.kt
+       └─ SchedulerBridge.kt → CalendarContract → Android Calendar จริง
+       └─ addReminder() → 15 นาทีก่อนนัด
+```
+
+Permission: `WRITE_CALENDAR` (popup ครั้งแรก)
+
+---
+
+### 🔍 Web Search
+
+- **Provider**: DuckDuckGo HTML scraping (ไม่ต้อง API key)
+- **Fallback**: Google HTML scraping
+- **Cache**: 6 ชั่วโมง, rate limit 2s ระหว่าง requests
+- **Output**: 5 results → format text ส่งให้ Face LLM
+
+---
+
+### 📱 อื่นๆ
+
+| ส่วน | สถานะ |
+|------|--------|
+| **Database** | SQLite (`haku_encrypted.db`) + SQLCipher encryption — ตาราง `entries` |
+| **Android Widget** | ✅ Home screen widget 4x2 / 4x3 (quick action buttons) |
+| **Settings Screen** | ✅ เลือก LLM provider + API key + model path |
+| **STT (Speech-to-Text)** | ❌ ยังไม่มี |
+| **Google Calendar Sync** | ✅ ผ่าน `GoogleAuthService` (Demo Mode toggle) |
+
+---
+
+### 🧪 CLI Test Tool
+
+```bash
+dart run bin/test_cli.dart
+```
+
+| Command | หน้าที่ |
+|---------|---------|
+| `/batch` | 6 intent scenarios อัตโนมัติ — ผล: 6/6 ✅ |
+| `/schedule <text>` | ทดสอบ date/time parsing → milliseconds |
+| `/translate <text>` | ทดสอบ Thai→English สำหรับ RAG |
+| *(พิมพ์ปกติ)* | Full flow: Face + SecretChat + Dispatch |
+
+---
+
+## 🗺️ Feature Roadmap
+
+### Feature 3 — ผู้ช่วยจัดตารางอัจฉริยะ 🟡 ~60% done
+
+> "แค่พิมพ์ว่าวันนี้งานเยอะ นัดประชุม 3 โมง"
+
+| Sub-feature | สถานะ | หมายเหตุ |
+|-------------|--------|---------|
+| Natural language → schedule intent | ✅ | SecretChat + PromptBuilder |
+| สร้าง event ใน Android Calendar | ✅ | SchedulerService (fixed) |
+| Reminder 15 นาทีก่อน | ✅ | SchedulerBridge.addReminder |
+| อ่าน calendar ว่า slot ว่างไหม | ❌ | ต้องเพิ่ม `getEvents()` call ก่อน create |
+| Time block อัตโนมัติ | ❌ | จัด slot ว่างในวัน |
+| Task conflict detection | ❌ | ถ้าชนกันให้ warn user |
+
+---
+
+### Feature 1 — ผู้ช่วยวางแผนวันทำงาน 🟡 ~50% done
+
+| Sub-feature | สถานะ | หมายเหตุ |
+|-------------|--------|---------|
+| ช่วยวางแผนวัน (สร้างนัด) | ✅ | ผ่าน Feature 3 |
+| เตือนงานสำคัญ | ✅ | scheduleReminder |
+| จัดลำดับ priority | ✅ | `goal_worker.dart` มีอยู่ |
+| Morning check-in (agenda ตอนเช้า) | ❌ | ต้องใช้ WorkManager (Android background) |
+| Evening summary (สรุปวัน) | ❌ | ต้องใช้ WorkManager |
+
+---
+
+### Feature 2 — บอทช่วยเลิกผัดวันประกันพรุ่ง ❌ ~0% done
+
+> ต้องสร้าง infrastructure ใหม่ทั้งหมด
+
+| Sub-feature | สิ่งที่ต้องสร้าง |
+|-------------|----------------|
+| Focus timer (Pomodoro) | FocusTimerService + UI timer widget |
+| Deep Work session | Session state tracking + notification |
+| Break reminder | ScheduledNotification ตาม interval |
+| Streak system | StreakService: นับ streak, milestone, persist |
+
+---
+
+**ลำดับแนะนำ: 3 → 1 → 2**
+
+- **3**: ต่อยอด pipeline เดิม — เพิ่ม `getEvents()` อ่าน calendar ก่อน create
+- **1**: เพิ่ม WorkManager job สำหรับ morning/evening trigger
+- **2**: สร้าง FocusTimerService + StreakService ใหม่ทั้งหมด
+
+---
+
+## ❓ สิ่งที่ยังไม่มี (อาจพิจารณาในอนาคต)
+
+| Feature | ความยาก | หมายเหตุ |
+|---------|---------|---------|
+| STT ภาษาไทย | กลาง | ต้องใช้ Cloud (Google Speech) หรือ Whisper on-device (ไทยพอใช้) |
+| Real Embedding Model | สูง | multilingual-e5 ~100MB — อาจ improve RAG แต่เพิ่ม RAM |
+| Image Caption | สูง | ต้องการ vision model — ยังไม่มี on-device ที่เบาพอ |
+| Voice Conversation | สูง | ต้องใช้ model >3B ถึงจะ smooth — แบตหมดเร็ว |

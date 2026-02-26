@@ -66,6 +66,9 @@ dependencies:
   # 🔋 Battery Monitoring (สำหรับ Defer to Charging)
   battery_plus: ^6.0.0
 
+  # ⏰ Timezone support สำหรับ zonedSchedule notifications
+  timezone: ^0.9.4
+
   # 🌐 URL Launcher (สำหรับเปิด Maps, Browser)
   url_launcher: ^6.2.5
 

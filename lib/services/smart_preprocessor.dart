@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'database_helper.dart';
 import 'lean_context_service.dart';
+import 'scheduler_service.dart';
 import 'user_profile_service.dart';
 import 'workers/fact_worker.dart';
 import 'workers/calendar_worker.dart';
@@ -190,6 +191,43 @@ class SmartPreprocessor {
       // Calendar (upcoming)
       final calendarLean = _calendarWorker.getLeanFormat();
       if (calendarLean.isNotEmpty) contextParts.add(calendarLean);
+
+      // 🔍 Conflict check — ถ้า detect schedule intent ให้ตรวจ overlap + เสนอ slot ว่าง (2.11)
+      if (intent == DetectedIntent.schedule &&
+          workerResults.calendarEvents.isNotEmpty) {
+        final first = workerResults.calendarEvents.first;
+        final timeStr = first.time != null
+            ? '${first.time!.hour.toString().padLeft(2, '0')}:${first.time!.minute.toString().padLeft(2, '0')}'
+            : null;
+        final eventInfo = EventInfo(
+          title: first.title,
+          date: first.date,
+          time: timeStr,
+          originalText: '',
+        );
+        try {
+          final scheduler = SchedulerService();
+          final conflict = await scheduler
+              .checkConflicts(eventInfo)
+              .timeout(const Duration(seconds: 3));
+          if (conflict.hasConflict) {
+            final names = conflict.conflicts
+                .map((e) => e['title'] as String? ?? 'กิจกรรม')
+                .join(', ');
+            final freeSlot = await scheduler
+                .findNextFreeSlot(
+                    conflict.proposedStart, eventInfo.durationMinutes)
+                .timeout(const Duration(seconds: 3));
+            final slotStr = freeSlot != null
+                ? '[FreeSlot:${freeSlot.hour.toString().padLeft(2, '0')}:${freeSlot.minute.toString().padLeft(2, '0')}]'
+                : '';
+            contextParts.add('[Conflict:$names]$slotStr');
+            debugPrint('⚠️ Conflict: $names | FreeSlot: $freeSlot');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Conflict check skipped: $e');
+        }
+      }
 
       // Reminders
       final reminderLean = _reminderWorker.getLeanFormat();
