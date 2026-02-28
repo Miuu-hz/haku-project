@@ -108,6 +108,47 @@ class BackgroundTaskService {
     await _plugin.cancel(_kEveningId);
     debugPrint('⏰ Daily triggers cancelled');
   }
+
+  // ─── Focus Timer Notifications ──────────────────────────────
+
+  static const _kBreakStartId  = 903;
+  static const _kFocusRemindId = 904;
+
+  static const _kFocusDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      _kNotifChannel,
+      'Haku Triggers',
+      channelDescription: 'แจ้งเตือนตามเวลาจาก Haku',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+  );
+
+  /// แจ้งเตือนเมื่อ Pomodoro Focus เสร็จ — เริ่มพัก
+  static Future<void> showBreakStartNotification({
+    required bool isLong,
+    String? goalTitle,
+  }) async {
+    if (!_initialized) return;
+    final title = isLong ? '🎉 พักยาว 15 นาที!' : '☕ พักสั้น 5 นาที!';
+    final body  = goalTitle != null
+        ? '$goalTitle — Pomodoro เสร็จแล้ว พักก่อนนะ'
+        : 'Focus เสร็จแล้ว! พักแล้วเริ่มรอบใหม่ได้เลย';
+    await _plugin.show(_kBreakStartId, title, body, _kFocusDetails);
+    debugPrint('🍅 Break start notif: $title');
+  }
+
+  /// แจ้งเตือนเมื่อ Break เสร็จ — ถึงเวลา Focus อีกครั้ง
+  static Future<void> showFocusReminderNotification() async {
+    if (!_initialized) return;
+    await _plugin.show(
+      _kFocusRemindId,
+      '⏱️ ถึงเวลา Focus แล้ว!',
+      'พักพอแล้ว เริ่มรอบใหม่ได้เลย 💪',
+      _kFocusDetails,
+    );
+    debugPrint('⏱️ Focus reminder notif sent');
+  }
 }
 
 // ─── Message builders (อ่านจาก SharedPreferences) ─────────────

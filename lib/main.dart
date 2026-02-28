@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'screens/lock_screen.dart';
 import 'screens/main_navigation_screen.dart';
@@ -27,6 +28,9 @@ import 'services/widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🌐 เตรียม locale data สำหรับ DateFormat (intl package)
+  await initializeDateFormatting('th', null);
 
   // ⏰ zonedSchedule: background time triggers (09:00 morning, 20:00 evening)
   try {

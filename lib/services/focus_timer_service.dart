@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'background_task_service.dart';
 import 'streak_service.dart';
 import 'workers/goal_worker.dart';
 
@@ -182,18 +183,24 @@ class FocusTimerService {
     if (_state == FocusState.focusing) {
       await _onPomodoroComplete();
       // เลือก break ตามจำนวน pomodoros
-      if (_completedPomodoros % pomodorosBeforeLongBreak == 0) {
+      final isLong = _completedPomodoros % pomodorosBeforeLongBreak == 0;
+      if (isLong) {
         _secondsRemaining = longBreakMinutes * 60;
         _setState(FocusState.longBreak);
       } else {
         _secondsRemaining = shortBreakMinutes * 60;
         _setState(FocusState.shortBreak);
       }
+      await BackgroundTaskService.showBreakStartNotification(
+        isLong: isLong,
+        goalTitle: _selectedGoal?.title,
+      );
       _startTimer();
     } else {
       // break เสร็จ → กลับ idle ให้ user เริ่มรอบต่อไปเอง
       _secondsRemaining = workMinutes * 60;
       _setState(FocusState.idle);
+      await BackgroundTaskService.showFocusReminderNotification();
     }
   }
 

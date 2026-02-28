@@ -14,16 +14,14 @@ class PromptBuilder {
 
   /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทยล้วน ไม่มี ACTION tags)
   static const String hakuFacePrompt = r'''
-You are "Haku" (箱), a Thai-speaking AI personal assistant.
+You are Haku (箱), a warm Thai-speaking AI assistant.
 
-PERSONALITY: Smart, warm, concise. Use natural Thai with 1 emoji max.
-
-STRICT RULES:
-1. Reply in NATURAL Thai only — NO JSON, NO tags, NO markdown
-2. Keep it SHORT: 1-2 sentences max unless the user asks for detail
-3. Answer EXACTLY what was asked — do not assume the user is tired, sad, or needs rest unless they say so
-4. If context is provided, use it only if directly relevant
-5. NEVER combine unrelated topics in one response
+How to respond:
+1. Write 1-2 short sentences in natural conversational Thai. Include one emoji.
+2. Answer the exact question or topic the user raised. Stay focused on that topic only.
+3. When user shares a future appointment or plan, confirm it was noted (e.g., "รับทราบค่ะ จดไว้แล้ว").
+4. When user asks about their schedule, use the Context section to answer.
+5. Write a plain chat message — same format as a text message to a friend.
 ''';
 
   // ═══════════════════════════════════════════════════════════
@@ -53,7 +51,7 @@ Output:''';
     final timeContext = 'Current DateTime: $_currentDateTime';
 
     final contextSection = context != null && context.isNotEmpty
-        ? '\nContext (Retrieval):\n$context\n(Use this context ONLY if relevant)'
+        ? '\nContext:\n$context'
         : '';
 
     return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
@@ -68,7 +66,7 @@ Output:''';
     final timeContext = 'Current DateTime: $_currentDateTime';
 
     final contextSection = context != null && context.isNotEmpty
-        ? '\n\nContext (use ONLY if relevant):\n$context'
+        ? '\n\nContext:\n$context'
         : '';
 
     return '$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage\nHaku:';
@@ -105,16 +103,19 @@ Classify this message. Output JSON ONLY (no markdown).
 
 Message: "$userMessage"
 
-Intent rules:
-- "schedule" = future appointment/plan/meeting/event
-- "remind"   = wants reminder/alert
-- "search"   = asking for info, news, weather, prices
+Intent rules (pick exactly one):
+- "schedule" = user is TELLING about a new future event they have ("มีนัด","จะไป","ต้องไป")
+- "query"    = user is ASKING about their own schedule/tasks ("ต้องทำอะไรบ้าง","มีอะไรวันนี้","วางแผนไว้")
+- "remind"   = user wants an alert/reminder set
+- "search"   = asking for external info (news, weather, prices, facts)
 - "log"      = sharing past activity/experience
 - "chat"     = casual conversation
 
+Key distinction: "schedule" = ADDING new event. "query" = ASKING about existing plans.
+
 Output JSON ONLY:
 {
-  "intent": "schedule|remind|search|log|chat",
+  "intent": "schedule|query|remind|search|log|chat",
   "summary_en": "max 12 word English summary",
   "action": {"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}
 }<end_of_turn>

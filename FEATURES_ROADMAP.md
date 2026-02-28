@@ -1,7 +1,7 @@
 # Haku Features Roadmap - Proactive AI Assistant
 
 > วางแผนฟีเจอร์ AI ตาม Phase พร้อมโมเดลที่ใช้
-> อัปเดตล่าสุด: 2026-02-27
+> อัปเดตล่าสุด: 2026-02-28
 
 
 
@@ -134,6 +134,8 @@ vector_search:
 - [x] Search intent detection (keyword-based) — fixed weather pattern (no capture groups)
 - [x] Quick action detection (ทักทาย, ถามชื่อ) — fixed: wired into sendToAI() before LLM
 - [x] `updateLeanContextWithEnglish()` — expose Secret Chat English result to lean context
+- [x] **WeatherWorker** 🆕 — detect weather keywords → fetch Open-Meteo API → inject `[Weather]` context → `DetectedIntent.weather` (bypass web search + PreClassify)
+  - patterns: อากาศ, ฝนตก, ฟ้า, ร้อน/หนาว วันนี้, พยากรณ์, forecast, พายุ, ลมแรง ฯลฯ
 
 ---
 
@@ -239,12 +241,18 @@ User msg
 ---
 
 ### 2.10 Web Search Integration ✅
-**สถานะ:** เสร็จแล้ว
+**สถานะ:** เสร็จแล้ว + ปรับปรุง engine (2026-02-28)
 
 - [x] WebSearchService
 - [x] SmartPreprocessor ตรวจจับ search intent อัตโนมัติ
 - [x] LLM สรุปผลค้นหาเป็นคำตอบ
 - [x] Intermediate "กำลังค้นหา..." message ใน UI
+- [x] **SearXNG JSON API** 🆕 — แทน DuckDuckGo HTML scraping (โดนบล็อก), ไม่ต้อง API key
+  - 4 public instances fallback: `search.bus-hit.me` → `searx.be` → `paulgo.io` → `searxng.org`
+  - ส่ง `?format=json` → structured results ตรงๆ ไม่ต้อง parse HTML
+- [x] **Jina AI Reader** 🆕 — แทน manual HTML parser สำหรับ `fetchPageContent()`
+  - `GET https://r.jina.ai/{url}` → clean markdown text โดยตรง
+  - Google scraping (`_searchGoogle`) ยังเก็บไว้เป็น last resort fallback
 
 ---
 
@@ -295,26 +303,223 @@ User msg
 
 ---
 
+## Phase 2 (ต่อ): User-Proposed Features
+
+> เรียงตามความยากจากน้อยไปมาก — ทำทีละอัน
+
+---
+
+### 2.14 Chat Persistence — ไม่ Reset ประวัติแชท ✅
+**สถานะ:** เสร็จแล้ว
+**ความยาก:** ⭐ (ง่าย)
+
+> เก็บประวัติ 50 ข้อความล่าสุดไว้ข้าม session — ไม่ต้อง scroll ขึ้นไปหาอีก
+
+- [x] `ChatMessage.toJson()` / `fromJson()` / `isPersistable` — serialize เฉพาะ user/assistant/proactive
+- [x] `ChatNotifier._loadHistory()` — โหลดตอนเปิดแอป (async, ไม่บล็อก UI)
+- [x] `ChatNotifier._saveHistory()` — บันทึกทุกครั้งที่รับ message ที่ persist ได้
+- [x] จำกัด 50 ข้อความ (trim จากหัว)
+- [x] ปุ่ม "ล้างประวัติแชท" ใน PopupMenu พร้อม confirm dialog
+- **Storage:** SharedPreferences key `chat_history_v1`
+
+---
+
+### 2.20 Samsung Now Brief Dashboard + WeatherService ✅ 🆕
+**สถานะ:** เสร็จแล้ว (2026-02-28)
+
+> HomeScreen "บันทึก" tab redesign เป็น full-width stacked time-adaptive cards แบบ Samsung Now Brief
+
+**Time Periods:**
+- Morning (05-12): weather chip + today's schedule
+- Midday (12-17): AI suggestion card
+- Evening (17-22): streak + goals summary
+- Night (22-05): tomorrow preview
+
+**Cards implemented:**
+- [x] `_HeroBriefCard` — Hero card พร้อม time-adaptive accent color (amber/blue/pink/purple)
+- [x] `_CalendarCard` — events วันนี้จาก `SchedulerService.getCalendarEvents()`
+- [x] `_GoalsCard` — active goals จาก `ObjectiveService.objectives`
+- [x] `_StreakCard` — streak วันนี้จาก `StreakService.currentStreak`
+- [x] `_AiSuggestionCard` — placeholder (midday period)
+
+**WeatherService** (`lib/services/weather_service.dart`) — singleton:
+- [x] Open-Meteo API (ฟรี ไม่ต้อง key) → 3-day daily forecast
+- [x] `WeatherForecast` + `DayForecast` — rolling window (today/tomorrow/day after)
+- [x] Daily cache in SharedPreferences key `weather_forecast_v1`
+- [x] `isFresh` = same calendar day (ไม่ใช่ 24h rolling)
+- [x] `getContextString()` → `[Weather]\nวันนี้: ☀️ สูง 32°C...` สำหรับ LLM prompt
+- [x] Shared singleton — HomeScreen display + SmartPreprocessor WeatherWorker ใช้ cache เดียวกัน (ไม่ double call)
+
+---
+
+### 2.15 Meeting Pre-Flight Check — การ์ดเตรียมตัวก่อนประชุม
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐ (ง่าย-ปานกลาง — ต่อยอดจาก system ที่มีอยู่)
+
+> 15 นาทีก่อนถึงเวลานัด → Haku ดึง RAG แล้วสรุปบริบทให้อ่านก่อนเข้าประชุม
+
+**Flow:**
+```
+CalendarWorker มีนัด
+  ↓ (เวลา = now + 15 นาที)
+MVPTriggerService.schedulePreFlight(event)
+  ↓
+TimerTrigger ยิง
+  ↓
+RAG search ด้วย event.title + attendees
+  ↓
+ดึง: Diary entries ที่พูดถึงหัวข้อ/คน + Facts + Goals ที่เกี่ยวข้อง
+  ↓
+Notification popup "📋 เตรียมพร้อมก่อนนัด: [ชื่อนัด]"
+  ↓
+เปิดแอปแสดง Pre-Flight Card ใน ChatScreen
+```
+
+**งานที่ต้องทำ:**
+- [ ] `CalendarWorker.schedulePreFlightReminders()` — หลัง addEvent, schedule trigger 15 นาทีก่อน
+- [ ] `MVPTriggerService.TriggerType.preFlightCheck` — trigger ชนิดใหม่
+- [ ] RAG search ด้วย context ของ event (title + attendees keyword)
+- [ ] Pre-Flight Card UI — แสดง recap entries + facts ที่เกี่ยวข้อง
+- [ ] NotificationService.showPreFlightNotification()
+- **LLM usage:** 1 call (สรุป RAG results เป็นภาษาธรรมชาติ)
+
+---
+
+### 2.16 Dynamic Morning/Evening Briefing — แดชบอร์ดสรุปวัน
+**สถานะ:** ✅ Done (รวมกับ 2.20 Samsung Now Brief)
+**ความยาก:** ⭐⭐⭐ (ปานกลาง — มี infrastructure แต่ต้องออกแบบ card UI)
+
+> **Implemented:** `home_screen.dart` redesign (Session 4) — Dashboard แสดง Weather Card + Calendar Card (ตารางวันนี้) + Goals Card + Streak Badge แบบ glassmorphism real-time ทุกครั้งที่เปิดแอป
+
+ส่วนที่ทำแล้ว:
+- [x] Weather Card — อุณหภูมิ, คำแนะนำ (WeatherService)
+- [x] Calendar Card — ตารางนัดวันนี้ (SchedulerService)
+- [x] Goals Card — เป้าหมาย + circular progress (ObjectiveService)
+- [x] Streak Badge — Focus streak (StreakService)
+- [x] RefreshIndicator — pull-to-refresh ทุก card
+
+ส่วนที่ยังไม่ทำ (optional enhancement):
+- [ ] Evening summary push notification ตอนชาร์จ (EveningBriefingTask)
+- [ ] Persist briefing card ข้ามวัน via SharedPreferences
+
+---
+
+### 2.17 Thought Catcher — ปุ่มจับความคิดด้วยเสียง
+**สถานะ:** ยังไม่ implement (รอ STT)
+**ความยาก:** ⭐⭐⭐⭐ (ยาก — ต้องมี STT ก่อน)
+
+> กด mic → พูด → บันทึกอัตโนมัติ → CalendarWorker/ReminderWorker เซฟทันที (0 LLM)
+
+**Flow:**
+```
+กด FAB mic button
+  ↓
+STT: speech → text (Google Speech API หรือ Whisper-Tiny)
+  ↓
+SmartPreprocessor.preprocess(text)
+  ↓ (rule-based fast path)
+CalendarWorker.detectEvents() หรือ ReminderWorker.detectReminders()
+  ↓
+Auto-save + animation feedback (ไม่ต้องรอ LLM)
+  ↓
+[async] preClassify → บันทึก English ใน lean context
+```
+
+**งานที่ต้องทำ:**
+- [ ] เลือก STT engine: Google Speech-to-Text API (cloud) หรือ Whisper-Tiny on-device
+- [ ] `SpeechToTextService` wrapper
+- [ ] FAB mic button → recording UI (waveform animation)
+- [ ] SmartPreprocessor fast-path: STT text → detect → save (ไม่รอ LLM)
+- [ ] Confirmation snackbar: "จดแล้ว: [ชื่อนัด/reminder]"
+- **LLM usage:** 0 (rule-based fast path), async preClassify สำหรับ lean context เท่านั้น
+- **ข้อกำหนด:** ต้องมี STT ก่อน (Phase 3.4 หรือ Google Speech API)
+
+---
+
+### 2.18 Focus Goal HUD — วิดเจ็ตลอยตัวกันอู้งาน
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐ (ยาก — Android Overlay permission ซับซ้อน)
+
+> Pomodoro timer ลอยอยู่บนหน้าจอ อัปเดต streak + goal โดยไม่ปลุก LLM
+
+**Architecture:**
+```
+FocusTimerService (มีอยู่แล้ว)
+  ↓ (rule-based timer, 0 LLM)
+Android Overlay Service (SYSTEM_ALERT_WINDOW permission)
+  ↓
+Floating Widget: [timer] [streak 🔥] [goal name]
+  ↓ (เมื่อ pomodoro เสร็จ)
+GoalWorker.logProgress() → StreakService.increment()
+  ↓
+NotificationService: "🍅 Pomodoro เสร็จ!"
+```
+
+**งานที่ต้องทำ:**
+- [ ] Android `SYSTEM_ALERT_WINDOW` permission flow (ต้องให้ user เปิดใน Settings)
+- [ ] `FloatingHUDService` — Android Foreground Service + WindowManager overlay
+- [ ] MethodChannel: Flutter ↔ FloatingHUDService (start/stop/update)
+- [ ] Floating Widget layout (compact, draggable)
+- [ ] FocusTimerService → broadcast state updates ไปยัง HUD
+- **LLM usage:** 0 (rule-based ล้วน)
+- **ข้อกำหนด:** Android 8.0+ (API 26+)
+
+---
+
+### 2.19 Contextual Memory Canvas — แผนผังความจำแบบภาพ
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐⭐ (ยากมาก — UI intensive + heavy RAG)
+
+> ดึง vectors จาก RAG มาวาด Mind Map แสดงความเชื่อมโยงระหว่าง Calendar, Facts, Diary
+
+**Architecture:**
+```
+User เปิดหน้า Memory Canvas
+  ↓
+UnifiedVectorService.getClusteredVectors()
+  ↓ (cosine similarity clustering)
+CalendarWorker events + FactWorker facts + Diary entries
+  ↓
+Build graph: nodes = topics, edges = cosine similarity > 0.7
+  ↓
+Render Mind Map (flutter_graph หรือ custom Canvas painter)
+  ↓
+Tap node → ขยายดู raw content
+```
+
+**งานที่ต้องทำ:**
+- [ ] `VectorGraphService` — cluster vectors + build adjacency graph
+- [ ] `MemoryCanvasScreen` — Mind Map UI (custom `CustomPainter` หรือ library)
+- [ ] Cross-worker data aggregation (Calendar + Fact + Diary ใน format เดียวกัน)
+- [ ] Tap-to-expand: แสดง raw content ของ node
+- [ ] Filter by date range / category
+- [ ] Performance: lazy load ไม่ดึง vector ทั้งหมดพร้อมกัน
+- **LLM usage:** 0 (visualization only, clustering = cosine similarity)
+- **dependency candidates:** `graphview`, `flutter_force_directed_graph`, หรือ custom painter
+
+---
+
 ## Pre-MVP Checklist (ก่อน Public Launch)
 
 > งานที่ต้องทำก่อนปล่อยให้ผู้ใช้จริง — ข้ามข้อไหนไม่ได้
 
 ### Background Processing (งานหนัก เมื่อชาร์จ)
 
-- [ ] **WorkManager batch** (`requiresCharging: true`, ทุก 6 ชม.) — รัน non-LLM tasks เมื่อแอพปิด + เสียบสาย
-  - `reindex_vectors` — re-index SQLite entries ไม่ต้องใช้ LLM
-  - `vectorize_topics` — build vector index จาก SharedPreferences
-  - *หมายเหตุ: LLM tasks (`manager_summary`, `translate_entries`) รอแอพเปิดตามปกติ เพราะ TFLite ไม่รองรับ background isolate*
+- ❌ **WorkManager batch** — defer post-MVP
+  - TFLite ไม่รองรับ background isolate → LLM tasks ทำ background ไม่ได้อยู่แล้ว
+  - `reindex_vectors` / `vectorize_topics` (non-LLM) ยังไม่ critical สำหรับ MVP
+  - `BackgroundTaskService` ที่มีอยู่ handle notification scheduling ได้พอ
 
 ### Focus Timer (2.13 ที่ยังค้าง)
 
-- [ ] **Break reminder notification** — push notification เมื่อ Pomodoro เสร็จ (ใช้ `flutter_local_notifications`)
-- [ ] **Deep Work session** — mute notifications ระหว่าง focus session
+- [x] **Break reminder notification** — ✅ Done: `BackgroundTaskService.showBreakStartNotification()` + `showFocusReminderNotification()` wire แล้วใน `FocusTimerService._advanceState()`
+- [ ] **Deep Work session** — mute notifications ระหว่าง focus session (post-MVP)
 
 ### GPS / Background Location
 
-- [ ] ประเมินว่า GPS trigger (ถึงที่ทำงาน/บ้าน) สำคัญพอไหมสำหรับ MVP — ตัดสินใจ: ทำหรือ disable
-- [ ] ถ้าทำ → ต้องเป็น Foreground Service หรือ Geofencing API
+- [x] ✅ **ตัดสินใจ: Include สำหรับ MVP** — `GeofenceService` (Haversine, zone enter/exit, 5-min polling) + `MVPTriggerService` (locationRevisit trigger) implement แล้วครบ
+  - ใช้ low accuracy + 200m distance filter → battery-friendly
+  - *ไม่ต้อง Foreground Service สำหรับ MVP — periodic polling เพียงพอ*
 
 ---
 
@@ -323,34 +528,29 @@ User msg
 **เป้าหมาย:** วิเคราะห์ pattern ชีวิตและให้ insights
 
 ### 3.1 The Hidden Correlation
-**สถานะ:** ยังไม่ implement
+**สถานะ:** ✅ Done — `lib/services/correlation_service.dart`
 
 หาความเชื่อมโยงที่ซ่อนอยู่ในชีวิต เช่น:
-> "80% ของวันที่คุณปวดหัว คือวันที่คุณดื่มกาแฟร้าน A และนอนน้อยกว่า 6 ชม."
+> "73% ของวันอารมณ์ไม่ดี มักเกิดขึ้นในวันที่มีเครียด"
 
-- [ ] Multivariate correlation analysis
-- [ ] Pattern matching: Food + Sleep + Mood + Health
-- [ ] Insight message generation ด้วย LLM
-
-**Note:** ManagerSummaryStrategy มี basic pattern detection อยู่แล้ว (period, fatigue) สามารถต่อยอดได้
-
-**Technical:**
-```yaml
-approach: Rule-based correlation + simple statistics
-# ไม่ต้องใช้ ML หนัก ใช้ frequency analysis + co-occurrence
-llm: Gemma 3 1B หรือ Cloud LLM (สรุป correlation เป็นภาษาธรรมชาติ)
-```
+- [x] Co-occurrence analysis + Lift scoring (pure Dart, 0 LLM)
+- [x] Signals: กาแฟ, นอนดึก, เครียด, ประชุม/สังคม, ปวดหัว, ออกกำลังกาย, อาหารไม่ดี
+- [x] Outcomes: lowMood (mood ≤ 2), fatigue (keyword), highMood (mood ≥ 4)
+- [x] `_InsightCard` ใน home_screen — confidence chip + tinted message box
+- [ ] (optional) LLM narrative สำหรับ insight ที่ซับซ้อน
 
 ---
 
 ### 3.2 Social Battery Forecast
-**สถานะ:** ยังไม่ implement
+**สถานะ:** ✅ Done — `lib/services/social_battery_service.dart`
 
 พยากรณ์ "พลังงานสังคม" และเตือนก่อน burnout
 
-- [ ] Energy Cost Scoring สำหรับแต่ละกิจกรรม
-- [ ] Cumulative score calculation
-- [ ] Visual Health Bar บนหน้า Home
+- [x] Energy Cost Table: draining (ประชุม -10, งานสังคม -14, เครียด -10) / recharging (คนเดียว +12, นอน +10)
+- [x] Cumulative score จาก 14 วันล่าสุด → level 0–100
+- [x] Trend: เปรียบ 7 วันล่าสุด vs 7 วันก่อน (mood average)
+- [x] `_SocialBatteryCard` ใน home_screen — LinearProgressIndicator + trend badge + nudge message
+- [ ] (optional) Push notification เมื่อ level < 30 ติดต่อกัน 3 วัน
 
 ---
 
@@ -438,7 +638,7 @@ vector_search:
   storage: SQLite BLOB
   note: ไม่ต้องโหลด embedding model แยก
 
-# Workers (Rule-based, 0 tokens) — 6 ตัว
+# Workers (Rule-based, 0 tokens) — 7 ตัว
 workers:
   - FactWorker (ชื่อ, ชอบ, อาชีพ, เป้าหมาย)
   - CalendarWorker (นัดหมาย, เวลา)
@@ -446,6 +646,7 @@ workers:
   - GoalWorker (เป้าหมาย, progress)
   - HealthDoctor (ประจำเดือน, อาการ, ยา, แพ้)
   - TranslatorWorker (Thai→English batch, background ตอนชาร์จ)
+  - WeatherWorker (Open-Meteo 3-day, daily cache, bypass web search)
 
 # STT (Speech-to-Text) — ยังไม่ implement
 stt_engine:
@@ -478,7 +679,9 @@ tts_engine:
 | 2 | Auto-Scheduling + MethodChannel fix | ✅ |
 | 2 | Proactive Triggers (time + location) | ✅ |
 | 2 | Background Processing (charging) | ✅ |
-| 2 | Web Search (DuckDuckGo scraping) | ✅ |์
+| 2 | Web Search (SearXNG JSON + Jina AI reader) | ✅ |
+| 2 | WeatherService (Open-Meteo, 3-day cache, weather worker) | ✅ |
+| 2 | Samsung Now Brief Dashboard (HomeScreen redesign) | ✅ |
 | 2 | CLI Test Tool (`/batch`, `/schedule`, `/translate`) | ✅ |
 | 2 | Google Calendar (real API) | 🟡 Mock Mode |
 | 2 | Proactive Voice (TTS) | ❌ |
@@ -486,13 +689,20 @@ tts_engine:
 | 2 | ผู้ช่วยจัดตารางอัจฉริยะ (2.11) | ✅ conflict detection |
 | 2 | ผู้ช่วยวางแผนวันทำงาน (2.12) | ✅ morning agenda + evening summary |
 | 2 | บอทช่วยเลิกผัดวันประกันพรุ่ง (2.13) | 🟡 70% goal-linked MVP |
+| 2 | Chat Persistence 50 messages (2.14) | ✅ |
+| 2 | Samsung Now Brief + WeatherService (2.20) | ✅ |
+| 2 | Meeting Pre-Flight Check (2.15) | ❌ planned |
+| 2 | Morning/Evening Briefing (2.16) | ✅ home_screen dashboard |
+| 2 | Thought Catcher — Voice (2.17) | ❌ รอ STT |
+| 2 | Focus Goal HUD — Overlay (2.18) | ❌ planned |
+| 2 | Memory Canvas — Mind Map (2.19) | ❌ planned |
 | 3 | Hidden Correlation | ❌ |
 | 3 | Social Battery | ❌ |
 | 3 | Music/News Context | ❌ |
 | 4 | Shadow Mode | ❌ |
 | 4 | AR Memory Anchor | ❌ |
 
-**Phase 2 progress: ~97%** (เหลือ Google Calendar real, TTS, Deep Work notification)
+**Phase 2 progress: ~98%** (เหลือ Google Calendar real, TTS, Deep Work notification)
 
 ---
 

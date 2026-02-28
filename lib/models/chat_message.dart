@@ -7,6 +7,8 @@
 // - Loading indicator
 // - Error message
 
+import 'dart:convert';
+
 enum ChatMessageType {
   user,
   assistant,
@@ -116,4 +118,52 @@ class ChatMessage {
         triggerTitle: triggerTitle ?? this.triggerTitle,
         actions: actions ?? this.actions,
       );
+
+  // ══════════════════════════════════════════════════
+  // 💾 Persistence — บันทึก/โหลด chat history
+  // ══════════════════════════════════════════════════
+
+  /// ประเภทที่ควรบันทึก (ข้ามสถานะชั่วคราว)
+  bool get isPersistable =>
+      type != ChatMessageType.loading &&
+      type != ChatMessageType.searching;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type.name,
+        'content': content,
+        'timestamp': timestamp.toIso8601String(),
+        if (sources != null) 'sources': sources,
+        if (triggerTitle != null) 'triggerTitle': triggerTitle,
+        if (actions != null) 'actions': actions,
+      };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+        id: json['id'] as String,
+        type: ChatMessageType.values.firstWhere(
+          (t) => t.name == json['type'],
+          orElse: () => ChatMessageType.assistant,
+        ),
+        content: json['content'] as String,
+        timestamp: DateTime.parse(json['timestamp'] as String),
+        sources: (json['sources'] as List<dynamic>?)?.cast<String>(),
+        triggerTitle: json['triggerTitle'] as String?,
+        actions: (json['actions'] as List<dynamic>?)?.cast<String>(),
+      );
+
+  /// Encode list → JSON string สำหรับ SharedPreferences
+  static String encodeList(List<ChatMessage> messages) =>
+      jsonEncode(messages.where((m) => m.isPersistable).map((m) => m.toJson()).toList());
+
+  /// Decode JSON string → list จาก SharedPreferences
+  static List<ChatMessage> decodeList(String json) {
+    try {
+      final list = jsonDecode(json) as List<dynamic>;
+      return list
+          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

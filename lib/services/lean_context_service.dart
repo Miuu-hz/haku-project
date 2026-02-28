@@ -42,9 +42,9 @@ class LeanContextService {
   bool _isInitialized = false;
 
   // Settings
-  static const int fullContextCount = 3;    // จำนวน chat ที่แสดงแบบ full
-  static const int maxLeanMessages = 25;    // จำนวน lean messages สูงสุด
-  static const int maxSummaries = 10;       // จำนวน session summaries สูงสุด
+  static const int fullContextCount = 2;    // จำนวน chat ที่แสดงแบบ full (ลดจาก 3)
+  static const int maxLeanMessages = 15;    // จำนวน lean messages สูงสุด (ลดจาก 25)
+  static const int maxSummaries = 5;        // จำนวน session summaries สูงสุด (ลดจาก 10)
 
   /// 🚀 Initialize
   Future<void> initialize() async {
@@ -128,7 +128,29 @@ class LeanContextService {
           actions: msg.actions,
         );
         _saveToStorage();
-        debugPrint('📦 Lean→EN: "$englishSummary"');
+        debugPrint('📦 Lean→EN (AI): "$englishSummary"');
+        return;
+      }
+    }
+  }
+
+  /// 🔄 Update the last USER message's lean content with English summary
+  /// Called immediately after preClassify returns summaryEn — instant token savings
+  /// ไม่ต้องรอ SecretChat async, preClassify ให้ English มาแล้ว
+  void updateLastUserMessageWithEnglish(String englishSummary) {
+    if (_leanMessages.isEmpty) return;
+    for (int i = _leanMessages.length - 1; i >= 0; i--) {
+      if (_leanMessages[i].role == MessageRole.user) {
+        final msg = _leanMessages[i];
+        _leanMessages[i] = LeanMessage(
+          role: msg.role,
+          content: msg.content,
+          leanContent: englishSummary,
+          timestamp: msg.timestamp,
+          actions: msg.actions,
+        );
+        _saveToStorage();
+        debugPrint('📦 Lean→EN (User): "$englishSummary"');
         return;
       }
     }
@@ -234,44 +256,73 @@ class LeanContextService {
     return lean;
   }
 
-  /// 📊 Create quick summary (rule-based)
+  /// 📊 Create summary from trimmed messages
+  ///
+  /// ใช้ English leanContent จาก SecretChat เป็น primary source
+  /// เพราะมีบริบทครบกว่า keyword detection มาก
+  /// Fallback: keyword detection สำหรับกรณีที่ SecretChat ยังไม่ได้แปล
   SessionSummary? _createQuickSummary(List<LeanMessage> messages) {
     if (messages.isEmpty) return null;
 
-    // Extract keywords/topics
-    final topics = <String>{};
     final actions = <String>[];
-
     for (final msg in messages) {
-      // ตรวจจับ topics จาก keywords
-      final content = msg.content.toLowerCase();
-
-      if (content.contains('งาน') || content.contains('ทำงาน')) topics.add('work');
-      if (content.contains('อาหาร') || content.contains('กิน')) topics.add('food');
-      if (content.contains('เหนื่อย') || content.contains('พัก')) topics.add('rest');
-      if (content.contains('สุขภาพ') || content.contains('ป่วย') || content.contains('เมน')) topics.add('health');
-      if (content.contains('เพื่อน') || content.contains('ครอบครัว')) topics.add('social');
-      if (content.contains('เป้า') || content.contains('อยาก')) topics.add('goals');
-      if (content.contains('ร้าน') || content.contains('ไป')) topics.add('places');
-
-      // Collect actions
-      if (msg.actions != null) {
-        actions.addAll(msg.actions!);
-      }
+      if (msg.actions != null) actions.addAll(msg.actions!);
     }
 
-    final firstTime = messages.first.timestamp;
-    final lastTime = messages.last.timestamp;
+    // Primary: ใช้ English leanContent จาก AI messages (SecretChat แปลไว้แล้ว)
+    // ตรวจว่าเป็น English จริงๆ (ไม่ใช่ lean Thai ย่อ) โดยดูว่า ASCII > 50%
+    final englishSummaries = messages
+        .where((m) =>
+            m.role == MessageRole.assistant &&
+            m.leanContent.isNotEmpty &&
+            _isEnglish(m.leanContent))
+        .map((m) => m.leanContent)
+        .take(6)
+        .toList();
+
+    String summaryEn;
+    List<String> topics;
+
+    if (englishSummaries.isNotEmpty) {
+      // มี English จาก SecretChat → ใช้เลย บริบทครบ
+      summaryEn = englishSummaries.join('; ');
+      if (actions.isNotEmpty) summaryEn += '. Actions: ${actions.join(", ")}';
+      topics = ['en_summary']; // marker ว่าใช้ English path
+    } else {
+      // Fallback: keyword detection
+      final topicSet = <String>{};
+      for (final msg in messages) {
+        final content = msg.content.toLowerCase();
+        if (content.contains('งาน') || content.contains('ทำงาน')) topicSet.add('work');
+        if (content.contains('อาหาร') || content.contains('กิน')) topicSet.add('food');
+        if (content.contains('เหนื่อย') || content.contains('พัก')) topicSet.add('rest');
+        if (content.contains('สุขภาพ') || content.contains('ป่วย')) topicSet.add('health');
+        if (content.contains('เพื่อน') || content.contains('ครอบครัว')) topicSet.add('social');
+        if (content.contains('เป้า') || content.contains('อยาก')) topicSet.add('goals');
+        if (content.contains('ร้าน') || content.contains('ไป')) topicSet.add('places');
+        if (content.contains('นัด') || content.contains('ประชุม')) topicSet.add('schedule');
+      }
+      summaryEn = 'Talked about: ${topicSet.join(", ")}.'
+          '${actions.isNotEmpty ? " Actions: ${actions.join(", ")}" : ""}';
+      topics = topicSet.toList();
+    }
 
     return SessionSummary(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      summaryEn: 'Talked about: ${topics.join(", ")}. ${actions.isNotEmpty ? "Actions: ${actions.join(", ")}" : ""}',
-      topics: topics.toList(),
-      startTime: firstTime,
-      endTime: lastTime,
+      summaryEn: summaryEn,
+      topics: topics,
+      startTime: messages.first.timestamp,
+      endTime: messages.last.timestamp,
       messageCount: messages.length,
       createdAt: DateTime.now(),
     );
+  }
+
+  /// ตรวจว่าข้อความเป็น English (ASCII > 50%) — ไม่ใช่ lean Thai ย่อ
+  bool _isEnglish(String text) {
+    if (text.isEmpty) return false;
+    final asciiCount = text.codeUnits.where((c) => c < 128).length;
+    return asciiCount / text.length > 0.5;
   }
 
   // ============================================================

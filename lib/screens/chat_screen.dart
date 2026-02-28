@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
@@ -30,13 +31,52 @@ import '../services/web_search_service.dart';
 final chatHistoryProvider = StateNotifierProvider<ChatNotifier, List<ChatMessage>>((ref) => ChatNotifier());
 
 class ChatNotifier extends StateNotifier<List<ChatMessage>> {
-  ChatNotifier() : super([
-    ChatMessage.welcome(),
-  ]);
+  static const String _historyKey = 'chat_history_v1';
+  static const int _maxMessages = 50;
+
+  ChatNotifier() : super([ChatMessage.welcome()]) {
+    _loadHistory();
+  }
+
+  /// 📂 โหลด chat history จาก SharedPreferences ตอน startup
+  Future<void> _loadHistory() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_historyKey);
+      if (json != null && json.isNotEmpty) {
+        final messages = ChatMessage.decodeList(json);
+        if (messages.isNotEmpty) {
+          state = messages;
+          debugPrint('💬 Chat history loaded: ${messages.length} messages');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load chat history: $e');
+    }
+  }
+
+  /// 💾 บันทึก chat history (เก็บแค่ $_maxMessages ล่าสุด)
+  Future<void> _saveHistory() async {
+    try {
+      final persistable = state.where((m) => m.isPersistable).toList();
+      final trimmed = persistable.length > _maxMessages
+          ? persistable.sublist(persistable.length - _maxMessages)
+          : persistable;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_historyKey, ChatMessage.encodeList(trimmed));
+    } catch (e) {
+      debugPrint('⚠️ Failed to save chat history: $e');
+    }
+  }
 
   void addMessage(ChatMessage message) {
     state = [...state, message];
-    
+
+    // 💾 บันทึก history (ข้าม loading/searching)
+    if (message.isPersistable) {
+      _saveHistory();
+    }
+
     // 🔋 บันทึกประวัติแชทสำหรับสรุปแบบ Deferred (ไม่กินแบต)
     if (!message.isLoading && !message.isError) {
       ChatSummaryService().logChatMessage(
@@ -45,6 +85,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         intent: message.isProactive ? 'proactive' : 'chat',
       );
     }
+  }
+
+  /// 🗑️ ล้าง chat history (manual clear)
+  Future<void> clearHistory() async {
+    state = [ChatMessage.welcome()];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_historyKey);
+    debugPrint('💬 Chat history cleared');
   }
 
   /// 🔧 Extract response text from JSON or plain text
@@ -222,10 +270,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         if (llm.isInitialized && ruleIntent == DetectedIntent.general) {
           debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
           preClassify = await SecretChatService().preClassify(userMessage);
-          if (preClassify != null && preClassify.contextHint.isNotEmpty) {
-            // Inject intent hint at front of context for Face
-            contextStr = '${preClassify.contextHint}\n$contextStr';
-            debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+          if (preClassify != null) {
+            // 📦 ใช้ English summary แทน Thai ใน lean context ทันที (ประหยัด ~3x tokens)
+            SmartPreprocessor().updateUserMessageWithEnglish(preClassify.summaryEn);
+            if (preClassify.contextHint.isNotEmpty) {
+              // Inject intent hint at front of context for Face
+              contextStr = '${preClassify.contextHint}\n$contextStr';
+              debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+            }
           }
         }
 
@@ -705,9 +757,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               );
             },
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onPressed: () {},
+            onSelected: (value) async {
+              if (value == 'clear') {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    title: const Text('ล้างประวัติแชท', style: TextStyle(color: Colors.white)),
+                    content: const Text('ข้อความทั้งหมดจะถูกลบออก ยืนยันไหมคะ?', style: TextStyle(color: Colors.white70)),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ', style: TextStyle(color: Colors.redAccent))),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  ref.read(chatHistoryProvider.notifier).clearHistory();
+                }
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'clear', child: Row(children: [
+                Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('ล้างประวัติแชท'),
+              ])),
+            ],
           ),
         ],
       ),

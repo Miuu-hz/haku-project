@@ -4,6 +4,7 @@ import 'database_helper.dart';
 import 'lean_context_service.dart';
 import 'scheduler_service.dart';
 import 'user_profile_service.dart';
+import 'weather_service.dart';
 import 'workers/fact_worker.dart';
 import 'workers/calendar_worker.dart';
 import 'workers/reminder_worker.dart';
@@ -52,22 +53,25 @@ class SmartPreprocessor {
   // 🔍 KEYWORD PATTERNS
   // ============================================================
 
-  /// คำที่บ่งบอกว่าต้องการค้นหาข้อมูล
+  /// คำที่บ่งบอกว่าต้องการค้นหาข้อมูลจากเว็บ (ไม่รวม weather → ใช้ Open-Meteo แทน)
   static final List<RegExp> _searchPatterns = [
     RegExp(r'ค้นหา(.+)', caseSensitive: false),
     RegExp(r'หา(.+)ให้หน่อย', caseSensitive: false),
     RegExp(r'หา(.+)ให้ที', caseSensitive: false),
     RegExp(r'(.+)คืออะไร', caseSensitive: false),
     RegExp(r'(.+)หมายความว่าอะไร', caseSensitive: false),
-    RegExp(r'อากาศ.*วันนี้', caseSensitive: false),
-    RegExp(r'อากาศ.*พรุ่งนี้', caseSensitive: false),
-    RegExp(r'พยากรณ์อากาศ', caseSensitive: false),
-    RegExp(r'สภาพอากาศ', caseSensitive: false),
     RegExp(r'ข่าว(.+)', caseSensitive: false),
     RegExp(r'ราคา(.+)', caseSensitive: false),
     RegExp(r'วิธี(.+)', caseSensitive: false),
     RegExp(r'สูตร(.+)', caseSensitive: false),
   ];
+
+  /// คำที่บ่งบอกว่าถามเรื่องอากาศ → ใช้ WeatherService (Open-Meteo) แทน web search
+  static final RegExp _weatherPattern = RegExp(
+    r'อากาศ|ฝนตก|ฝนจะ|ฟ้า|ร้อน.*วันนี้|หนาว.*วันนี้|พยากรณ์|สภาพอากาศ|'
+    r'weather|forecast|จะฝน|จะร้อน|จะหนาว|มีฝน|ลมแรง|พายุ',
+    caseSensitive: false,
+  );
 
   // ============================================================
   // 🚀 MAIN PREPROCESSING
@@ -149,6 +153,23 @@ class SmartPreprocessor {
     if (searchQuery != null) {
       debugPrint('🔍 Detected search intent: $searchQuery');
       intent = DetectedIntent.search;
+    }
+
+    // 2.1 🌤️ Weather Worker — ใช้ Open-Meteo แทน web search (เร็วกว่า + ไม่ถูก block)
+    if (_weatherPattern.hasMatch(userMessage)) {
+      debugPrint('🌤️ Weather intent detected, fetching forecast...');
+      try {
+        final ctx = await WeatherService()
+            .getContextString()
+            .timeout(const Duration(seconds: 8));
+        if (ctx != null) {
+          enrichedContext = '$ctx\n$enrichedContext';
+          intent = DetectedIntent.weather;
+          debugPrint('🌤️ Weather context injected');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Weather fetch skipped: $e');
+      }
     }
 
     // 2.5 ⚡ Fast Path: SQL LIKE search (0 LLM, ทันที)
@@ -274,10 +295,15 @@ class SmartPreprocessor {
     }
   }
 
-  /// 🔄 Update last AI lean entry with English (Secret Chat output)
-  /// English is ~3-5x more token-efficient than Thai for on-device models
+  /// 🔄 Update last AI lean entry with English (Secret Chat output, async)
   void updateLeanContextWithEnglish(String englishSummary) {
     _leanContext.updateLastPairWithEnglish(englishSummary);
+  }
+
+  /// 🔄 Update last USER lean entry with English (from preClassify, instant)
+  /// เรียกทันทีหลัง preClassify returns — ไม่ต้องรอ SecretChat async
+  void updateUserMessageWithEnglish(String englishSummary) {
+    _leanContext.updateLastUserMessageWithEnglish(englishSummary);
   }
 
   /// 📊 Get Lean Context stats
@@ -469,6 +495,7 @@ class WorkerResults {
 enum DetectedIntent {
   general,
   search,
+  weather,
   schedule,
   reminder,
   navigation,

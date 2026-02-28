@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dart analyze:*)",
-      "Bash(flutter pub get:*)"
+      "Bash(flutter pub get:*)",
+      "Read(//c/Program Files/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\haiki\\.claude\\projects\\f--Haku-Project-haku\\memory"

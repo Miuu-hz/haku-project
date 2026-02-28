@@ -25,10 +25,14 @@ class MediaPipeLLMService {
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _currentModelPath;
-  
+
+  /// ป้องกัน dispose ขณะ generate กำลังทำงาน (ป้องกัน SIGABRT)
+  bool _isGenerating = false;
+  bool _pendingDispose = false;
+
   /// 🔋 Auto-unload timer สำหรับประหยัดแบตเตอรี่
   Timer? _autoUnloadTimer;
-  
+
   /// ⏱️ เวลาที่ไม่ใช้งานก่อน auto-unload (นาที)
   static const int autoUnloadMinutes = 5;
 
@@ -137,7 +141,7 @@ class MediaPipeLLMService {
   }
 
   /// 💬 Generate text
-  /// 
+  ///
   /// @param prompt ข้อความ input
   /// @return ข้อความที่สร้าง
   Future<String> generate(String prompt) async {
@@ -148,9 +152,10 @@ class MediaPipeLLMService {
     // 🔋 Reset auto-unload timer เมื่อมีการใช้งาน
     _resetAutoUnloadTimer();
 
+    _isGenerating = true;
     try {
       debugPrint('🤖 Generating with MediaPipe...');
-      
+
       final response = await _channel.invokeMethod<String>('generate', {
         'prompt': prompt,
       });
@@ -161,6 +166,13 @@ class MediaPipeLLMService {
       debugPrint('❌ MediaPipe generate error: $e');
       debugPrint('Stack: $stackTrace');
       return '';
+    } finally {
+      _isGenerating = false;
+      // ถ้า auto-unload/dispose ถูก request ระหว่าง generate → ทำตอนนี้
+      if (_pendingDispose) {
+        _pendingDispose = false;
+        await _doDispose();
+      }
     }
   }
 
@@ -176,24 +188,44 @@ class MediaPipeLLMService {
   /// 🔋 Auto-unload โมเดลเมื่อไม่ใช้งาน
   Future<void> _autoUnload() async {
     if (!_isInitialized) return;
-    
+
+    if (_isGenerating) {
+      // generate กำลังทำงาน → defer ไป finally ของ generate()
+      debugPrint('🔋 Auto-unload deferred (generating...)');
+      _pendingDispose = true;
+      return;
+    }
+
     debugPrint('🔋 Auto-unloading LLM เพื่อประหยัดแบตเตอรี่...');
-    await dispose();
+    await _doDispose();
   }
 
   /// 🛑 หยุด auto-unload timer (ใช้เมื่อต้องการ keep model loaded)
   void cancelAutoUnload() {
     _autoUnloadTimer?.cancel();
     _autoUnloadTimer = null;
+    _pendingDispose = false;
     debugPrint('⏰ Auto-unload timer cancelled');
   }
 
-  /// 🗑️ ปิดโมเดล
+  /// 🗑️ ปิดโมเดล (public — safe to call anytime)
   Future<void> dispose() async {
-    // ยกเลิก auto-unload timer
     _autoUnloadTimer?.cancel();
     _autoUnloadTimer = null;
-    
+
+    if (_isGenerating) {
+      // generate กำลังทำงาน → defer ไป finally ของ generate()
+      debugPrint('🗑️ Dispose deferred (generating...)');
+      _pendingDispose = true;
+      return;
+    }
+
+    await _doDispose();
+  }
+
+  /// 🗑️ ปิดโมเดล (internal — เรียกเฉพาะตอนไม่มี generate ทำงาน)
+  Future<void> _doDispose() async {
+    if (!_isInitialized) return;
     try {
       await _channel.invokeMethod('unloadModel');
       _isInitialized = false;

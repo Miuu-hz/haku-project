@@ -9,10 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 🔍 Web Search Service - ค้นหาเว็บให้ AI ฉลาดขึ้น
 ///
 /// Features:
-/// - ค้นหาผ่าน DuckDuckGo (primary, ไม่ค่อยโดน block)
+/// - ค้นหาผ่าน SearXNG JSON API (primary, ไม่โดน block, ไม่ต้อง key)
 /// - Fallback ไป Google scraping
+/// - อ่านเนื้อหาผ่าน Jina AI Reader (r.jina.ai) — clean markdown
 /// - Cache ผลลัพธ์เพื่อประหยัด requests
-/// - อ่านเนื้อหาหน้าเว็บเพิ่มเติม
 
 class WebSearchService {
   static final WebSearchService _instance = WebSearchService._internal();
@@ -21,6 +21,14 @@ class WebSearchService {
 
   static const String _cacheKey = 'web_search_cache';
   static const Duration cacheDuration = Duration(hours: 6);
+
+  /// SearXNG public instances — ลองทีละอันจนสำเร็จ
+  static const List<String> _searxInstances = [
+    'search.bus-hit.me',
+    'searx.be',
+    'paulgo.io',
+    'searxng.org',
+  ];
 
   // Cache
   Map<String, CachedSearch> _cache = {};
@@ -123,12 +131,12 @@ class WebSearchService {
 
     debugPrint('🔍 Searching: $query');
 
-    // Try DuckDuckGo first
-    var result = await _searchDuckDuckGo(query, maxResults: maxResults);
+    // ลอง SearXNG ก่อน (JSON API, ไม่โดน block)
+    var result = await _searchSearXNG(query, maxResults: maxResults);
 
-    // Fallback to Google if DuckDuckGo fails
+    // Fallback to Google if SearXNG fails
     if (result.items.isEmpty) {
-      debugPrint('⚠️ DuckDuckGo failed, trying Google...');
+      debugPrint('⚠️ SearXNG failed, trying Google...');
       result = await _searchGoogle(query, maxResults: maxResults);
     }
 
@@ -144,80 +152,57 @@ class WebSearchService {
     return result;
   }
 
-  /// 🦆 ค้นหาผ่าน DuckDuckGo HTML
-  Future<SearchResult> _searchDuckDuckGo(
+  /// 🔍 ค้นหาผ่าน SearXNG JSON API (ลอง instance ทีละตัว)
+  Future<SearchResult> _searchSearXNG(
     String query, {
     int maxResults = 5,
   }) async {
-    try {
-      final uri = Uri.https('html.duckduckgo.com', '/html/', {
-        'q': query,
-        'kl': 'th-th', // Thai region
-      });
+    for (final instance in _searxInstances) {
+      try {
+        final uri = Uri.https(instance, '/search', {
+          'q': query,
+          'format': 'json',
+          'language': 'th',
+          'categories': 'general',
+        });
 
-      final response = await http.get(
-        uri,
-        headers: {
-          'User-Agent': _currentUserAgent,
-          'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'th,en;q=0.9',
-        },
-      ).timeout(const Duration(seconds: 10));
+        final response = await http.get(
+          uri,
+          headers: {
+            'User-Agent': _currentUserAgent,
+            'Accept': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        return _parseDuckDuckGoHtml(response.body, maxResults);
-      }
-    } catch (e) {
-      debugPrint('⚠️ DuckDuckGo search error: $e');
-    }
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final rawResults = (data['results'] as List?) ?? [];
 
-    return SearchResult(query: query, items: [], source: 'duckduckgo');
-  }
+          final items = rawResults
+              .take(maxResults)
+              .map((r) {
+                final m = r as Map<String, dynamic>;
+                return SearchItem(
+                  title: (m['title'] as String?) ?? '',
+                  url: (m['url'] as String?) ?? '',
+                  snippet: (m['content'] as String?) ?? '',
+                  source: 'SearXNG',
+                );
+              })
+              .where((i) => i.title.isNotEmpty && i.url.isNotEmpty)
+              .toList();
 
-  /// 📝 Parse DuckDuckGo HTML
-  SearchResult _parseDuckDuckGoHtml(String html, int maxResults) {
-    final items = <SearchItem>[];
-
-    try {
-      final document = html_parser.parse(html);
-      final results = document.querySelectorAll('.result');
-
-      for (final result in results.take(maxResults)) {
-        final titleElement = result.querySelector('.result__a');
-        final snippetElement = result.querySelector('.result__snippet');
-
-        if (titleElement != null) {
-          final title = titleElement.text.trim();
-          final snippet = snippetElement?.text.trim() ?? '';
-          var url = titleElement.attributes['href'] ?? '';
-
-          // DuckDuckGo uses redirect URLs, extract actual URL
-          if (url.contains('uddg=')) {
-            final match = RegExp(r'uddg=([^&]+)').firstMatch(url);
-            if (match != null) {
-              url = Uri.decodeComponent(match.group(1)!);
-            }
-          }
-
-          if (title.isNotEmpty && url.isNotEmpty) {
-            items.add(SearchItem(
-              title: title,
-              url: url,
-              snippet: snippet,
-              source: 'DuckDuckGo',
-            ));
+          if (items.isNotEmpty) {
+            debugPrint('✅ SearXNG ($instance): ${items.length} results');
+            return SearchResult(query: query, items: items, source: 'searxng');
           }
         }
+      } catch (e) {
+        debugPrint('⚠️ SearXNG ($instance) failed: $e');
       }
-    } catch (e) {
-      debugPrint('⚠️ Error parsing DuckDuckGo HTML: $e');
     }
 
-    return SearchResult(
-      query: '',
-      items: items,
-      source: 'duckduckgo',
-    );
+    return SearchResult(query: query, items: [], source: 'searxng');
   }
 
   /// 🔍 ค้นหาผ่าน Google (scraping)
@@ -312,96 +297,54 @@ class WebSearchService {
   // 📄 PAGE CONTENT
   // ============================================================
 
-  /// 📄 อ่านเนื้อหาหน้าเว็บ
+  /// 📄 อ่านเนื้อหาหน้าเว็บผ่าน Jina AI Reader — ได้ clean markdown โดยตรง
+  ///
+  /// GET https://r.jina.ai/{url} → markdown text (ไม่ต้อง parse HTML เอง)
   Future<PageContent?> fetchPageContent(
     String url, {
     int maxLength = 2000,
   }) async {
     try {
-      final uri = Uri.parse(url);
+      final jinaUri = Uri.parse('https://r.jina.ai/$url');
 
       final response = await http.get(
-        uri,
+        jinaUri,
         headers: {
+          'Accept': 'text/plain',
+          'X-Return-Format': 'text',
           'User-Agent': _currentUserAgent,
-          'Accept': 'text/html,application/xhtml+xml',
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
-        return _parsePageContent(response.body, url, maxLength);
+        var body = response.body.trim();
+
+        // Jina ส่ง "Title: ..." มาที่บรรทัดแรก
+        String title = url;
+        final lines = body.split('\n');
+        if (lines.isNotEmpty && lines[0].startsWith('Title:')) {
+          title = lines[0].replaceFirst('Title:', '').trim();
+          body = lines.skip(1).join('\n').trim();
+        }
+
+        if (body.length > maxLength) {
+          body = '${body.substring(0, maxLength)}...';
+        }
+
+        debugPrint('📄 Jina fetched: $title (${body.length} chars)');
+        return PageContent(
+          url: url,
+          title: title,
+          description: '',
+          content: body,
+          fetchedAt: DateTime.now(),
+        );
       }
     } catch (e) {
-      debugPrint('⚠️ Error fetching page: $e');
+      debugPrint('⚠️ Jina reader failed for $url: $e');
     }
 
     return null;
-  }
-
-  /// 📝 Parse page content
-  PageContent _parsePageContent(String html, String url, int maxLength) {
-    final document = html_parser.parse(html);
-
-    // Get title
-    final title = document.querySelector('title')?.text.trim() ?? '';
-
-    // Get meta description
-    final metaDesc = document
-            .querySelector('meta[name="description"]')
-            ?.attributes['content']
-            ?.trim() ??
-        '';
-
-    // Get main content
-    final contentBuffer = StringBuffer();
-
-    // Remove script, style, nav, footer, header elements
-    document.querySelectorAll('script, style, nav, footer, header, aside')
-        .forEach((e) => (e as dynamic).remove());
-
-    // Try to find main content area
-    final mainSelectors = [
-      'article',
-      'main',
-      '.content',
-      '.post-content',
-      '.entry-content',
-      '#content',
-      '.article-body',
-    ];
-
-    var mainElement = document.body;
-    for (final selector in mainSelectors) {
-      final found = document.querySelector(selector);
-      if (found != null) {
-        mainElement = found;
-        break;
-      }
-    }
-
-    // Extract text from paragraphs
-    final paragraphs = mainElement?.querySelectorAll('p, h1, h2, h3, li') ?? [];
-    for (final p in paragraphs) {
-      final text = p.text.trim();
-      if (text.length > 20) {
-        // Skip short fragments
-        contentBuffer.writeln(text);
-        if (contentBuffer.length > maxLength) break;
-      }
-    }
-
-    var content = contentBuffer.toString().trim();
-    if (content.length > maxLength) {
-      content = '${content.substring(0, maxLength)}...';
-    }
-
-    return PageContent(
-      url: url,
-      title: title,
-      description: metaDesc,
-      content: content.isNotEmpty ? content : metaDesc,
-      fetchedAt: DateTime.now(),
-    );
   }
 
   // ============================================================
