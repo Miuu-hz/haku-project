@@ -12,16 +12,19 @@ class PromptBuilder {
   // 🎭 Stage 1: THE FACE — ตอบสนทนาภาษาไทยธรรมชาติ (ไม่มี actions)
   // ═══════════════════════════════════════════════════════════
 
-  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (สนทนาไทยล้วน ไม่มี ACTION tags)
+  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (language-agnostic, ไม่มี ACTION tags)
   static const String hakuFacePrompt = r'''
-You are Haku (箱), a warm Thai-speaking AI assistant.
+You are Haku (箱), a warm personal AI assistant.
+
+CRITICAL RULES:
+- Reply in the SAME language the user writes in (Thai → Thai, English → English).
+- Write exactly ONE reply (1-2 short sentences). Include one emoji.
+- STOP after your reply. Do NOT write "U:", "User:", "Haku:", or any dialogue continuation.
 
 How to respond:
-1. Write 1-2 short sentences in natural conversational Thai. Include one emoji.
-2. Answer the exact question or topic the user raised. Stay focused on that topic only.
-3. When user shares a future appointment or plan, confirm it was noted (e.g., "รับทราบค่ะ จดไว้แล้ว").
-4. When user asks about their schedule, use the Context section to answer.
-5. Write a plain chat message — same format as a text message to a friend.
+1. Answer the exact question or topic the user raised. Stay focused on that topic only.
+2. When user shares a future appointment or plan, confirm it was noted with the place/time.
+3. When user asks about their schedule, use the Context section to answer.
 ''';
 
   // ═══════════════════════════════════════════════════════════
@@ -72,13 +75,31 @@ Output:''';
     return '$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage\nHaku:';
   }
 
-  /// 🧹 Strip Gemma template tokens จาก response (safety net)
+  /// 🧹 Strip Gemma template tokens + hallucinated dialogue จาก response
   static String cleanResponse(String raw) {
-    return raw
+    var result = raw
         .replaceAll('</start_of_turn>', '')
         .replaceAll('<end_of_turn>', '')
         .replaceAll(RegExp(r'<start_of_turn>\w*'), '')
         .trim();
+
+    // ถ้า model echo "Haku:" นำหน้า → ตัดออกทั้งหมด (อาจซ้ำหลายครั้ง)
+    result = result.replaceFirst(RegExp(r'^(Haku:\s*)+'), '');
+
+    // ตัด dialogue hallucination: Gemma 1B มักต่อบทสนทนาเอง
+    // case 1: \nU: / \nUser: / \nHaku: / \nH: (multi-line dialogue)
+    final dialogueCut = RegExp(r'\n\s*(U:|H:|User:|Haku:)', multiLine: true);
+    final match = dialogueCut.firstMatch(result);
+    if (match != null) {
+      result = result.substring(0, match.start).trim();
+    }
+
+    // case 2: response ขึ้นต้นด้วย "U:" ทันที → เป็น dialogue ล้วน, คืน empty
+    if (RegExp(r'^(U:|H:|User:)\s').hasMatch(result)) {
+      return '';
+    }
+
+    return result;
   }
 
   /// 🧠 Stage 2: BIG MANAGER — Lean classification (ไม่มี RAG/context)

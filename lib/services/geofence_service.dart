@@ -7,6 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'battery_aware_service.dart';
+import 'dwell_tracker.dart';
+import 'place_feedback_service.dart';
+import 'place_service.dart';
 
 /// 📍 Geofence Service - ใช้ geofencing แทน GPS streaming
 ///
@@ -201,6 +204,48 @@ class GeofenceService {
 
     _isMonitoring = true;
 
+    // ส่ง zone info ให้ DwellTracker (ป้องกัน circular import)
+    DwellTracker().updateKnownZones(
+      _zones.map((z) => dwellZoneSnapshot(
+        lat: z.latitude,
+        lng: z.longitude,
+        radius: z.radius,
+        name: z.name,
+      )).toList(),
+    );
+
+    // Wire DwellTracker callback → PlaceService + PlaceFeedbackService
+    DwellTracker().onDwellComplete = (DwellSession session) async {
+      if (session.isRoutineZone || session.name == null) return;
+
+      // บันทึก visit ใน PlaceService
+      String? placeId = session.placeId;
+      if (placeId == null) {
+        final saved = await PlaceService().savePlace(
+          name: session.name!,
+          lat: session.lat,
+          lng: session.lng,
+          category: PlaceCategories.other,
+        );
+        placeId = saved.id;
+      }
+      await PlaceService().recordVisit(
+        placeId: placeId,
+        placeName: session.name,
+        lat: session.lat,
+        lng: session.lng,
+      );
+
+      // Queue feedback ถาม user ว่าชอบไหม
+      await PlaceFeedbackService().queueFeedback(PlaceFeedbackRequest(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        placeId: placeId,
+        placeName: session.name!,
+        visitedAt: session.arrivedAt,
+        dwellMinutes: session.duration.inMinutes,
+      ));
+    };
+
     // Check ทันที
     await _checkCurrentLocation();
 
@@ -276,6 +321,9 @@ class GeofenceService {
 
     _lastKnownPosition = position;
     await _saveLastLocation();
+
+    // ส่ง position ให้ DwellTracker ตรวจ dwell
+    await DwellTracker().onPosition(position.latitude, position.longitude);
   }
 
   /// 🔍 Find current zone

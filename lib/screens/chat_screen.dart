@@ -20,6 +20,9 @@ import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/secret_chat_service.dart';
 import '../services/smart_preprocessor.dart';
+import '../services/place_feedback_service.dart';
+import '../services/place_service.dart';
+import '../services/tag_context_service.dart';
 import '../services/web_search_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
@@ -97,32 +100,22 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
 
   /// 🔧 Extract response text from JSON or plain text
   String _extractResponseText(String response) {
-    try {
-      // 🧹 Strip Gemma template tokens ที่รั่วออกมาจาก cloud models
-      var cleanResponse = PromptBuilder.cleanResponse(response);
+    // 🧹 ทำความสะอาดก่อนเสมอ (ตัด template leak + dialogue hallucination)
+    var cleaned = PromptBuilder.cleanResponse(response);
 
-      // ลบ Markdown code block ถ้ามี
-      if (cleanResponse.startsWith('```json')) {
-        cleanResponse = cleanResponse.substring(7);
-      }
-      if (cleanResponse.endsWith('```')) {
-        cleanResponse = cleanResponse.substring(0, cleanResponse.length - 3);
-      }
-      cleanResponse = cleanResponse.trim();
-      
-      // ลอง parse JSON
-      final json = jsonDecode(cleanResponse) as Map<String, dynamic>;
-      
-      // ถ้ามี response field ให้ return ค่านั้น
-      if (json.containsKey('response')) {
-        return json['response'] as String;
-      }
-      
-      // ถ้าไม่มี response field ให้ return ทั้งก้อน
-      return response;
-    } catch (e) {
-      // ถ้า parse ไม่ได้ แสดงว่าเป็น plain text อยู่แล้ว
-      return response;
+    // ลบ Markdown code block ถ้ามี
+    if (cleaned.startsWith('```json')) cleaned = cleaned.substring(7);
+    if (cleaned.endsWith('```')) cleaned = cleaned.substring(0, cleaned.length - 3);
+    cleaned = cleaned.trim();
+
+    // ลอง parse JSON (Worker prompts return JSON, Face prompt returns plain text)
+    try {
+      final json = jsonDecode(cleaned) as Map<String, dynamic>;
+      if (json.containsKey('response')) return json['response'] as String;
+      return cleaned;
+    } catch (_) {
+      // plain text — return cleaned (ไม่ return raw เพื่อกันรั่ว dialogue)
+      return cleaned;
     }
   }
 
@@ -268,17 +261,38 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         PreClassifyResult? preClassify;
         final ruleIntent = preprocessResult?.detectedIntent ?? DetectedIntent.general;
         if (llm.isInitialized && ruleIntent == DetectedIntent.general) {
-          debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
-          preClassify = await SecretChatService().preClassify(userMessage);
-          if (preClassify != null) {
-            // 📦 ใช้ English summary แทน Thai ใน lean context ทันที (ประหยัด ~3x tokens)
-            SmartPreprocessor().updateUserMessageWithEnglish(preClassify.summaryEn);
-            if (preClassify.contextHint.isNotEmpty) {
-              // Inject intent hint at front of context for Face
-              contextStr = '${preClassify.contextHint}\n$contextStr';
-              debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+          if (_isEnglishMessage(userMessage)) {
+            // ⚡ English fast-path: ข้าม LLM preClassify
+            // English ไม่ต้อง translate → ใช้ข้อความโดยตรงเป็น lean context
+            debugPrint('🔬 PreClassify: English fast-path (skip LLM)');
+            final summary = userMessage.length > 60
+                ? '${userMessage.substring(0, 57)}...'
+                : userMessage;
+            preClassify = PreClassifyResult(intent: 'chat', summaryEn: summary);
+            SmartPreprocessor().updateUserMessageWithEnglish(summary);
+          } else {
+            debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
+            preClassify = await SecretChatService().preClassify(userMessage);
+            if (preClassify != null) {
+              // 📦 ใช้ English summary แทน Thai ใน lean context ทันที (ประหยัด ~3x tokens)
+              SmartPreprocessor().updateUserMessageWithEnglish(preClassify.summaryEn);
+              if (preClassify.contextHint.isNotEmpty) {
+                // Inject intent hint at front of context for Face
+                contextStr = '${preClassify.contextHint}\n$contextStr';
+                debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
+              }
             }
           }
+        }
+
+        // 1.5. Tag Context — ดึง related past entries by keywords + location
+        final tagCtx = await TagContextService().buildContext(
+          userMessage: userMessage,
+          summaryEn: preClassify?.summaryEn,
+        );
+        if (tagCtx != null && tagCtx.isNotEmpty) {
+          contextStr = tagCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
+          debugPrint('🏷️ Tag context injected (${tagCtx.length} chars)');
         }
 
         // 2. Face LLM — Stage 1 (The Face)
@@ -307,7 +321,11 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           response = await AIService.getMockResponse(userMessage);
         }
 
-        final displayText = _extractResponseText(response);
+        var displayText = _extractResponseText(response);
+        // ถ้า Gemma hallucinate dialogue ล้วน → cleanResponse คืน "" → fallback
+        if (displayText.isEmpty) {
+          displayText = await AIService.getMockResponse(userMessage);
+        }
 
         // แสดงคำตอบ
         state = state.where((m) => !m.isLoading).toList();
@@ -368,6 +386,25 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           debugPrint('🤫 Secret Chat done: ${logEntry.summaryEn}');
           // 📦 Replace Thai lean context with compact English (saves ~3-5x tokens)
           SmartPreprocessor().updateLeanContextWithEnglish(logEntry.summaryEn);
+          // 🏷️ Auto-tag + location → SQLite entry ล่าสุด (best-effort, ไม่ block)
+          TagContextService().saveTagsToRecentEntry(logEntry);
+          // 📍 Resolve place sentiment ถ้ามี active feedback request
+          final feedbackSvc = PlaceFeedbackService();
+          final activeId = feedbackSvc.activeRequestId;
+          if (activeId != null) {
+            final sentiment = feedbackSvc.resolveSentiment(
+              logEntry: logEntry,
+              rawMsg: userMessage,
+            );
+            final activeReq = feedbackSvc.getActiveRequest();
+            if (activeReq?.placeId != null) {
+              await PlaceService().updatePlaceSentiment(
+                placeId: activeReq!.placeId!,
+                sentiment: sentiment,
+              );
+            }
+            await feedbackSvc.markDelivered(activeId);
+          }
           // Big Manager dispatch based on English log (no extra LLM call)
           final actionData = await ManagerDispatchService()
               .dispatchFromLog(logEntry, userMessage);
@@ -403,6 +440,13 @@ Reply in Thai (1-2 sentences):
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive)
   Future<void> respondToTrigger(TriggerEvent trigger) async {
+    // ถ้าเป็น placeFeedback → mark active request เพื่อ resolve sentiment ภายหลัง
+    if (trigger.type == TriggerType.placeFeedback) {
+      final requestId =
+          trigger.payloadJson?['feedbackRequestId'] as String?;
+      if (requestId != null) PlaceFeedbackService().markAsked(requestId);
+    }
+
     addMessage(ChatMessage.loading());
 
     try {
@@ -452,6 +496,13 @@ Reply in Thai (1-2 sentences):
   }
 
 
+
+  /// 🌐 ตรวจว่าข้อความเป็น English (ASCII > 70%)
+  bool _isEnglishMessage(String text) {
+    if (text.trim().isEmpty) return false;
+    final asciiCount = text.codeUnits.where((c) => c < 128).length;
+    return asciiCount / text.length > 0.7;
+  }
 
   /// 🔗 ดึง sources จาก context
   List<String>? _extractSources(String context) {
@@ -622,6 +673,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         notificationService.showTriggerNotification(event);
       };
       debugPrint('✅ All services initialized');
+
+      // เช็ค pending place feedback — ยิง trigger หลัง UI ตั้ง settle 2s
+      await PlaceFeedbackService().initialize();
+      PlaceFeedbackService().pruneExpired();
+      final pendingFeedback = PlaceFeedbackService().dequeuePending();
+      if (pendingFeedback != null) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            _handleTrigger(
+              PlaceFeedbackService().buildTriggerEvent(pendingFeedback),
+            );
+          }
+        });
+      }
     } catch (e, stackTrace) {
       debugPrint('❌ Error initializing services: $e');
       debugPrint('Stack: $stackTrace');

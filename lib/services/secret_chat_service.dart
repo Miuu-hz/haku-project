@@ -102,10 +102,12 @@ class SecretChatService {
           timestamp: DateTime.now(),
           summaryEn: preClassifyResult.summaryEn,
           intent: preClassifyResult.intent,
+          // สกัด keywords จาก summaryEn เพื่อใช้ใน Tag Context Linker
           tags: [
             if (preClassifyResult.title != null) preClassifyResult.title!,
+            ..._summaryToKeywords(preClassifyResult.summaryEn),
           ],
-          location: null,
+          location: _extractLocation(preClassifyResult.summaryEn),
           mood: null,
         );
         debugPrint('🤫 Secret Chat (from preClassify): ${entry.summaryEn}');
@@ -176,6 +178,31 @@ class SecretChatService {
       intent: 'chat',
       tags: [],
     );
+  }
+
+  /// สกัด keywords จาก English summary สำหรับ Tag Context Linker
+  static List<String> _summaryToKeywords(String summary) {
+    const stop = {
+      'the', 'a', 'an', 'is', 'at', 'to', 'for', 'with', 'and', 'or',
+      'in', 'of', 'i', 'my', 'me', 'was', 'went', 'had', 'have', 'user',
+      'about', 'that', 'this', 'wants', 'will', 'has', 'be', 'are', 'it',
+    };
+    return summary
+        .toLowerCase()
+        .split(RegExp(r'[\s,\.\!\?\-\+]+'))
+        .where((w) => w.length > 2 && !stop.contains(w))
+        .toSet()
+        .take(4)
+        .toList();
+  }
+
+  /// ดึง location จาก summaryEn pattern เช่น "at X", "@ X"
+  static String? _extractLocation(String summary) {
+    final match = RegExp(
+      r'\bat ([a-zA-Z][a-zA-Z\s]{2,30})(?:\s+with|\s+\d|$)',
+      caseSensitive: false,
+    ).firstMatch(summary);
+    return match?.group(1)?.trim();
   }
 
   Future<void> _persist() async {

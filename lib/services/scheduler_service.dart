@@ -232,6 +232,71 @@ class SchedulerService {
     );
   }
 
+  // ============================================================
+  // ⏰ SMART SLEEP-PREP & AUTO-ALARM (Feature 2.12 Enhancement)
+  // ============================================================
+
+  /// ⏰ ตั้งนาฬิกาปลุกอัตโนมัติ (Android AlarmClock Intent)
+  ///
+  /// ตั้งปลุกเงียบๆ ไม่เปิดแอปนาฬิกา (SKIP_UI=true)
+  /// คืน true ถ้าส่ง intent สำเร็จ
+  Future<bool> setAlarm({
+    required int hour,
+    required int minute,
+    String label = 'Haku: เวลาตื่นแล้ว!',
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('setAlarm', {
+        'hour': hour,
+        'minute': minute,
+        'label': label,
+      });
+      if (kDebugMode) {
+        print('⏰ Alarm set: ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} — $label');
+      }
+      return result == true;
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('❌ setAlarm failed: ${e.message}');
+      return false;
+    }
+  }
+
+  /// ⏰ คำนวณเวลาปลุกจาก event แรกของพรุ่งนี้
+  ///
+  /// [prepMinutes] = เวลาเตรียมตัว (default 90 นาที = 1.5 ชม.)
+  /// คืน {hour, minute} หรือ null ถ้าพรุ่งนี้ไม่มี event
+  Future<Map<String, int>?> calculateAlarmFromTomorrow({
+    int prepMinutes = 90,
+  }) async {
+    final now = DateTime.now();
+    final tomorrowStart = DateTime(now.year, now.month, now.day + 1);
+    final tomorrowEnd = tomorrowStart.add(const Duration(days: 1));
+
+    final events = await getCalendarEvents(tomorrowStart, tomorrowEnd);
+    if (events.isEmpty) return null;
+
+    // หา event แรกของวัน (เรียงตาม startTime แล้ว)
+    int? earliestMs;
+    for (final e in events) {
+      final ms = e['startTime'] as int?;
+      if (ms != null && (earliestMs == null || ms < earliestMs)) {
+        earliestMs = ms;
+      }
+    }
+    if (earliestMs == null) return null;
+
+    final earliestEvent = DateTime.fromMillisecondsSinceEpoch(earliestMs);
+    final alarmTime = earliestEvent.subtract(Duration(minutes: prepMinutes));
+
+    // ไม่ตั้งปลุกก่อนตี 4 หรือหลัง 10 โมง
+    if (alarmTime.hour < 4 || alarmTime.hour >= 22) return null;
+
+    return {
+      'hour': alarmTime.hour,
+      'minute': alarmTime.minute,
+    };
+  }
+
   /// 🔍 Simple fallback ถ้าไม่มี LLM
   EventInfo? _fallbackExtract(String text) {
     // หาเวลาแบบง่าย ๆ

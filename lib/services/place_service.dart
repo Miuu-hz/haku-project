@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'place_feedback_service.dart';
+
 /// 🗺️ Place Service - จัดการสถานที่ด้วย OSM + Google Places
 ///
 /// Features:
@@ -346,6 +348,23 @@ class PlaceService {
     await _saveToStorage();
   }
 
+  /// ⭐ บันทึก sentiment ของ user ต่อสถานที่
+  ///
+  /// เรียกจาก PlaceFeedbackService หลัง user ตอบ "ชอบ/ไม่ชอบ"
+  Future<void> updatePlaceSentiment({
+    required String placeId,
+    required PlaceSentiment sentiment,
+  }) async {
+    final idx = _savedPlaces.indexWhere((p) => p.id == placeId);
+    if (idx < 0) return;
+    _savedPlaces[idx] = _savedPlaces[idx].copyWith(
+      sentiment: sentiment.name,
+      lastFeedbackAt: DateTime.now(),
+    );
+    await _saveToStorage();
+    debugPrint('⭐ Place sentiment: ${_savedPlaces[idx].name} → ${sentiment.name}');
+  }
+
   // ============================================================
   // 🎯 RECOMMENDATIONS
   // ============================================================
@@ -640,6 +659,9 @@ class SavedPlace {
   final DateTime createdAt;
   final int visitCount;
   final DateTime? lastVisit;
+  // ความรู้สึกของ user ต่อสถานที่นี้ (จาก PlaceFeedbackService)
+  final String? sentiment;       // 'liked' | 'disliked' | 'neutral'
+  final DateTime? lastFeedbackAt;
 
   SavedPlace({
     required this.id,
@@ -654,12 +676,16 @@ class SavedPlace {
     required this.createdAt,
     required this.visitCount,
     this.lastVisit,
+    this.sentiment,
+    this.lastFeedbackAt,
   });
 
   SavedPlace copyWith({
     int? visitCount,
     DateTime? lastVisit,
     String? notes,
+    String? sentiment,
+    DateTime? lastFeedbackAt,
   }) =>
       SavedPlace(
         id: id,
@@ -674,6 +700,8 @@ class SavedPlace {
         createdAt: createdAt,
         visitCount: visitCount ?? this.visitCount,
         lastVisit: lastVisit ?? this.lastVisit,
+        sentiment: sentiment ?? this.sentiment,
+        lastFeedbackAt: lastFeedbackAt ?? this.lastFeedbackAt,
       );
 
   factory SavedPlace.fromJson(Map<String, dynamic> json) => SavedPlace(
@@ -691,6 +719,10 @@ class SavedPlace {
         lastVisit: json['lastVisit'] != null
             ? DateTime.parse(json['lastVisit'] as String)
             : null,
+        sentiment: json['sentiment'] as String?,
+        lastFeedbackAt: json['lastFeedbackAt'] != null
+            ? DateTime.parse(json['lastFeedbackAt'] as String)
+            : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -706,6 +738,8 @@ class SavedPlace {
         'createdAt': createdAt.toIso8601String(),
         'visitCount': visitCount,
         'lastVisit': lastVisit?.toIso8601String(),
+        'sentiment': sentiment,
+        'lastFeedbackAt': lastFeedbackAt?.toIso8601String(),
       };
 }
 

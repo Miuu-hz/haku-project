@@ -249,4 +249,42 @@ object SchedulerBridge {
         
         return events
     }
+    
+    /**
+     * ⏰ ตั้งนาฬิกาปลุกอัตโนมัติ (Smart Sleep-Prep)
+     * 
+     * ใช้ AlarmClock Intent — ตั้งปลุกเงียบๆ (SKIP_UI=true) ไม่เปิดแอปนาฬิกา
+     * 
+     * @param context Application context
+     * @param hour ชั่วโมง (0-23)
+     * @param minute นาที (0-59)
+     * @param label ข้อความปลุก (optional)
+     * @return true ถ้าส่ง intent สำเร็จ
+     */
+    fun setAlarm(
+        context: Context,
+        hour: Int,
+        minute: Int,
+        label: String = "Haku: เวลาตื่นแล้ว!"
+    ): Boolean {
+        try {
+            Log.i(TAG, "⏰ Setting alarm: $hour:${minute.toString().padStart(2, '0')} — $label")
+            
+            val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            context.startActivity(intent)
+            Log.i(TAG, "✅ Alarm set for $hour:${minute.toString().padStart(2, '0')}")
+            return true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error setting alarm: ${e.message}")
+            return false
+        }
+    }
 }

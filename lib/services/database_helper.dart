@@ -256,6 +256,82 @@ class DatabaseHelper {
     return firstIntValue(result) ?? 0;
   }
 
+  /// 🔗 ค้นหา Entries ที่เกี่ยวข้อง (tag overlap หรือ location match)
+  ///
+  /// ใช้สำหรับ Tag Context Linker — ดึง past entries ที่ match keywords/location
+  Future<List<Entry>> findRelatedEntries({
+    required List<String> tags,
+    String? location,
+    int limit = 5,
+  }) async {
+    if (tags.isEmpty && (location == null || location.isEmpty)) return [];
+
+    final db = await database;
+    final conditions = <String>[];
+    final args = <String>[];
+
+    // tag overlap (ใช้แค่ 3 tags แรก ป้องกัน query ใหญ่เกินไป)
+    for (final tag in tags.take(3)) {
+      if (tag.length < 2) continue;
+      conditions.add('$columnTags LIKE ?');
+      args.add('%$tag%');
+      // ค้นใน content ด้วย เพื่อ catch entries ที่ยังไม่ได้ tag ด้วย AI
+      conditions.add('$columnContent LIKE ?');
+      args.add('%$tag%');
+    }
+
+    // location match
+    if (location != null && location.length >= 2) {
+      conditions.add('$columnLocationName LIKE ?');
+      args.add('%$location%');
+    }
+
+    if (conditions.isEmpty) return [];
+
+    final maps = await db.query(
+      tableEntries,
+      where: conditions.join(' OR '),
+      whereArgs: args,
+      orderBy: '$columnCreatedAt DESC',
+      limit: limit,
+    );
+    return maps.map(Entry.fromMap).toList();
+  }
+
+  /// 🏷️ Merge AI-extracted tags + location เข้ากับ Entry ที่มีอยู่แล้ว
+  ///
+  /// ไม่ทับ hashtag tags เดิม — รวมกัน (union)
+  Future<void> mergeEntryTagsAndLocation(
+    int id,
+    List<String> aiTags,
+    String? location,
+  ) async {
+    if (aiTags.isEmpty && location == null) return;
+
+    final db = await database;
+    final entry = await getEntryById(id);
+    if (entry == null) return;
+
+    // รวม existing + AI tags (ไม่ซ้ำ)
+    final merged = <String>{...entry.tags, ...aiTags}
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    await db.update(
+      tableEntries,
+      {
+        columnTags: merged.join(','),
+        // อัพเดท location เฉพาะเมื่อยังไม่มีค่า
+        if (location != null &&
+            location.isNotEmpty &&
+            entry.locationName == null)
+          columnLocationName: location,
+      },
+      where: '$columnId = ?',
+      whereArgs: [id],
+    );
+  }
+
   /// 📤 Export ทั้งหมดเป็น JSON (สำหรับ backup)
   Future<List<Map<String, dynamic>>> exportAllToJson() async {
     final Database db = await database;

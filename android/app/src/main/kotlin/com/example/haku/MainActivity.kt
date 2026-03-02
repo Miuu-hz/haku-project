@@ -131,6 +131,21 @@ class MainActivity: FlutterFragmentActivity() {
                         result.success(null)
                     }
                     
+                    "setAlarm" -> {
+                        val hour = call.argument<Int>("hour")
+                        val minute = call.argument<Int>("minute")
+                        val label = call.argument<String>("label") ?: "Haku: เวลาตื่นแล้ว!"
+                        
+                        if (hour == null || minute == null) {
+                            result.error("INVALID_PARAMS", "Missing hour or minute", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        Log.i(TAG, "⏰ Setting alarm: $hour:$minute")
+                        val success = SchedulerBridge.setAlarm(this, hour, minute, label)
+                        result.success(success)
+                    }
+                    
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {

@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'context_retriever.dart';
 import 'database_helper.dart';
 import 'location_service.dart';
+import 'scheduler_service.dart';
 import 'workers/calendar_worker.dart';
 
 /// ⚡ MVP Trigger Service - ตัวกระตุ้นอัตโนมัติตามบริบท
@@ -166,7 +167,17 @@ class MVPTriggerService {
         message = 'เลิกงานแล้ว! วันนี้เป็นยังไงบ้างคะ?';
         break;
       case TriggerType.bedtime:
-        message = 'ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ';
+        // ⏰ Smart Sleep-Prep: ตั้งปลุกอัตโนมัติจาก event พรุ่งนี้
+        final alarmInfo = await SchedulerService().calculateAlarmFromTomorrow();
+        if (alarmInfo != null) {
+          final h = alarmInfo['hour']!;
+          final m = alarmInfo['minute']!;
+          final timeStr = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+          await SchedulerService().setAlarm(hour: h, minute: m, label: 'Haku: เวลาตื่นแล้ว!');
+          message = 'พรุ่งนี้มีนัด ฉันตั้งปลุก $timeStr ไว้ให้แล้วนะ รีบนอนล่ะ! 🌙';
+        } else {
+          message = 'พรุ่งนี้ไม่มีนัด ก่อนนอนอย่าลืมสรุปวันนี้สักหน่อยนะคะ 🌙';
+        }
         break;
       default:
         message = '';
@@ -368,6 +379,8 @@ class MVPTriggerService {
         return ['มาที่เดิม', 'มีเรื่องใหม่', 'ยังไม่ได้บันทึก'];
       case TriggerType.noEntryReminder:
         return ['บันทึกเลย', 'ไม่มีไร', 'เดี๋ยวบันทึก'];
+      case TriggerType.placeFeedback:
+        return ['ชอบมาก', 'โอเค', 'ไม่ค่อยชอบ'];
     }
   }
 
@@ -432,6 +445,7 @@ enum TriggerType {
   bedtime,         // 22:00 - ก่อนนอน
   locationRevisit, // กลับมาที่เดิม
   noEntryReminder, // ไม่มีบันทึกนานเกินไป
+  placeFeedback,   // ถามความรู้สึกหลังออกจากสถานที่
 }
 
 /// 📦 Trigger Event
@@ -441,6 +455,8 @@ class TriggerEvent {
   final String? suggestedMessage;
   final ContextData context;
   final List<String> quickReplyOptions;
+  // payload เพิ่มเติม เช่น feedbackRequestId สำหรับ placeFeedback
+  final Map<String, dynamic>? payloadJson;
 
   TriggerEvent({
     required this.type,
@@ -448,6 +464,7 @@ class TriggerEvent {
     this.suggestedMessage,
     required this.context,
     this.quickReplyOptions = const [],
+    this.payloadJson,
   });
 
   String get displayTitle {
@@ -466,6 +483,8 @@ class TriggerEvent {
         return 'มาที่เดิมอีกแล้ว 📍';
       case TriggerType.noEntryReminder:
         return 'อย่าลืมบันทึก 📝';
+      case TriggerType.placeFeedback:
+        return 'รีวิวสถานที่ 📍';
     }
   }
 }

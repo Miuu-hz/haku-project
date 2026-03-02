@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'automation_screen.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
 import '../services/database_helper.dart';
@@ -509,6 +510,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
           ],
+          const Divider(),
+
+          // ⚡ ส่วน Automation
+          _buildSectionHeader('⚡ Automation'),
+
+          ListTile(
+            leading: const Icon(Icons.bolt, color: Color(0xFF9B7CB6)),
+            title: const Text(
+              'Automation',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              'ตั้งค่า Trigger → Action อัตโนมัติ',
+              style: TextStyle(color: Colors.white.withAlpha(150)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const AutomationScreen(),
+                ),
+              );
+            },
+          ),
+
+          const Divider(),
+
           // 🪪 ส่วนโปรไฟล์ผู้ใช้
           _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
 
