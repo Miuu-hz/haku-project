@@ -29,20 +29,48 @@ class ReminderWorker {
   // 🔍 DETECTION PATTERNS
   // ============================================================
 
-  /// เตือน
+  /// เตือน (Thai)
   static final List<RegExp> _reminderPatterns = [
     RegExp(r'เตือน(.+?)(?:ตอน|เวลา)?\s*(\d+)\s*(?:โมง|:)(\d+)?(?:\s*(เช้า|บ่าย|เย็น|ค่ำ))?', caseSensitive: false),
     RegExp(r'เตือน(.+?)ทุก(วัน|เช้า|เย็น)', caseSensitive: false),
     RegExp(r'อย่าลืม(.+?)(?:นะ|ด้วย)?', caseSensitive: false),
   ];
 
-  /// ความถี่
+  /// English reminder patterns
+  static final List<RegExp> _enReminderPatterns = [
+    // "remind me to pay electricity at 9am every day"
+    RegExp(
+      r'remind\s+(?:me\s+)?(?:to\s+)?([\w\s]+?)(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?(?:\s+every\s+(day|morning|evening|week))?(?:\s*$|[,.])',
+      caseSensitive: false,
+    ),
+    // "don't forget to buy groceries"
+    RegExp(r"don'?t\s+forget\s+(?:to\s+)?([\w\s]+?)(?:\s*$|[,.])", caseSensitive: false),
+    // "set a reminder to/for call mom at 9am"
+    RegExp(
+      r'(?:set\s+(?:a\s+)?)?reminder\s+(?:to|for)\s+([\w\s]+?)(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?(?:\s*$|[,.])',
+      caseSensitive: false,
+    ),
+    // "remember to take medicine"
+    RegExp(r'remember\s+to\s+([\w\s]+?)(?:\s*$|[,.])', caseSensitive: false),
+  ];
+
+  /// ความถี่ (Thai)
   static final Map<String, ReminderFrequency> _frequencyMap = {
     'ทุกวัน': ReminderFrequency.daily,
     'ทุกเช้า': ReminderFrequency.daily,
     'ทุกเย็น': ReminderFrequency.daily,
     'ทุกสัปดาห์': ReminderFrequency.weekly,
     'ครั้งเดียว': ReminderFrequency.once,
+  };
+
+  /// ความถี่ (English)
+  static final Map<String, ReminderFrequency> _enFrequencyMap = {
+    'every day': ReminderFrequency.daily,
+    'daily': ReminderFrequency.daily,
+    'every morning': ReminderFrequency.daily,
+    'every evening': ReminderFrequency.daily,
+    'every week': ReminderFrequency.weekly,
+    'weekly': ReminderFrequency.weekly,
   };
 
   /// 🚀 Initialize
@@ -87,15 +115,28 @@ class ReminderWorker {
   // 🔍 DETECTION
   // ============================================================
 
-  /// ตรวจจับ reminders จากข้อความ
+  /// ตรวจจับ reminders จากข้อความ (Thai + English, รองรับหลาย reminders/message)
   Future<List<Reminder>> detectReminders(String message) async {
     final reminders = <Reminder>[];
 
+    // ── Thai patterns (allMatches) ────────────────────────────────
     for (final pattern in _reminderPatterns) {
-      final match = pattern.firstMatch(message);
-      if (match != null) {
+      for (final match in pattern.allMatches(message)) {
         final reminder = _parseReminder(match, message);
-        if (reminder != null) {
+        if (reminder != null &&
+            !reminders.any((r) => r.content == reminder.content)) {
+          reminders.add(reminder);
+          await addReminder(reminder);
+        }
+      }
+    }
+
+    // ── English patterns ──────────────────────────────────────────
+    for (final pattern in _enReminderPatterns) {
+      for (final match in pattern.allMatches(message)) {
+        final reminder = _parseEnReminder(match, message);
+        if (reminder != null &&
+            !reminders.any((r) => r.content == reminder.content)) {
           reminders.add(reminder);
           await addReminder(reminder);
         }
@@ -103,6 +144,48 @@ class ReminderWorker {
     }
 
     return reminders;
+  }
+
+  /// Parse English reminder match
+  Reminder? _parseEnReminder(RegExpMatch match, String originalMessage) {
+    String content = match.group(1)?.trim() ?? '';
+    content = content.replaceAll(RegExp(r'\s+$'), '').trim();
+    if (content.isEmpty || content.split(' ').length > 8) return null;
+
+    // Parse English time ("9am", "3:30pm")
+    int? hour;
+    int minute = 0;
+    final timeRaw = match.groupCount >= 2 ? match.group(2) : null;
+    if (timeRaw != null) {
+      final tm = RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)', caseSensitive: false)
+          .firstMatch(timeRaw.trim());
+      if (tm != null) {
+        hour = int.tryParse(tm.group(1)!);
+        minute = int.tryParse(tm.group(2) ?? '0') ?? 0;
+        final period = tm.group(3)!.toLowerCase();
+        if (period == 'pm' && (hour ?? 0) < 12) hour = (hour ?? 0) + 12;
+        if (period == 'am' && hour == 12) hour = 0;
+      }
+    }
+
+    // Parse English frequency
+    ReminderFrequency frequency = ReminderFrequency.once;
+    final msgLower = originalMessage.toLowerCase();
+    for (final entry in _enFrequencyMap.entries) {
+      if (msgLower.contains(entry.key)) {
+        frequency = entry.value;
+        break;
+      }
+    }
+
+    return Reminder(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      content: content,
+      time: hour != null ? ReminderTime(hour: hour, minute: minute) : null,
+      frequency: frequency,
+      isActive: true,
+      createdAt: DateTime.now(),
+    );
   }
 
   Reminder? _parseReminder(RegExpMatch match, String originalMessage) {

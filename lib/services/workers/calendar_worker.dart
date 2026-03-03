@@ -51,13 +51,26 @@ class CalendarWorker {
     ),
   ];
 
-  /// ประชุม
+  /// ประชุม (Thai)
   static final List<RegExp> _meetingPatterns = [
     RegExp(r'ประชุม(.+?)(วันนี้|พรุ่งนี้|พรุ้งนี้|วัน.+?)(?:\s*(\d+)\s*(?:โมง(?:เช้า|เย็น|กลางคืน)?|:))?', caseSensitive: false),
-    RegExp(r'meeting(.+?)(วันนี้|พรุ่งนี้|today|tomorrow)', caseSensitive: false),
   ];
 
-  /// วันที่
+  /// English appointment/meeting patterns
+  static final List<RegExp> _enAppointmentPatterns = [
+    // "meeting with Sales team tomorrow at 1pm"
+    RegExp(
+      r'(?:meeting|call|appointment|event)\s+(?:with\s+)?([\w\s]+?)\s+(tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)))?',
+      caseSensitive: false,
+    ),
+    // "tomorrow have a meeting with John at 3pm"
+    RegExp(
+      r'(tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(?:have\s+(?:a\s+)?)?(?:meeting|call|appointment)\s+(?:with\s+)?([\w\s]+?)(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)))?',
+      caseSensitive: false,
+    ),
+  ];
+
+  /// วันที่ (Thai + English)
   static final Map<String, int> _dayOffsets = {
     'วันนี้': 0,
     'today': 0,
@@ -72,6 +85,13 @@ class CalendarWorker {
     'วันศุกร์': -1,
     'วันเสาร์': -1,
     'วันอาทิตย์': -1,
+    'monday': -1,
+    'tuesday': -1,
+    'wednesday': -1,
+    'thursday': -1,
+    'friday': -1,
+    'saturday': -1,
+    'sunday': -1,
   };
 
   static final Map<String, int> _weekdays = {
@@ -82,6 +102,13 @@ class CalendarWorker {
     'วันศุกร์': DateTime.friday,
     'วันเสาร์': DateTime.saturday,
     'วันอาทิตย์': DateTime.sunday,
+    'monday': DateTime.monday,
+    'tuesday': DateTime.tuesday,
+    'wednesday': DateTime.wednesday,
+    'thursday': DateTime.thursday,
+    'friday': DateTime.friday,
+    'saturday': DateTime.saturday,
+    'sunday': DateTime.sunday,
   };
 
   /// 🚀 Initialize
@@ -135,21 +162,22 @@ class CalendarWorker {
   // 🔍 DETECTION
   // ============================================================
 
-  /// ตรวจจับนัดหมายจากข้อความ
+  /// ตรวจจับนัดหมายจากข้อความ (Thai + English, รองรับหลาย events/message)
   Future<List<CalendarEvent>> detectEvents(String message) async {
     final events = <CalendarEvent>[];
 
-    // ตรวจจับ appointments
+    // ── Thai patterns ──────────────────────────────────────────────
+
+    // ตรวจจับ appointments (allMatches เพื่อจับหลาย events)
     for (final pattern in _appointmentPatterns) {
-      final match = pattern.firstMatch(message);
-      if (match != null) {
+      for (final match in pattern.allMatches(message)) {
         final event = _parseEvent(
           type: EventType.appointment,
           title: match.group(1)?.trim() ?? '',
           dayStr: match.group(2)?.trim() ?? '',
           timeStr: match.group(3),
         );
-        if (event != null) {
+        if (event != null && !events.any((e) => e.title == event.title)) {
           events.add(event);
           await addEvent(event);
         }
@@ -158,7 +186,7 @@ class CalendarWorker {
 
     // ตรวจจับ day-first: "พรุ้งนี้มีนัดที่ศาลากลาง 9โมงเช้า" → group(1)=day, group(2)=title, group(3)=time
     for (final pattern in _dayFirstPatterns) {
-      final match = pattern.firstMatch(message);
+      final match = pattern.firstMatch(message); // anchored ($) → firstMatch ok
       if (match != null) {
         final event = _parseEvent(
           type: EventType.appointment,
@@ -175,7 +203,7 @@ class CalendarWorker {
 
     // ตรวจจับ มีนัด-first: "มีนัดที่โรงพยาบาล พรุ่งนี้ 10 โมง" → group(1)=title, group(2)=day, group(3)=time
     for (final pattern in _naedFirstPatterns) {
-      final match = pattern.firstMatch(message);
+      final match = pattern.firstMatch(message); // anchored ($) → firstMatch ok
       if (match != null) {
         final event = _parseEvent(
           type: EventType.appointment,
@@ -190,24 +218,72 @@ class CalendarWorker {
       }
     }
 
-    // ตรวจจับ meetings
+    // ตรวจจับ meetings Thai (allMatches)
     for (final pattern in _meetingPatterns) {
-      final match = pattern.firstMatch(message);
-      if (match != null) {
+      for (final match in pattern.allMatches(message)) {
         final event = _parseEvent(
           type: EventType.meeting,
           title: match.group(1)?.trim() ?? 'ประชุม',
           dayStr: match.group(2)?.trim() ?? '',
           timeStr: match.group(3),
         );
-        if (event != null) {
+        if (event != null && !events.any((e) => e.title == event.title)) {
           events.add(event);
           await addEvent(event);
         }
       }
     }
 
+    // ── English patterns ───────────────────────────────────────────
+
+    // Pattern 1: "meeting with X tomorrow at 3pm"
+    for (final match in _enAppointmentPatterns[0].allMatches(message)) {
+      final title = match.group(1)?.trim() ?? '';
+      final dayStr = match.group(2)?.trim().toLowerCase() ?? '';
+      final timeRaw = match.group(3);
+      final event = _parseEvent(
+        type: EventType.meeting,
+        title: title.isEmpty ? 'meeting' : title,
+        dayStr: dayStr,
+        timeStr: timeRaw != null ? _parseEnTimeStr(timeRaw) : null,
+      );
+      if (event != null && !events.any((e) => e.title == event.title)) {
+        events.add(event);
+        await addEvent(event);
+      }
+    }
+
+    // Pattern 2: "tomorrow meeting with X at 3pm" (day-first English)
+    for (final match in _enAppointmentPatterns[1].allMatches(message)) {
+      final dayStr = match.group(1)?.trim().toLowerCase() ?? '';
+      final title = match.group(2)?.trim() ?? '';
+      final timeRaw = match.group(3);
+      final event = _parseEvent(
+        type: EventType.meeting,
+        title: title.isEmpty ? 'meeting' : title,
+        dayStr: dayStr,
+        timeStr: timeRaw != null ? _parseEnTimeStr(timeRaw) : null,
+      );
+      if (event != null && !events.any((e) => e.title == event.title)) {
+        events.add(event);
+        await addEvent(event);
+      }
+    }
+
     return events;
+  }
+
+  /// แปลง English time string → hour string ที่ _parseEvent รับได้
+  /// "3pm" → "15", "10am" → "10", "3:30pm" → "15" (minute ยังไม่ support ใน model)
+  String? _parseEnTimeStr(String raw) {
+    final cleaned = raw.trim().toLowerCase();
+    final match = RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)').firstMatch(cleaned);
+    if (match == null) return null;
+    int hour = int.parse(match.group(1)!);
+    final period = match.group(3)!;
+    if (period == 'pm' && hour < 12) hour += 12;
+    if (period == 'am' && hour == 12) hour = 0;
+    return hour.toString();
   }
 
   /// Parse event from matched strings

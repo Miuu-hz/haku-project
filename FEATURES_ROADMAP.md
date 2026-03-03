@@ -142,10 +142,10 @@ vector_search:
 > พิมพ์ประโยคเดียวมั่วๆ เช่น "พรุ่งนี้บ่ายโมงประชุมเซลส์ อ้อ เตือนโอนค่าไฟด้วย แล้วตอนเย็นไปรับลูก"
 > → Workers แยก 3 items อัตโนมัติ: 📅 ประชุมเซลส์ + ⏰ เตือนค่าไฟ + 📅 รับลูก
 
-- [ ] **CalendarWorker** — แก้ regex loop ให้ return `List<Event>` (หลาย events/message)
-- [ ] **ReminderWorker** — แก้ regex loop ให้ return `List<Reminder>` (หลาย reminders/message)
-- [ ] **SmartPreprocessor** — รวม results จากทุก worker เป็น `List<WorkerResult>` แสดงทั้งหมด
-- [ ] **Brain-Dump Summary Card** — UI card ใน Chat แสดงรายการที่จับได้ เช่น "✅ จดได้ 3 รายการ: 📅 ประชุมเซลส์ 13:00 | ⏰ โอนค่าไฟ | 📅 รับลูกเย็นนี้"
+- [x] **CalendarWorker** — แก้ regex `allMatches` return `List<Event>` (หลาย events/message) + English patterns
+- [x] **ReminderWorker** — แก้ regex `allMatches` return `List<Reminder>` (หลาย reminders/message) + English patterns
+- [x] **SmartPreprocessor** — `buildBrainDumpSummary()` รวม results จากทุก worker เป็น summary string
+- [x] **Brain-Dump Summary Card** — UI card ใน Chat แสดงรายการที่จับได้ เช่น "✅ จดได้ 3 รายการ: 📅 ประชุมเซลส์ 13:00 | ⏰ โอนค่าไฟ | 📅 รับลูกเย็นนี้"
 - **LLM usage:** 0 (rule-based ล้วน — ใช้ regex เดิมที่มีอยู่ ไม่ต้องเปลือง token)
 
 ---

@@ -149,7 +149,7 @@ class PlaceFeedbackService {
       type: TriggerType.placeFeedback,
       timestamp: DateTime.now(),
       suggestedMessage:
-          '${timeStr}คุณอยู่ที่ "${request.placeName}" นาน $dwellStr\n'
+          '$timeStrคุณอยู่ที่ "${request.placeName}" นาน $dwellStr\n'
           'เป็นยังไงบ้างคะ? ชอบที่นั่นไหม? 😊',
       context: ContextData(
         recentEntries: [],

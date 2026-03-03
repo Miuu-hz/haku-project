@@ -334,6 +334,12 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           sources: useContext ? _extractSources(contextStr) : null,
         ));
 
+        // Brain-Dump Summary Card (ถ้า workers จับอะไรได้)
+        final brainDumpSummary = preprocessResult?.workerResults.buildBrainDumpSummary();
+        if (brainDumpSummary != null && brainDumpSummary.isNotEmpty) {
+          addMessage(ChatMessage.workerSummary(brainDumpSummary));
+        }
+
         // Save to lean context
         await SmartPreprocessor()
             .addToLeanContext(displayText, isUser: false);
@@ -1014,6 +1020,11 @@ class _ChatBubble extends StatelessWidget {
       return _buildSearchingBubble(message);
     }
 
+    // 🗃️ Brain-Dump Summary Card
+    if (message.isWorkerSummary) {
+      return _buildWorkerSummaryCard(message);
+    }
+
     // 🔔 Proactive Message (จาก Trigger)
     if (message.isProactive) {
       return _buildProactiveBubble(message);
@@ -1175,6 +1186,58 @@ class _ChatBubble extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 🗃️ แสดง Brain-Dump Summary Card
+  Widget _buildWorkerSummaryCard(ChatMessage message) {
+    final lines = message.content.split('\n');
+    final header = lines.first;
+    final items = lines.skip(1).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A3A2A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF2ECC71).withValues(alpha: 0.3),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('✅ ', style: TextStyle(fontSize: 14)),
+                Text(
+                  header,
+                  style: const TextStyle(
+                    color: Color(0xFF2ECC71),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ...items.map((line) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              )),
+            ],
+          ],
+        ),
       ),
     );
   }

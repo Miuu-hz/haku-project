@@ -17,6 +17,7 @@ enum ChatMessageType {
   error,
   welcome,
   searching,
+  workerSummary, // Brain-Dump summary card
 }
 
 class ChatMessage {
@@ -47,6 +48,7 @@ class ChatMessage {
   bool get isError => type == ChatMessageType.error;
   bool get isWelcome => type == ChatMessageType.welcome;
   bool get isSearching => type == ChatMessageType.searching;
+  bool get isWorkerSummary => type == ChatMessageType.workerSummary;
   bool get hasActions => actions != null && actions!.isNotEmpty;
 
   // Factory constructors
@@ -90,6 +92,11 @@ class ChatMessage {
   factory ChatMessage.searching(String content) => ChatMessage(
         type: ChatMessageType.searching,
         content: content,
+      );
+
+  factory ChatMessage.workerSummary(String summary) => ChatMessage(
+        type: ChatMessageType.workerSummary,
+        content: summary,
       );
 
   factory ChatMessage.welcome() => ChatMessage(

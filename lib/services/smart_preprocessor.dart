@@ -489,6 +489,44 @@ class WorkerResults {
     if (healthFacts.isNotEmpty) parts.add('${healthFacts.length} health');
     return parts.isEmpty ? 'No worker results' : parts.join(', ');
   }
+
+  /// สร้าง Brain-Dump summary string สำหรับแสดงใน UI card
+  /// Format: "จดได้ N รายการ\n📅 X · พรุ่งนี้ 13:00\n⏰ Y · ทุกวัน"
+  String buildBrainDumpSummary() {
+    final lines = <String>[];
+
+    for (final e in calendarEvents) {
+      final dateStr = _formatEventDate(e.date);
+      final timeStr = e.time != null
+          ? ' ${e.time!.hour.toString().padLeft(2, '0')}:${e.time!.minute.toString().padLeft(2, '0')}'
+          : '';
+      lines.add('📅 ${e.title} · $dateStr$timeStr');
+    }
+
+    for (final r in reminders) {
+      final timeStr = r.time != null
+          ? ' · ${r.time!.hour.toString().padLeft(2, '0')}:${r.time!.minute.toString().padLeft(2, '0')}'
+          : '';
+      final freqStr = r.frequency == ReminderFrequency.daily ? ' · ทุกวัน' : '';
+      lines.add('⏰ ${r.content}$timeStr$freqStr');
+    }
+
+    for (final g in goals) {
+      lines.add('🎯 ${g.title}');
+    }
+
+    if (lines.isEmpty) return '';
+    return 'จดได้ ${lines.length} รายการ\n${lines.join('\n')}';
+  }
+
+  static String _formatEventDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = date.difference(today).inDays;
+    if (diff == 0) return 'วันนี้';
+    if (diff == 1) return 'พรุ่งนี้';
+    return '${date.day}/${date.month}';
+  }
 }
 
 /// Intent ที่ตรวจจับได้

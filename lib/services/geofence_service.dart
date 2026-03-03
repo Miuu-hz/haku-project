@@ -218,6 +218,7 @@ class GeofenceService {
     DwellTracker().onDwellComplete = (DwellSession session) async {
       if (session.isRoutineZone || session.name == null) return;
 
+      await PlaceService().initialize();
       // บันทึก visit ใน PlaceService
       String? placeId = session.placeId;
       if (placeId == null) {
