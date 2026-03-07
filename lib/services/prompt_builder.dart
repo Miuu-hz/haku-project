@@ -47,14 +47,26 @@ Output:''';
 
   /// 🗣️ Stage 1: THE FACE — General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   /// ใช้สำหรับ On-device Gemma (ต้องการ chat template tokens)
+  ///
+  /// ⚠️ MediaPipe maxTokens=1024 (input+output รวม)
+  /// Budget: system~70t + datetime~10t + user~50t + output~100t = ~230t
+  /// เหลือ context ได้ ~794t ≈ 400 chars (conservative สำหรับ Thai)
+  static const int _gemmaMaxContextChars = 400;
+
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
   }) {
     final timeContext = 'Current DateTime: $_currentDateTime';
 
-    final contextSection = context != null && context.isNotEmpty
-        ? '\nContext:\n$context'
+    // ตัด context ที่ยาวเกินไปก่อนส่ง Gemma — เก็บส่วนท้าย (recent) ซึ่งสำคัญกว่า
+    String? ctx = context;
+    if (ctx != null && ctx.length > _gemmaMaxContextChars) {
+      ctx = ctx.substring(ctx.length - _gemmaMaxContextChars);
+    }
+
+    final contextSection = ctx != null && ctx.isNotEmpty
+        ? '\nContext:\n$ctx'
         : '';
 
     return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';

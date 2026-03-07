@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/entry.dart';
 import 'database_helper.dart';
 import 'lean_context_service.dart';
+import 'rag_service.dart';
 import 'scheduler_service.dart';
 import 'user_profile_service.dart';
 import 'weather_service.dart';
@@ -55,6 +57,7 @@ class SmartPreprocessor {
 
   /// คำที่บ่งบอกว่าต้องการค้นหาข้อมูลจากเว็บ (ไม่รวม weather → ใช้ Open-Meteo แทน)
   static final List<RegExp> _searchPatterns = [
+    // ภาษาไทย
     RegExp(r'ค้นหา(.+)', caseSensitive: false),
     RegExp(r'หา(.+)ให้หน่อย', caseSensitive: false),
     RegExp(r'หา(.+)ให้ที', caseSensitive: false),
@@ -64,6 +67,12 @@ class SmartPreprocessor {
     RegExp(r'ราคา(.+)', caseSensitive: false),
     RegExp(r'วิธี(.+)', caseSensitive: false),
     RegExp(r'สูตร(.+)', caseSensitive: false),
+    // English patterns
+    RegExp(r'(?:search|find|look up|look for|search for)\s+(.+)', caseSensitive: false),
+    RegExp(r'what\s+is\s+(.+)', caseSensitive: false),
+    RegExp(r'how\s+(?:to|do)\s+(.+)', caseSensitive: false),
+    RegExp(r'where\s+(?:is|are|can\s+i\s+find)\s+(.+)', caseSensitive: false),
+    RegExp(r'(.+)\s+near(?:by|\s+me)\b', caseSensitive: false),
   ];
 
   /// คำที่บ่งบอกว่าถามเรื่องอากาศ → ใช้ WeatherService (Open-Meteo) แทน web search
@@ -174,25 +183,36 @@ class SmartPreprocessor {
 
     // 2.5 ⚡ Fast Path: SQL LIKE search (0 LLM, ทันที)
     // ถ้า user ถามเรื่องเก่า เช่น "เคยไปทะเลเมื่อไหร่" → หา entry ดิบด้วย keyword
+    // ถ้า SQL ไม่เจอ → escalate to RAGService (semantic, language-agnostic)
     final pastDataKeyword = _extractPastDataKeyword(userMessage);
     if (pastDataKeyword != null) {
+      final filters = _extractPastFilters(userMessage);
       try {
         final found = await DatabaseHelper.instance
             .searchEntries(pastDataKeyword)
             .timeout(const Duration(seconds: 2));
-        if (found.isNotEmpty) {
-          final snippets = found
-              .take(2)
-              .map((e) {
-                final date = e.createdAt.toString().substring(0, 10);
-                final preview = e.content.length > 80
-                    ? '${e.content.substring(0, 80)}...'
-                    : e.content;
-                return '[$date] $preview';
-              })
-              .join('\n');
-          enrichedContext = 'Related entries:\n$snippets\n$enrichedContext';
-          debugPrint('⚡ Fast Path: found ${found.length} entries for "$pastDataKeyword"');
+        final matched = _filterEntries(found, filters);
+        if (matched.isNotEmpty) {
+          enrichedContext = 'Related entries:\n${_buildEntrySnippets(matched.take(2).toList(), filters)}\n$enrichedContext';
+          debugPrint('⚡ Fast Path: found ${matched.length} entries for "$pastDataKeyword"');
+        } else if (RAGService().isInitialized) {
+          // SQL miss → semantic RAG fallback (รองรับ English query → Thai content)
+          debugPrint('🔍 Fast Path miss → RAG: "$pastDataKeyword"');
+          try {
+            final ragResults = await RAGService()
+                .search(pastDataKeyword, limit: 3)
+                .timeout(const Duration(seconds: 5));
+            final ragMatched = ragResults
+                .where((r) => _matchFilters(r.entry, filters))
+                .map((r) => r.entry)
+                .toList();
+            if (ragMatched.isNotEmpty) {
+              enrichedContext = 'Related entries:\n${_buildEntrySnippets(ragMatched.take(2).toList(), filters)}\n$enrichedContext';
+              debugPrint('✅ RAG fallback: ${ragMatched.length} entries');
+            }
+          } catch (e) {
+            debugPrint('⚠️ RAG fallback failed: $e');
+          }
         }
       } catch (_) {}
     }
@@ -309,6 +329,9 @@ class SmartPreprocessor {
   /// 📊 Get Lean Context stats
   Map<String, dynamic> getLeanContextStats() => _leanContext.getSessionInfo();
 
+  /// 🗑️ Clear lean context (messages + session summaries)
+  Future<void> clearLeanContext() => _leanContext.clearAll();
+
   // ============================================================
   // 🔍 DETECTION METHODS
   // ============================================================
@@ -331,7 +354,7 @@ class SmartPreprocessor {
     }
 
     // ตรวจสอบคำสำคัญ
-    final searchKeywords = ['อากาศ', 'ข่าว', 'ราคา', 'หุ้น', 'สกุลเงิน'];
+    final searchKeywords = ['อากาศ', 'ข่าว', 'ราคา', 'หุ้น', 'สกุลเงิน', 'news', 'price', 'stock', 'nearby', 'near me', 'ใกล้ฉัน', 'ใกล้ที่นี่', 'ใกล้บ้าน', 'แถวนี้', 'ในละแวก'];
     for (final keyword in searchKeywords) {
       if (lower.contains(keyword)) {
         return message;
@@ -348,12 +371,21 @@ class SmartPreprocessor {
   String? _extractPastDataKeyword(String message) {
     // pattern บ่งบอกว่าถามเรื่องอดีต/ข้อมูลเก่า
     final pastPatterns = [
+      // ภาษาไทย
       RegExp(r'เคย(.+)', caseSensitive: false),
       RegExp(r'ตอน(?:นั้น|ก่อน|ที่แล้ว)(.+)', caseSensitive: false),
       RegExp(r'ครั้งที่แล้ว(.*)'),
       RegExp(r'(.+)เมื่อไ(?:หร่|ร)'),
       RegExp(r'(.+)วันไหน'),
       RegExp(r'จำได้ไหม(.+)', caseSensitive: false),
+      // English — captures the subject/object as search keyword
+      RegExp(r'(?:did|have)\s+i\s+ever\s+(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'when\s+did\s+i\s+(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'where\s+did\s+i\s+(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'what\s+did\s+i\s+(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'last\s+time\s+(?:i\s+)?(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'do\s+you\s+remember\s+(?:when\s+i\s+|what\s+i\s+)?(.+?)[\?\.]*$', caseSensitive: false),
+      RegExp(r'have\s+i\s+(?:been\s+to|visited|gone\s+to)\s+(.+?)[\?\.]*$', caseSensitive: false),
     ];
 
     for (final pattern in pastPatterns) {
@@ -428,10 +460,92 @@ class SmartPreprocessor {
     return null;
   }
 
+  // ============================================================
+  // 🔍 PAST DATA FILTER HELPERS
+  // ============================================================
+
+  /// ดึง date/mood filters จาก user message (Thai + English)
+  _PastDataFilters _extractPastFilters(String message) {
+    final lower = message.toLowerCase();
+    final now = DateTime.now();
+    DateTime? dateFrom;
+    DateTime? dateTo;
+    int? minMood;
+    int? maxMood;
+
+    // Date filters
+    if (lower.contains('เมื่อปีที่แล้ว') || lower.contains('ปีที่แล้ว') || lower.contains('last year')) {
+      dateFrom = DateTime(now.year - 1, 1, 1);
+      dateTo = DateTime(now.year, 1, 1);
+    } else if (lower.contains('เดือนที่แล้ว') || lower.contains('last month')) {
+      dateFrom = DateTime(now.year, now.month - 1, 1);
+      dateTo = DateTime(now.year, now.month, 1);
+    } else if (lower.contains('ปีนี้') || lower.contains('this year')) {
+      dateFrom = DateTime(now.year, 1, 1);
+    } else if (lower.contains('เดือนนี้') || lower.contains('this month')) {
+      dateFrom = DateTime(now.year, now.month, 1);
+    } else if (lower.contains('ช่วงนี้') || lower.contains('recently') || lower.contains('lately')) {
+      dateFrom = now.subtract(const Duration(days: 30));
+    }
+
+    // Mood filters
+    if (RegExp(r'มีความสุข|อารมณ์ดี|สนุก|ดีใจ|happy|good mood|joyful', caseSensitive: false).hasMatch(lower)) {
+      minMood = 4;
+    } else if (RegExp(r'เครียด|เศร้า|ซึมเซา|อารมณ์ไม่ดี|stressed|sad|bad mood|depressed', caseSensitive: false).hasMatch(lower)) {
+      maxMood = 2;
+    }
+
+    return _PastDataFilters(dateFrom: dateFrom, dateTo: dateTo, minMood: minMood, maxMood: maxMood);
+  }
+
+  /// ตรวจว่า entry ผ่าน filter ไหม
+  bool _matchFilters(Entry entry, _PastDataFilters filters) {
+    if (!filters.hasFilters) return true;
+    if (filters.dateFrom != null && entry.createdAt.isBefore(filters.dateFrom!)) return false;
+    if (filters.dateTo != null && entry.createdAt.isAfter(filters.dateTo!)) return false;
+    if (filters.minMood != null && (entry.mood == null || entry.mood! < filters.minMood!)) return false;
+    if (filters.maxMood != null && (entry.mood == null || entry.mood! > filters.maxMood!)) return false;
+    return true;
+  }
+
+  /// กรอง entries ตาม filters
+  List<Entry> _filterEntries(List<Entry> entries, _PastDataFilters filters) {
+    if (!filters.hasFilters) return entries;
+    return entries.where((e) => _matchFilters(e, filters)).toList();
+  }
+
+  /// สร้าง snippet string สำหรับ context (พร้อม mood label ถ้า mood filter เปิดอยู่)
+  String _buildEntrySnippets(List<Entry> entries, _PastDataFilters filters) {
+    return entries.map((e) {
+      final date = e.createdAt.toString().substring(0, 10);
+      final preview = e.content.length > 80 ? '${e.content.substring(0, 80)}...' : e.content;
+      final moodLabel = (filters.minMood != null || filters.maxMood != null) && e.mood != null
+          ? ' [mood:${e.mood}]'
+          : '';
+      return '[$date$moodLabel] $preview';
+    }).join('\n');
+  }
+
   bool _isGreeting(String lower) {
     final greetings = ['สวัสดี', 'หวัดดี', 'ดีจ้า', 'hello', 'hi ', 'hey'];
     return greetings.any((g) => lower.startsWith(g) || lower == g);
   }
+}
+
+// ============================================================
+// 🔍 PAST DATA FILTERS
+// ============================================================
+
+/// Date/mood filters สำหรับ Fast Path + RAG past-data search
+class _PastDataFilters {
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+  final int? minMood; // mood >= minMood (e.g. 4 = happy)
+  final int? maxMood; // mood <= maxMood (e.g. 2 = stressed)
+
+  const _PastDataFilters({this.dateFrom, this.dateTo, this.minMood, this.maxMood});
+
+  bool get hasFilters => dateFrom != null || dateTo != null || minMood != null || maxMood != null;
 }
 
 // ============================================================

@@ -71,6 +71,7 @@ class MediaPipeLLMBridge(private val context: Context) {
     private var llmInference: Any? = null  // Use Any to avoid class loading
     private var currentModelPath: String? = null
     private var _isAvailable: Boolean = false
+    private var _maxTokens: Int = 1024
 
     val isInitialized: Boolean
         get() = llmInference != null
@@ -127,6 +128,7 @@ class MediaPipeLLMBridge(private val context: Context) {
 
             setModelPath.invoke(builder, modelPath)
             setMaxTokens.invoke(builder, maxTokens)
+            _maxTokens = maxTokens
             val options = buildMethod.invoke(builder)
 
             // Create LlmInference
@@ -170,7 +172,16 @@ class MediaPipeLLMBridge(private val context: Context) {
         }
 
         try {
-            Log.d(TAG, "🤖 Generating with MediaPipe...")
+            // ป้องกัน SIGABRT: MediaPipe crash ด้วย JNI error แทน exception เมื่อ input ยาวเกิน
+            // ใช้ 1.5 chars/token เป็น conservative estimate สำหรับ Thai/English mixed
+            val estimatedTokens = (prompt.length / 1.5).toInt()
+            val inputBudget = _maxTokens - 100 // เผื่อ output 100 tokens
+            if (estimatedTokens > inputBudget) {
+                Log.w(TAG, "⚠️ Prompt too long (~$estimatedTokens est. tokens > $inputBudget budget), refusing to prevent SIGABRT crash")
+                return@withContext ""
+            }
+
+            Log.d(TAG, "🤖 Generating with MediaPipe... (~$estimatedTokens est. tokens)")
 
             // Use reflection to call generateResponse
             val generateMethod = llmInference!!.javaClass.getMethod("generateResponse", String::class.java)

@@ -163,6 +163,8 @@ class MCPClient {
         return _callOpenAI(prompt, maxTokens);
       case 'openrouter':
         return _callOpenRouter(prompt, maxTokens);
+      case 'thaillm':
+        return _callThaiLLM(prompt, maxTokens);
       default:
         return MCPResponse.error(
           code: -1,
@@ -405,6 +407,61 @@ class MCPClient {
       return MCPResponse.error(code: response.statusCode, message: errorMsg);
     } catch (e) {
       return MCPResponse.error(code: -1, message: 'OpenRouter connection failed: $e');
+    }
+  }
+
+  /// 🇹🇭 ThaiLLM API (KBTG) — OpenAI-compatible, header: apikey
+  Future<MCPResponse> _callThaiLLM(String prompt, int maxTokens) async {
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      return MCPResponse.error(code: 401, message: 'ThaiLLM API key required');
+    }
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('http://thaillm.or.th/api/kbtg/v1/chat/completions'),
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': _apiKey!,
+            },
+            body: jsonEncode({
+              'model': '/model',
+              'max_tokens': maxTokens,
+              'messages': [
+                {'role': 'user', 'content': prompt}
+              ],
+            }),
+          )
+          .timeout(_timeout);
+
+      debugPrint('🇹🇭 ThaiLLM response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final choices = json['choices'] as List? ?? [];
+        if (choices.isNotEmpty) {
+          final message = choices[0]['message'] as Map<String, dynamic>? ?? {};
+          final text = message['content'] as String? ?? '';
+          final usage = json['usage'] as Map<String, dynamic>? ?? {};
+          return MCPResponse.success(
+            text: text,
+            provider: 'thaillm',
+            tokensUsed: usage['total_tokens'] as int? ?? 0,
+          );
+        }
+        return MCPResponse.error(code: -1, message: 'Empty response from ThaiLLM');
+      }
+
+      String errorMsg = 'HTTP ${response.statusCode}';
+      try {
+        final err = jsonDecode(response.body) as Map<String, dynamic>;
+        errorMsg = err['error']?['message'] as String? ?? errorMsg;
+      } catch (_) {}
+
+      debugPrint('❌ ThaiLLM error: $errorMsg');
+      return MCPResponse.error(code: response.statusCode, message: errorMsg);
+    } catch (e) {
+      return MCPResponse.error(code: -1, message: 'ThaiLLM connection failed: $e');
     }
   }
 

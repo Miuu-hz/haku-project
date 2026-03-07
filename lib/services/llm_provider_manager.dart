@@ -20,6 +20,7 @@ enum ProviderType {
   cloudClaude,
   cloudOpenai,
   cloudOpenRouter,
+  cloudThaiLLM,
 }
 
 class LLMProviderManager {
@@ -44,6 +45,7 @@ class LLMProviderManager {
   CloudLLMProvider? _claudeProvider;
   CloudLLMProvider? _openaiProvider;
   CloudLLMProvider? _openRouterProvider;
+  CloudLLMProvider? _thaiLLMProvider;
   final MockLLMProvider _mockProvider = MockLLMProvider();
 
   // ── Shared MCP client ──
@@ -205,6 +207,13 @@ class LLMProviderManager {
           icon: '🟠',
           requiresApiKey: true,
         ),
+        ProviderInfo(
+          type: ProviderType.cloudThaiLLM,
+          name: 'ThaiLLM (THaLLE-0.2-8B)',
+          description: 'LLM ภาษาไทย โดย KBTG — 200 req/min, ฟรี',
+          icon: '🇹🇭',
+          requiresApiKey: true,
+        ),
       ];
 
   /// 📊 Get current config
@@ -260,6 +269,14 @@ class LLMProviderManager {
           mode: mode,
         );
         return _openRouterProvider!;
+
+      case ProviderType.cloudThaiLLM:
+        _thaiLLMProvider ??= CloudLLMProvider(
+          cloudProvider: CloudProvider.thaillm,
+          client: _getOrCreateMCPClient(),
+          mode: mode,
+        );
+        return _thaiLLMProvider!;
     }
   }
 
@@ -285,6 +302,8 @@ class LLMProviderManager {
         return CloudProvider.openai;
       case ProviderType.cloudOpenRouter:
         return CloudProvider.openrouter;
+      case ProviderType.cloudThaiLLM:
+        return CloudProvider.thaillm;
       case ProviderType.onDevice:
         return null;
     }

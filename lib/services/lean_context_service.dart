@@ -8,17 +8,13 @@ import 'user_profile_service.dart';
 
 /// 📦 Lean Context Service - บีบอัด Context ให้ประหยัด Token
 ///
-/// ปัญหา: Gemma 3 1B มี context ~2048 tokens
-/// ทางแก้: Compress chat history จาก ~150 tokens → ~30 tokens ต่อคู่สนทนา
+/// ⚠️ Gemma 3 1B via MediaPipe: maxTokens=1024 (input+output รวม)
+/// Budget สำหรับ context: ~400 chars (conservative สำหรับ Thai tokenization)
 ///
-/// ผลลัพธ์:
-/// - Normal: 5 chats × 150 = 750 tokens
-/// - Lean: 25 chats × 30 = 750 tokens (5x memory!)
-///
-/// Format:
-/// - Chat 1-3: Full Thai (เพื่อ context ใกล้)
-/// - Chat 4+: Lean Syntax Thai (บีบอัด)
-/// - Summary: English (ประหยัดสุด)
+/// Format (priority: recent > lean > summary):
+/// - [Recent] 1 pair ล่าสุด แบบ full text (cap 80 chars ต่อ msg)
+/// - [Context] lean messages ล่าสุด 6 รายการ (50 chars ต่อ msg)
+/// - [History] session summaries (English, compact)
 
 class LeanContextService {
   static final LeanContextService _instance = LeanContextService._internal();
@@ -41,10 +37,12 @@ class LeanContextService {
 
   bool _isInitialized = false;
 
-  // Settings
-  static const int fullContextCount = 2;    // จำนวน chat ที่แสดงแบบ full (ลดจาก 3)
-  static const int maxLeanMessages = 15;    // จำนวน lean messages สูงสุด (ลดจาก 25)
-  static const int maxSummaries = 5;        // จำนวน session summaries สูงสุด (ลดจาก 10)
+  // Settings — ตั้งค่าให้พอดี token budget ของ Gemma 3 1B (1024 tokens รวม)
+  static const int fullContextCount = 1;    // 1 pair ล่าสุด แบบ full text (~160 chars)
+  static const int maxLeanMessages = 8;     // lean messages สูงสุด (ลดจาก 15)
+  static const int maxSummaries = 3;        // session summaries สูงสุด (ลดจาก 5)
+  static const int _maxFullMsgChars = 80;   // cap full message content
+  static const int _maxLeanToShow = 6;      // lean messages ที่แสดงใน context
 
   /// 🚀 Initialize
   Future<void> initialize() async {
@@ -307,6 +305,11 @@ class LeanContextService {
       topics = topicSet.toList();
     }
 
+    // cap ความยาว summary เพื่อป้องกัน token overflow
+    if (summaryEn.length > 120) {
+      summaryEn = '${summaryEn.substring(0, 117)}...';
+    }
+
     return SessionSummary(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       summaryEn: summaryEn,
@@ -350,24 +353,31 @@ class LeanContextService {
       }
     }
 
-    // 3. Lean History (Chat 4 to N-3)
+    // 3. Lean History — แสดงแค่ล่าสุด _maxLeanToShow รายการ เพื่อประหยัด token
     if (_leanMessages.length > fullContextCount * 2) {
       buffer.writeln('[Context]');
       final leanPart = _leanMessages.sublist(0, _leanMessages.length - fullContextCount * 2);
-      for (final msg in leanPart) {
+      // เก็บเฉพาะ lean messages ล่าสุด
+      final leanToShow = leanPart.length > _maxLeanToShow
+          ? leanPart.sublist(leanPart.length - _maxLeanToShow)
+          : leanPart;
+      for (final msg in leanToShow) {
         final prefix = msg.role == MessageRole.user ? 'U' : 'H';
         buffer.writeln('$prefix:${msg.leanContent}');
       }
     }
 
-    // 4. Full Recent (Last 3 pairs)
+    // 4. Full Recent (1 pair ล่าสุด) — cap ความยาวเพื่อประหยัด token
     if (_leanMessages.isNotEmpty) {
       buffer.writeln('[Recent]');
       final recentStart = (_leanMessages.length - fullContextCount * 2).clamp(0, _leanMessages.length);
       final recent = _leanMessages.sublist(recentStart);
       for (final msg in recent) {
         final prefix = msg.role == MessageRole.user ? 'User' : 'Haku';
-        buffer.writeln('$prefix: ${msg.content}');
+        final content = msg.content.length > _maxFullMsgChars
+            ? '${msg.content.substring(0, _maxFullMsgChars)}...'
+            : msg.content;
+        buffer.writeln('$prefix: $content');
       }
     }
 

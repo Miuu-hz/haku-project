@@ -19,6 +19,7 @@ enum CloudProvider {
   claude,
   openai,
   openrouter,
+  thaillm,
 }
 
 enum ConnectionMode {
@@ -55,6 +56,8 @@ class CloudLLMProvider implements LLMProvider {
         return 'GPT-4o-mini (Cloud)';
       case CloudProvider.openrouter:
         return 'OpenRouter (Cloud)';
+      case CloudProvider.thaillm:
+        return 'ThaiLLM (THaLLE-0.2-8B)';
     }
   }
 

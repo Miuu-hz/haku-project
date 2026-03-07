@@ -23,6 +23,10 @@ import '../services/smart_preprocessor.dart';
 import '../services/place_feedback_service.dart';
 import '../services/place_service.dart';
 import '../services/tag_context_service.dart';
+import '../services/correlation_service.dart';
+import '../services/geofence_service.dart';
+import '../services/location_service.dart';
+import '../services/scheduler_service.dart';
 import '../services/web_search_service.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
@@ -90,12 +94,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🗑️ ล้าง chat history (manual clear)
+  /// 🗑️ ล้าง chat history + AI memory ทั้งหมด (Set Zero)
   Future<void> clearHistory() async {
     state = [ChatMessage.welcome()];
+    // ล้าง UI history
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyKey);
-    debugPrint('💬 Chat history cleared');
+    // ล้าง lean context (session messages + summaries)
+    await SmartPreprocessor().clearLeanContext();
+    // ล้าง secret chat English log
+    await SecretChatService().clearAll();
+    debugPrint('💬 Chat history + AI memory cleared (Set Zero)');
   }
 
   /// 🔧 Extract response text from JSON or plain text
@@ -211,7 +220,39 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         try {
           final webService = WebSearchService();
           await webService.initialize();
-          webResult = await webService.searchForAI(searchQuery);
+
+          // ตรวจว่าเป็น "nearby" query ไหม
+          final lowerQuery = searchQuery.toLowerCase();
+          final isNearby = lowerQuery.contains('ใกล้ฉัน') ||
+              lowerQuery.contains('ใกล้ที่นี่') ||
+              lowerQuery.contains('ใกล้บ้าน') ||
+              lowerQuery.contains('แถวนี้') ||
+              lowerQuery.contains('ในละแวก') ||
+              lowerQuery.contains('nearby') ||
+              lowerQuery.contains('near me');
+
+          double? lat, lng;
+          String? placesKey;
+
+          if (isNearby) {
+            // ดึง GPS + Google Places key พร้อมกัน
+            final positionFuture = LocationService.getCurrentPosition();
+            final prefsFuture = SharedPreferences.getInstance();
+            final position = await positionFuture;
+            final prefs = await prefsFuture;
+            placesKey = prefs.getString('google_places_api_key');
+            if (position != null) {
+              lat = position.latitude;
+              lng = position.longitude;
+            }
+          }
+
+          webResult = await webService.searchForAI(
+            searchQuery,
+            lat: lat,
+            lng: lng,
+            googlePlacesKey: placesKey,
+          );
           debugPrint('✅ Web search completed: $searchQuery');
         } catch (e) {
           debugPrint('⚠️ Web search failed: $e');
@@ -231,7 +272,8 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             response = webResult;
           }
         } else {
-          response = webResult ?? 'ไม่พบข้อมูลค่ะ';
+          // webResult == '' → search ran but found nothing; null → exception
+          response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ 🙏';
         }
 
         // Replace searching message with real response
@@ -268,7 +310,21 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             final summary = userMessage.length > 60
                 ? '${userMessage.substring(0, 57)}...'
                 : userMessage;
-            preClassify = PreClassifyResult(intent: 'chat', summaryEn: summary);
+            // ตรวจ schedule query จาก keywords แทน LLM
+            final lowerEn = userMessage.toLowerCase();
+            final isScheduleQuery = (lowerEn.contains('schedule') ||
+                    lowerEn.contains('appointment') ||
+                    lowerEn.contains('plan') ||
+                    lowerEn.contains('calendar') ||
+                    lowerEn.contains('today') ||
+                    lowerEn.contains('tomorrow')) &&
+                (lowerEn.contains('what') ||
+                    lowerEn.contains('any') ||
+                    lowerEn.contains('have') ||
+                    lowerEn.contains('show') ||
+                    lowerEn.contains('list'));
+            final enIntent = isScheduleQuery ? 'query' : 'chat';
+            preClassify = PreClassifyResult(intent: enIntent, summaryEn: summary);
             SmartPreprocessor().updateUserMessageWithEnglish(summary);
           } else {
             debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
@@ -293,6 +349,15 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         if (tagCtx != null && tagCtx.isNotEmpty) {
           contextStr = tagCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
           debugPrint('🏷️ Tag context injected (${tagCtx.length} chars)');
+        }
+
+        // 1.6. Calendar Context — inject today's events เมื่อ intent=query
+        if (preClassify?.intent == 'query') {
+          final calCtx = await _buildCalendarContext(userMessage);
+          if (calCtx.isNotEmpty) {
+            contextStr = calCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
+            debugPrint('📅 Calendar context injected (${calCtx.length} chars)');
+          }
         }
 
         // 2. Face LLM — Stage 1 (The Face)
@@ -365,6 +430,45 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         'กรุณาลองใหม่ หรือตรวจสอบว่ามีบันทึกอย่างน้อย 1 รายการ',
       ));
       debugPrint('🚀 ============================================');
+    }
+  }
+
+  /// 📅 ดึง calendar events ของวันนี้ (และพรุ่งนี้ถ้าถาม) แล้วแปลงเป็น context string
+  Future<String> _buildCalendarContext(String userMessage) async {
+    try {
+      final now = DateTime.now();
+      final lowerMsg = userMessage.toLowerCase();
+      final includeTomorrow = lowerMsg.contains('พรุ่งนี้') ||
+          lowerMsg.contains('tomorrow') ||
+          lowerMsg.contains('พรุ้งนี้');
+
+      final dayStart = DateTime(now.year, now.month, now.day);
+      final rangeEnd = includeTomorrow
+          ? dayStart.add(const Duration(days: 2))
+          : dayStart.add(const Duration(days: 1));
+
+      final events = await SchedulerService().getCalendarEvents(dayStart, rangeEnd);
+      if (events.isEmpty) return '';
+
+      final buf = StringBuffer();
+      buf.writeln(includeTomorrow ? 'Calendar (today+tomorrow):' : 'Calendar today:');
+      for (final e in events) {
+        final title = e['title'] as String? ?? 'กิจกรรม';
+        final startMs = e['startTime'] as int?;
+        if (startMs != null) {
+          final dt = DateTime.fromMillisecondsSinceEpoch(startMs);
+          final dayLabel = dt.day == now.day ? 'วันนี้' : 'พรุ่งนี้';
+          final timeStr =
+              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+          buf.writeln('- $dayLabel $timeStr $title');
+        } else {
+          buf.writeln('- $title');
+        }
+      }
+      return buf.toString().trim();
+    } catch (e) {
+      debugPrint('⚠️ _buildCalendarContext failed: $e');
+      return '';
     }
   }
 
@@ -524,60 +628,308 @@ Reply in Thai (1-2 sentences):
     return dates.isEmpty ? null : dates;
   }
 
-  /// 📅 สรุปวันนี้ (Quick Action)
-  Future<void> summarizeToday() async {
-    addMessage(ChatMessage.user('สรุปวันนี้ให้หน่อย'));
+  // ─────────────────────────────────────────────────────────────────
+  // ⚡ 0-Token Quick Actions — ดึงข้อมูลตรงจาก DB ไม่ใช้ LLM
+  // ─────────────────────────────────────────────────────────────────
+
+  /// ⚡ Dispatcher สำหรับ 0-token quick actions ทั้งหมด
+  Future<void> quickAction0Token(String actionType) async {
+    final label = _quickActionLabel(actionType);
+    addMessage(ChatMessage.user(label));
     addMessage(ChatMessage.loading());
-
     try {
-      // ดึง entries วันนี้
-      final now = DateTime.now();
-      final startOfDay = DateTime(now.year, now.month, now.day);
-      final endOfDay = startOfDay.add(const Duration(days: 1));
-      
-      final allEntries = await DatabaseHelper.instance.getAllEntries();
-      final todayEntries = allEntries.where((e) => 
-        e.createdAt.isAfter(startOfDay) && e.createdAt.isBefore(endOfDay)
-      ).toList();
-
-      if (todayEntries.isEmpty) {
-        state = state.where((m) => !m.isLoading).toList();
-        addMessage(ChatMessage.assistant('วันนี้คุณยังไม่มีบันทึกเลยค่ะ 📝'));
-        return;
-      }
-
-      // สร้าง context และ prompt (Gemma-3 format)
-      final entriesContent = todayEntries.map((e) =>
-        '- ${e.createdAt.hour}:${e.createdAt.minute.toString().padLeft(2, '0')}: ${e.content}'
-      ).join('\n');
-
-      final prompt = PromptBuilder.buildDailySummaryPrompt(
-        entriesContent: entriesContent,
-        period: 'วันนี้',
-      );
-
-      String response;
-      final llm = LLMProviderManager().provider;
-      
-      // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
-      if (!llm.isInitialized && !llm.isLoading) {
-        await llm.initialize();
-      }
-      
-      if (llm.isInitialized) {
-        response = await llm.generate(prompt);
-        response = _extractResponseText(response);
-      } else {
-        // Mock response เมื่อ LLM ไม่พร้อม
-        response = 'วันนี้คุณมี ${todayEntries.length} บันทึก ${todayEntries.any((e) => e.mood == 5) ? 'ดูเหมือนจะเป็นวันที่ดีนะคะ 😊' : 'เหนื่อยหน่อยแต่ก็ผ่านไปได้ค่ะ 💪'}';
-      }
-
+      final result = await _buildQuickActionResponse(actionType);
       state = state.where((m) => !m.isLoading).toList();
-      addMessage(ChatMessage.assistant(response));
-
+      addMessage(ChatMessage.assistant(result));
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
-      addMessage(ChatMessage.error('สรุปไม่ได้ค่ะ: $e'));
+      addMessage(ChatMessage.error('ดึงข้อมูลไม่ได้ค่ะ: $e'));
+    }
+  }
+
+  String _quickActionLabel(String actionType) {
+    switch (actionType) {
+      case 'summarize_today': return 'สรุปวันนี้ให้หน่อย';
+      case 'food_today':      return 'วันนี้กินอะไรไปบ้าง?';
+      case 'day_review':      return 'วันนี้เป็นยังไงบ้าง?';
+      case 'places_today':    return 'วันนี้ไปที่ไหนบ้าง?';
+      case 'mood_today':      return 'ช่วงนี้อารมณ์ฉันเป็นยังไง?';
+      default:                return actionType;
+    }
+  }
+
+  Future<String> _buildQuickActionResponse(String actionType) async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    final allEntries = await DatabaseHelper.instance.getAllEntries();
+    final todayEntries = allEntries
+        .where((e) => e.createdAt.isAfter(startOfDay) && e.createdAt.isBefore(endOfDay))
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    switch (actionType) {
+      case 'summarize_today':
+        return _summarizeTodayResponse(todayEntries, now);
+      case 'food_today':
+        return _foodTodayResponse(todayEntries);
+      case 'day_review':
+        return _dayReviewResponse(todayEntries);
+      case 'places_today':
+        return _placesTodayResponse(todayEntries);
+      case 'mood_today':
+        return _moodTodayResponse(todayEntries);
+      default:
+        return 'ไม่รู้จัก action นี้ค่ะ';
+    }
+  }
+
+  Future<String> _summarizeTodayResponse(List<dynamic> todayEntries, DateTime now) async {
+    final buf = StringBuffer();
+    final dateStr = '${now.day}/${now.month}/${now.year}';
+
+    // ดึง calendar events ของวันนี้
+    final calEvents = await SchedulerService().getCalendarEvents(
+      DateTime(now.year, now.month, now.day),
+      DateTime(now.year, now.month, now.day + 1),
+    );
+
+    if (todayEntries.isEmpty && calEvents.isEmpty) {
+      return 'วันนี้ ($dateStr) ยังไม่มีบันทึกหรือนัดหมายเลยค่ะ 📝 ลองเริ่มบันทึกสิ่งที่ทำวันนี้กันนะคะ!';
+    }
+
+    buf.writeln('📋 สรุปวันที่ $dateStr');
+
+    // นัดหมายจาก Calendar
+    if (calEvents.isNotEmpty) {
+      buf.writeln('\n📅 นัดหมายวันนี้ (${calEvents.length} รายการ):');
+      for (final e in calEvents) {
+        final title = e['title'] as String? ?? 'กิจกรรม';
+        final ms = e['startTime'] as int?;
+        final timeStr = ms != null
+            ? () {
+                final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+                return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+              }()
+            : null;
+        buf.writeln('  • ${timeStr != null ? '$timeStr ' : ''}$title');
+      }
+    }
+
+    // บันทึกจาก Diary
+    if (todayEntries.isNotEmpty) {
+      buf.writeln('\n📝 บันทึกวันนี้ (${todayEntries.length} รายการ):');
+      for (final entry in todayEntries) {
+        final e = entry as dynamic;
+        final t = e.createdAt as DateTime;
+        final timeStr = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        final preview = (e.content as String).length > 50
+            ? '${(e.content as String).substring(0, 50)}...'
+            : e.content as String;
+        final moodEmoji = e.mood != null ? _moodEmoji(e.mood as int) : '';
+        buf.writeln('  • $timeStr $moodEmoji $preview');
+      }
+
+      // สรุป mood เฉลี่ย
+      final moods = todayEntries
+          .where((e) => (e as dynamic).mood != null)
+          .map((e) => (e as dynamic).mood as int)
+          .toList();
+      if (moods.isNotEmpty) {
+        final avg = moods.reduce((a, b) => a + b) / moods.length;
+        final avgEmoji = _moodEmoji(avg.round());
+        buf.writeln('\n$avgEmoji อารมณ์เฉลี่ยวันนี้: ${avg.toStringAsFixed(1)}/5');
+      }
+    }
+
+    return buf.toString().trim();
+  }
+
+  String _foodTodayResponse(List<dynamic> todayEntries) {
+    const foodKw = ['กิน', 'ข้าว', 'อาหาร', 'ร้าน', 'ชา', 'กาแฟ', 'ดื่ม', 'ขนม',
+        'ก๋วยเตี๋ยว', 'ส้มตำ', 'ผัด', 'ต้ม', 'แกง', 'หมู', 'ไก่', 'ปลา',
+        'pizza', 'sushi', 'burger', 'cafe', 'coffee', 'eat', 'lunch', 'dinner', 'breakfast'];
+    final foodEntries = todayEntries.where((e) {
+      final content = ((e as dynamic).content as String).toLowerCase();
+      return foodKw.any((kw) => content.contains(kw));
+    }).toList();
+
+    if (foodEntries.isEmpty) {
+      return 'วันนี้ยังไม่พบบันทึกเรื่องอาหารเลยค่ะ 🍽️ กินอะไรไปบ้างเล่าให้ฟังหน่อยนะคะ!';
+    }
+
+    final buf = StringBuffer('🍜 วันนี้กินอะไรไปบ้าง:\n');
+    for (final entry in foodEntries) {
+      final e = entry as dynamic;
+      final t = e.createdAt as DateTime;
+      final timeStr = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      buf.writeln('• $timeStr — ${e.content as String}');
+    }
+    return buf.toString().trim();
+  }
+
+  Future<String> _dayReviewResponse(List<dynamic> todayEntries) async {
+    final buf = StringBuffer();
+
+    if (todayEntries.isEmpty) {
+      buf.writeln('วันนี้ยังไม่มีบันทึกเลยค่ะ 📝 เริ่มเล่าให้ฟังได้เลยนะคะ!');
+    } else {
+      buf.writeln('😊 ไทม์ไลน์วันนี้:');
+      for (final entry in todayEntries) {
+        final e = entry as dynamic;
+        final t = e.createdAt as DateTime;
+        final timeStr = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        final moodStr = e.mood != null ? ' ${_moodEmoji(e.mood as int)}' : '';
+        buf.writeln('$timeStr$moodStr — ${e.content as String}');
+      }
+    }
+
+    // เพิ่ม Hidden Correlation insights (0 LLM, pure Dart)
+    try {
+      final insights = await CorrelationService().analyze();
+      if (insights.isNotEmpty) {
+        buf.writeln('\n🔍 สิ่งที่ฮาคุสังเกตเห็น:');
+        for (final insight in insights.take(3)) {
+          final icon = insight.isPositive ? '✨' : '⚠️';
+          buf.writeln('$icon ${insight.message}');
+        }
+      }
+    } catch (_) {}
+
+    return buf.toString().trim();
+  }
+
+  Future<String> _placesTodayResponse(List<dynamic> todayEntries) async {
+    final withLocation = todayEntries
+        .where((e) =>
+            (e as dynamic).locationName != null &&
+            ((e as dynamic).locationName as String).isNotEmpty)
+        .toList();
+
+    String? askAboutPlace; // สถานที่ที่จะถาม follow-up
+
+    if (withLocation.isEmpty) {
+      // ลอง parse จาก content (mention สถานที่ใน text)
+      final mentionEntries = todayEntries.where((e) {
+        final c = ((e as dynamic).content as String).toLowerCase();
+        return c.contains('ที่') || c.contains('ไป') || c.contains('มา') || c.contains('@');
+      }).toList();
+
+      if (mentionEntries.isEmpty) {
+        return 'วันนี้ยังไม่มีบันทึกสถานที่เลยค่ะ 📍 ลองเปิด GPS ไว้ขณะบันทึกนะคะ!';
+      }
+      final buf = StringBuffer('📍 สถานที่ที่กล่าวถึงวันนี้:\n');
+      for (final e in mentionEntries) {
+        final en = e as dynamic;
+        final t = en.createdAt as DateTime;
+        final timeStr =
+            '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        buf.writeln('• $timeStr — ${en.content as String}');
+      }
+      return buf.toString().trim();
+    }
+
+    // รวม unique locations (เรียงตาม entry ล่าสุดก่อน)
+    final seen = <String>{};
+    final locations = <String>[];
+    for (final e in withLocation.reversed) {
+      final loc = (e as dynamic).locationName as String;
+      if (seen.add(loc)) locations.add(loc);
+    }
+
+    final buf = StringBuffer('📍 วันนี้ไปที่ไหนบ้าง (${locations.length} สถานที่):\n');
+    for (final loc in locations) {
+      buf.writeln('• $loc');
+    }
+
+    // เลือกสถานที่ล่าสุดที่ยังไม่มี sentiment บันทึกไว้
+    askAboutPlace = await _pickPlaceToAsk(locations);
+    if (askAboutPlace != null) {
+      buf.writeln('\nแล้วที่ $askAboutPlace เป็นยังไงบ้างคะ? 🙂');
+
+      // activate PlaceFeedbackService ถ้ามี request ที่ match
+      final pending = PlaceFeedbackService().dequeuePending();
+      if (pending != null &&
+          locations.any((l) => l.contains(pending.placeName))) {
+        PlaceFeedbackService().markAsked(pending.id);
+      }
+    }
+
+    return buf.toString().trim();
+  }
+
+  /// เลือกสถานที่ล่าสุดที่ยังไม่มี mood บันทึกในวันนี้ สำหรับถาม follow-up
+  Future<String?> _pickPlaceToAsk(List<String> locations) async {
+    if (locations.isEmpty) return null;
+    try {
+      // ถ้ามี pending feedback request → ใช้ชื่อนั้นก่อน
+      final pending = PlaceFeedbackService().hasPending
+          ? PlaceFeedbackService().dequeuePending()
+          : null;
+      if (pending != null) {
+        return pending.placeName;
+      }
+      // ไม่งั้นใช้สถานที่แรก (ล่าสุด)
+      return locations.first;
+    } catch (_) {
+      return locations.first;
+    }
+  }
+
+  String _moodTodayResponse(List<dynamic> todayEntries) {
+    final withMood = todayEntries
+        .where((e) => (e as dynamic).mood != null)
+        .toList();
+
+    if (withMood.isEmpty) {
+      return 'วันนี้ยังไม่มีการบันทึกอารมณ์เลยค่ะ 💭';
+    }
+
+    final moodCounts = <int, int>{};
+    for (final e in withMood) {
+      final m = (e as dynamic).mood as int;
+      moodCounts[m] = (moodCounts[m] ?? 0) + 1;
+    }
+    final avgMood = withMood.map((e) => (e as dynamic).mood as int).reduce((a, b) => a + b) /
+        withMood.length;
+
+    final buf = StringBuffer('${_moodEmoji(avgMood.round())} อารมณ์วันนี้:\n');
+    for (final entry in 5.downTo(1)) {
+      final count = moodCounts[entry] ?? 0;
+      if (count == 0) continue;
+      buf.writeln('${_moodEmoji(entry)} ×$count  ${_moodLabel(entry)}');
+    }
+    buf.writeln('\nเฉลี่ย: ${avgMood.toStringAsFixed(1)}/5 ${_moodEmoji(avgMood.round())}');
+    return buf.toString().trim();
+  }
+
+  String _moodEmoji(int mood) {
+    switch (mood) {
+      case 1: return '😢';
+      case 2: return '😕';
+      case 3: return '😐';
+      case 4: return '🙂';
+      case 5: return '😄';
+      default: return '📝';
+    }
+  }
+
+  String _moodLabel(int mood) {
+    switch (mood) {
+      case 1: return 'แย่มาก';
+      case 2: return 'แย่';
+      case 3: return 'เฉยๆ';
+      case 4: return 'ดี';
+      case 5: return 'ดีมาก';
+      default: return '';
+    }
+  }
+}
+
+extension _IntRange on int {
+  Iterable<int> downTo(int end) sync* {
+    for (var i = this; i >= end; i--) {
+      yield i;
     }
   }
 }
@@ -598,12 +950,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _contextEnabled = true;
 
   final List<QuickQuestion> _quickQuestions = [
-    QuickQuestion(icon: '📅', text: 'สรุปวันนี้', query: 'summarize_today', isAction: true),
-    QuickQuestion(icon: '🍜', text: 'วันนี้กินอะไร?', query: 'วันนี้ฉันกินอะไรไปบ้าง?'),
-    QuickQuestion(icon: '😊', text: 'วันนี้เป็นยังไง?', query: 'สรุปวันนี้ของฉันหน่อย'),
-    QuickQuestion(icon: '📍', text: 'ไปไหนมาบ้าง?', query: 'วันนี้ฉันไปที่ไหนบ้าง?'),
-    QuickQuestion(icon: '🎵', text: 'อารมณ์ดีไหม?', query: 'ช่วงนี้อารมณ์ฉันเป็นยังไง?'),
-    QuickQuestion(icon: '🔍', text: 'หาเรื่อง...', query: '', isCustom: true),
+    QuickQuestion(icon: '📅', text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
+    QuickQuestion(icon: '🍜', text: 'วันนี้กินอะไร?', query: '',             isAction: true, actionType: 'food_today'),
+    QuickQuestion(icon: '😊', text: 'วันนี้เป็นยังไง?', query: '',           isAction: true, actionType: 'day_review'),
+    QuickQuestion(icon: '📍', text: 'ไปไหนมาบ้าง?', query: '',              isAction: true, actionType: 'places_today'),
+    QuickQuestion(icon: '🎵', text: 'อารมณ์ดีไหม?',  query: '',             isAction: true, actionType: 'mood_today'),
+    QuickQuestion(icon: '🌐', text: 'ค้นเว็บ',        query: '',             isCustom: true),
   ];
 
   @override
@@ -680,6 +1032,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       };
       debugPrint('✅ All services initialized');
 
+      // 📍 เริ่ม Geofence + DwellTracker monitoring (foreground เท่านั้น)
+      debugPrint('🔄 Starting Geofence monitoring...');
+      await GeofenceService().initialize();
+      await GeofenceService().startMonitoring();
+      debugPrint('✅ Geofence monitoring started');
+
       // เช็ค pending place feedback — ยิง trigger หลัง UI ตั้ง settle 2s
       await PlaceFeedbackService().initialize();
       PlaceFeedbackService().pruneExpired();
@@ -750,13 +1108,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _sendQuickQuestion(QuickQuestion question) async {
     if (question.isCustom) {
-      FocusScope.of(context).requestFocus(FocusNode());
+      // ค้นเว็บ: แสดง dialog ให้พิมพ์คำค้นหา
+      final searchText = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          final ctrl = TextEditingController();
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: const Text('🌐 ค้นหาบนเว็บ', style: TextStyle(color: Colors.white)),
+            content: TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'พิมพ์สิ่งที่ต้องการค้นหา...',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                filled: true,
+                fillColor: const Color(0xFF2A2A3E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                child: const Text('ค้นหา', style: TextStyle(color: Color(0xFF9B7CB6))),
+              ),
+            ],
+          );
+        },
+      );
+      if (searchText != null && searchText.isNotEmpty) {
+        setState(() => _isTyping = true);
+        await ref.read(chatHistoryProvider.notifier).sendToAI('ค้นหาข้อมูลเกี่ยวกับ $searchText');
+        setState(() => _isTyping = false);
+        _scrollToBottom();
+      }
       return;
     }
 
-    if (question.isAction && question.query == 'summarize_today') {
+    if (question.actionType != null) {
       setState(() => _isTyping = true);
-      await ref.read(chatHistoryProvider.notifier).summarizeToday();
+      await ref.read(chatHistoryProvider.notifier).quickAction0Token(question.actionType!);
       setState(() => _isTyping = false);
       _scrollToBottom();
       return;
@@ -1316,6 +1713,9 @@ class QuickQuestion {
   final String query;
   final bool isCustom;
   final bool isAction;
+  // actionType สำหรับ 0-token quick actions
+  // 'summarize_today' | 'food_today' | 'day_review' | 'places_today' | 'mood_today' | 'web_search'
+  final String? actionType;
 
   QuickQuestion({
     required this.icon,
@@ -1323,5 +1723,6 @@ class QuickQuestion {
     required this.query,
     this.isCustom = false,
     this.isAction = false,
+    this.actionType,
   });
 }

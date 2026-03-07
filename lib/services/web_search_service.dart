@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -351,12 +352,109 @@ class WebSearchService {
   // 🤖 AI INTEGRATION
   // ============================================================
 
+  /// 🗺️ ค้นหาสถานที่ใกล้เคียงผ่าน Google Places API
+  Future<SearchResult> _searchGooglePlaces(
+    String query, {
+    required double lat,
+    required double lng,
+    required String apiKey,
+    int maxResults = 5,
+    int radiusMeters = 3000,
+  }) async {
+    try {
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', {
+        'query': query,
+        'location': '$lat,$lng',
+        'radius': radiusMeters.toString(),
+        'key': apiKey,
+        'language': 'th',
+      });
+
+      final response = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final rawResults = (data['results'] as List?) ?? [];
+
+        final items = rawResults.take(maxResults).map((r) {
+          final m = r as Map<String, dynamic>;
+          final loc = (m['geometry'] as Map?)?['location'] as Map?;
+          final lat2 = (loc?['lat'] as num?)?.toDouble();
+          final lng2 = (loc?['lng'] as num?)?.toDouble();
+          // คำนวณระยะห่าง
+          String distStr = '';
+          if (lat2 != null && lng2 != null) {
+            final dist = _haversineMeters(lat, lng, lat2, lng2);
+            distStr = dist < 1000
+                ? ' (${dist.round()} ม.)'
+                : ' (${(dist / 1000).toStringAsFixed(1)} กม.)';
+          }
+          final address = (m['formatted_address'] as String?) ?? '';
+          final rating = m['rating'] != null ? ' ⭐${m['rating']}' : '';
+          return SearchItem(
+            title: '${(m['name'] as String?) ?? ''}$rating$distStr',
+            url: 'https://maps.google.com/?q=${Uri.encodeComponent((m['name'] as String?) ?? '')}',
+            snippet: address,
+            source: 'Google Places',
+          );
+        }).toList();
+
+        if (items.isNotEmpty) {
+          debugPrint('✅ Google Places: ${items.length} results near ($lat,$lng)');
+          return SearchResult(query: query, items: items, source: 'google_places');
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Google Places error: $e');
+    }
+    return SearchResult(query: query, items: [], source: 'google_places');
+  }
+
+  /// 📐 Haversine distance (เมตร) ระหว่าง 2 จุด
+  double _haversineMeters(double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371000.0;
+    final phi1 = lat1 * math.pi / 180;
+    final phi2 = lat2 * math.pi / 180;
+    final dPhi = (lat2 - lat1) * math.pi / 180;
+    final dLambda = (lng2 - lng1) * math.pi / 180;
+    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
+        math.cos(phi1) * math.cos(phi2) *
+        math.sin(dLambda / 2) * math.sin(dLambda / 2);
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
   /// 🤖 ค้นหาและสรุปสำหรับ AI
-  Future<String> searchForAI(String query) async {
-    final result = await search(query, maxResults: 3);
+  /// Returns: ผลการค้นหาเป็น string, หรือ '' เมื่อไม่พบผล (ให้ caller handle)
+  Future<String> searchForAI(
+    String query, {
+    double? lat,
+    double? lng,
+    String? googlePlacesKey,
+  }) async {
+    SearchResult result;
+
+    // ถ้ามี GPS + Google Places key → ใช้ Places API แทน SearXNG
+    if (lat != null && lng != null && googlePlacesKey != null && googlePlacesKey.isNotEmpty) {
+      result = await _searchGooglePlaces(
+        query,
+        lat: lat,
+        lng: lng,
+        apiKey: googlePlacesKey,
+        maxResults: 5,
+      );
+      // fallback to SearXNG ถ้า Places ไม่มีผล
+      if (result.items.isEmpty) {
+        debugPrint('⚠️ Google Places no results, falling back to SearXNG...');
+        result = await search(query, maxResults: 3);
+      }
+    } else {
+      result = await search(query, maxResults: 3);
+    }
 
     if (result.items.isEmpty) {
-      return 'ไม่พบผลการค้นหาสำหรับ "$query"';
+      return ''; // ไม่พบผล → ให้ chat_screen แสดงข้อความแจ้งแทน
     }
 
     final buffer = StringBuffer();

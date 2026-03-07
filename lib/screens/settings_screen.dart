@@ -44,6 +44,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _apiEndpointController = TextEditingController();
   final _apiKeyController = TextEditingController();
   ConnectionMode _connectionMode = ConnectionMode.direct;
+
+  // Google Places API
+  final _googlePlacesKeyController = TextEditingController();
   bool _isTestingConnection = false;
   bool? _connectionTestResult;
 
@@ -65,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _apiEndpointController.dispose();
     _apiKeyController.dispose();
+    _googlePlacesKeyController.dispose();
     super.dispose();
   }
 
@@ -82,6 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _selectedProvider = _providerManager.activeType;
     _apiEndpointController.text = prefs.getString('llm_api_endpoint') ?? '';
     _apiKeyController.text = prefs.getString('llm_api_key') ?? '';
+    _googlePlacesKeyController.text = prefs.getString('google_places_api_key') ?? '';
     final modeIndex = prefs.getInt('llm_connection_mode') ?? 1;
     _connectionMode = ConnectionMode.values[modeIndex.clamp(0, ConnectionMode.values.length - 1)];
 
@@ -296,6 +301,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // 🌐 ส่วน LLM Provider
           _buildSectionHeader('🌐 LLM Provider'),
           _buildProviderSelection(),
+
+          const Divider(),
+
+          // 🔍 ส่วน Web Search
+          _buildSectionHeader('🔍 Web Search'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Google Places API Key (สำหรับ "ใกล้ฉัน")',
+                  style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _googlePlacesKeyController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    hintText: 'AIza... (ไม่ใส่ = ใช้ SearXNG ทั่วไป)',
+                    hintStyle: TextStyle(color: Colors.white.withAlpha(80), fontSize: 12),
+                    filled: true,
+                    fillColor: Colors.white.withAlpha(15),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.save, color: Color(0xFF9B7CB6), size: 20),
+                      tooltip: 'บันทึก',
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('google_places_api_key', _googlePlacesKeyController.text.trim());
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('บันทึก Google Places API Key แล้ว'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'รับ key ฟรีได้ที่ console.cloud.google.com → Places API',
+                  style: TextStyle(color: Colors.white.withAlpha(80), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
 
           const Divider(),
 

@@ -219,6 +219,18 @@ class SecretChatService {
   List<EnglishLogEntry> getRecentLog({int limit = 20}) {
     return _log.reversed.take(limit).toList();
   }
+
+  /// 🗑️ Clear all logs (in-memory + SharedPreferences)
+  Future<void> clearAll() async {
+    _log.clear();
+    _isInitialized = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKey);
+    } catch (e) {
+      debugPrint('⚠️ SecretChatService clearAll failed: $e');
+    }
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
