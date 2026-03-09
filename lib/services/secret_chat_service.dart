@@ -103,8 +103,11 @@ class SecretChatService {
           summaryEn: preClassifyResult.summaryEn,
           intent: preClassifyResult.intent,
           // สกัด keywords จาก summaryEn เพื่อใช้ใน Tag Context Linker
+          // รวม date/time จาก preClassify เพื่อให้ ManagerDispatch สร้าง event ได้ถูก
           tags: [
             if (preClassifyResult.title != null) preClassifyResult.title!,
+            if (preClassifyResult.date != null) preClassifyResult.date!,
+            if (preClassifyResult.time != null) preClassifyResult.time!,
             ..._summaryToKeywords(preClassifyResult.summaryEn),
           ],
           location: _extractLocation(preClassifyResult.summaryEn),

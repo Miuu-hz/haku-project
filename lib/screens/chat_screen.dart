@@ -614,17 +614,31 @@ Reply in Thai (1-2 sentences):
     return asciiCount / text.length > 0.7;
   }
 
-  /// 🔗 ดึง sources จาก context
+  /// 🔗 ดึง sources จาก context (เฉพาะวันที่ที่เป็น log entries จริงๆ ไม่ใช่ future events)
   List<String>? _extractSources(String context) {
     if (context.contains('ไม่พบบันทึก')) return null;
-    
-    // ดึงวันที่จาก context
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // แสดงเฉพาะวันที่ที่อยู่ในช่วง 90 วันที่ผ่านมา ถึง 1 วันข้างหน้า (log entries จริง)
+    final earliest = today.subtract(const Duration(days: 90));
+    final latest = today.add(const Duration(days: 1));
+
+    final seen = <String>{};
     final dates = RegExp(r'\d{4}-\d{2}-\d{2}')
         .allMatches(context)
-        .map((m) => m.group(0))
-        .whereType<String>()
+        .map((m) => m.group(0)!)
+        .where((d) {
+          if (!seen.add(d)) return false; // deduplicate
+          try {
+            final dt = DateTime.parse(d);
+            return dt.isAfter(earliest) && dt.isBefore(latest);
+          } catch (_) {
+            return false;
+          }
+        })
         .toList();
-    
+
     return dates.isEmpty ? null : dates;
   }
 

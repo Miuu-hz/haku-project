@@ -69,7 +69,19 @@ Output:''';
         ? '\nContext:\n$ctx'
         : '';
 
-    return '<start_of_turn>user\n$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+    // Gemma 3 1B ไม่ค่อยทำตาม "same language" rule — บังคับภาษาตรงๆ
+    final langInstruction = _isThai(userMessage)
+        ? 'ตอบเป็นภาษาไทยเท่านั้น 1-2 ประโยค'
+        : 'Reply in English only. 1-2 sentences.';
+
+    return '<start_of_turn>user\n$hakuFacePrompt\n$langInstruction\n$timeContext$contextSection\n\nUser: $userMessage<end_of_turn>\n<start_of_turn>model\n';
+  }
+
+  /// ตรวจว่าข้อความมี Thai characters อย่างน้อย 20%
+  static bool _isThai(String text) {
+    if (text.isEmpty) return false;
+    final thaiCount = text.codeUnits.where((c) => c >= 0x0E00 && c <= 0x0E7F).length;
+    return thaiCount / text.length > 0.20;
   }
 
   /// ☁️ Stage 1: THE FACE — Cloud LLM (OpenRouter, Gemini, Claude, OpenAI)

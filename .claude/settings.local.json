@@ -22,7 +22,12 @@
       "Bash(cmd.exe /c \"flutter analyze 2>&1\")",
       "Bash(powershell.exe:*)",
       "Bash(\"F:/flutter/bin/flutter.bat\" analyze:*)",
-      "Bash(\"F:/flutter/bin/flutter.bat\" analyze lib/)"
+      "Bash(\"F:/flutter/bin/flutter.bat\" analyze lib/)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:www.qualcomm.com)"
     ]
   }
 }
