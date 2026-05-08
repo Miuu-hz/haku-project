@@ -10,9 +10,9 @@ import '../services/cloud_llm_provider.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
+import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
-import '../services/llm_service.dart';
-import '../utils/constants.dart';
+import '../services/model_manager_service.dart';
 import '../widgets/profile_editor_widget.dart';
 
 /// ⚙️ หน้าตั้งค่า
@@ -74,12 +74,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedPath = prefs.getString(StorageKeys.customLlmModelPath);
-    
-    // ตรวจสอบสถานะไฟล์ถ้ามี custom path
+    final savedPath = await ModelManagerService().getActiveModelPath();
+
+    // ตรวจสอบสถานะไฟล์ถ้ามี path
     Map<String, dynamic>? validation;
     if (savedPath != null && savedPath.isNotEmpty) {
-      validation = await LLMService().validateCustomModel();
+      validation = await _validateModelFile(savedPath);
     }
     
     // Load LLM Provider settings
@@ -119,8 +119,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _validateModelFile() async {
-    final validation = await LLMService().validateCustomModel();
+  Future<Map<String, dynamic>> _validateModelFile(String path) async {
+    final file = File(path);
+    if (!await file.exists()) return {'valid': false, 'message': 'ไม่พบไฟล์'};
+    final stat = await file.stat();
+    final mb = stat.size / 1024 / 1024;
+    return {'valid': true, 'message': 'ไฟล์พร้อมใช้งาน', 'sizeMB': mb};
+  }
+
+  Future<void> _refreshModelValidation() async {
+    final path = await ModelManagerService().getActiveModelPath();
+    final validation = path != null
+        ? await _validateModelFile(path)
+        : {'valid': false, 'message': 'ยังไม่ได้เลือกไฟล์'};
     setState(() => _modelValidation = validation);
     
     if (!mounted) return;
@@ -287,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (_customLlmPath != null)
                   IconButton(
                     icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                    onPressed: _validateModelFile,
+                    onPressed: _refreshModelValidation,
                     tooltip: 'ตรวจสอบไฟล์',
                   ),
                 const Icon(Icons.chevron_right, color: Colors.white54),
@@ -787,7 +798,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
                   )
                 : const Icon(Icons.file_open, color: Color(0xFF9B7CB6)),
-              title: const Text('เลือกไฟล์ .task', style: TextStyle(color: Colors.white)),
+              title: const Text('เลือกไฟล์โมเดล', style: TextStyle(color: Colors.white)),
               subtitle: Text(
                 _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกไฟล์โมเดลจากเครื่อง',
                 style: TextStyle(color: Colors.white.withAlpha(150)),
@@ -827,16 +838,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        dialogTitle: 'เลือกไฟล์โมเดล (.task)',
+        dialogTitle: 'เลือกไฟล์โมเดล (.litertlm, .task, .tflite)',
       );
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
 
-        if (!filePath.endsWith('.task')) {
+        if (!filePath.toLowerCase().endsWith('.litertlm') &&
+            !filePath.toLowerCase().endsWith('.task') &&
+            !filePath.toLowerCase().endsWith('.tflite')) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('กรุณาเลือกไฟล์ .task เท่านั้น')),
+            const SnackBar(content: Text('กรุณาเลือกไฟล์ .litertlm, .task หรือ .tflite')),
           );
           return;
         }
@@ -851,10 +864,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return;
         }
 
-        await LLMService().setCustomModelPath(filePath);
-        
+        await ModelManagerService().setActiveModelPath(filePath);
+        // ตั้ง custom model path ใน LiteRTLLMProvider ถ้า onDevice active อยู่
+        if (LLMProviderManager().activeType == ProviderType.onDevice) {
+          final p = LLMProviderManager().provider;
+          if (p is LiteRTLLMProvider) await p.setCustomModelPath(filePath);
+        }
+
         // ตรวจสอบไฟล์ทันทีหลังเลือก
-        final validation = await LLMService().validateCustomModel();
+        final validation = await _validateModelFile(filePath);
         
         setState(() {
           _customLlmPath = filePath;
@@ -882,7 +900,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _clearCustomLlmPath() async {
-    await LLMService().setCustomModelPath(null);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('llama_model_path');
     setState(() {
       _customLlmPath = null;
       _modelValidation = null;
@@ -1313,6 +1332,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : null,
         mode: _connectionMode,
       );
+
+      // โหลดโมเดลทันทีหลัง switch (on-device)
+      if (_selectedProvider == ProviderType.onDevice) {
+        await _providerManager.provider.initialize();
+      }
 
       if (!mounted) return;
       setState(() {});

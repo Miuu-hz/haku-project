@@ -3,8 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cloud_llm_provider.dart';
 import 'llm_provider.dart';
+import 'litert_llm_provider.dart';
 import 'mcp_client.dart';
-import 'mediapipe_llm_provider.dart';
 
 /// 🎛️ LLM Provider Manager — Provider Switching + Fallback
 ///
@@ -40,7 +40,7 @@ class LLMProviderManager {
   bool _isInitialized = false;
 
   // ── Provider instances (lazy) ──
-  MediaPipeLLMProvider? _mediaPipeProvider;
+  LiteRTLLMProvider? _litertProvider;
   CloudLLMProvider? _geminiProvider;
   CloudLLMProvider? _claudeProvider;
   CloudLLMProvider? _openaiProvider;
@@ -100,7 +100,7 @@ class LLMProviderManager {
       debugPrint('⚠️ LLM Provider Manager init failed: $e');
       // Fallback to on-device
       _activeType = ProviderType.onDevice;
-      _activeProvider = _getMediaPipeProvider();
+      _activeProvider = _getLiteRTProvider();
       _isInitialized = true;
     }
   }
@@ -146,10 +146,8 @@ class LLMProviderManager {
     ConnectionMode mode = ConnectionMode.direct,
   }) async {
     if (type == ProviderType.onDevice) {
-      // On-device: check if model file exists
-      final mp = _getMediaPipeProvider();
-      final validation = await mp.validateCustomModel();
-      return validation['valid'] == true;
+      // On-device: ลอง initialize (โหลดโมเดล) แล้วดูว่าสำเร็จไหม
+      return _getLiteRTProvider().isInitialized;
     }
 
     // Cloud: create temporary client and test
@@ -174,8 +172,8 @@ class LLMProviderManager {
   List<ProviderInfo> getAvailableProviders() => const [
         ProviderInfo(
           type: ProviderType.onDevice,
-          name: 'On-device (Gemma 3 1B)',
-          description: 'ฟรี, ออฟไลน์, ช้ากว่า Cloud',
+          name: 'LiteRT-LM (On-device)',
+          description: 'ฟรี, ออฟไลน์, รองรับ .litertlm / .task (Gemma 3/4)',
           icon: '📱',
           requiresApiKey: false,
         ),
@@ -236,7 +234,7 @@ class LLMProviderManager {
   LLMProvider _createProvider(ProviderType type, {ConnectionMode mode = ConnectionMode.direct}) {
     switch (type) {
       case ProviderType.onDevice:
-        return _getMediaPipeProvider();
+        return _getLiteRTProvider();
 
       case ProviderType.cloudGemini:
         _geminiProvider ??= CloudLLMProvider(
@@ -280,9 +278,9 @@ class LLMProviderManager {
     }
   }
 
-  MediaPipeLLMProvider _getMediaPipeProvider() {
-    _mediaPipeProvider ??= MediaPipeLLMProvider();
-    return _mediaPipeProvider!;
+  LiteRTLLMProvider _getLiteRTProvider() {
+    _litertProvider ??= LiteRTLLMProvider();
+    return _litertProvider!;
   }
 
   MCPClient _getOrCreateMCPClient() {

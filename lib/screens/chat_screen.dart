@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
-import '../services/context_retriever.dart';
+wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwimport '../services/context_retriever.dart';
 import '../services/database_helper.dart';
 import '../services/manager_dispatch_service.dart';
 import '../services/mvp_trigger_service.dart';
@@ -375,8 +375,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
                     userMessage: userMessage,
                     context: contextStr.isNotEmpty ? contextStr : null,
                   );
-            response = await llm.generate(prompt);
+            final isOnDevice = !isCloud;
+            response = await llm.generate(prompt)
+                .timeout(
+                  Duration(seconds: isOnDevice ? 120 : 30),
+                  onTimeout: () {
+                    debugPrint('⏱️ LLM timeout — falling back to mock');
+                    return '';
+                  },
+                );
           } catch (e) {
+            debugPrint('❌ LLM generate error: $e');
             response = null;
           }
         }
@@ -1282,7 +1291,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   Icon(Icons.info_outline, size: 14, color: Colors.orange.shade300),
                   const SizedBox(width: 8),
                   Text(
-                    'โหมดออฟไลน์: วางไฟล์ .task ในโฟลเดอร์ models/',
+                    'โหมดออฟไลน์: วางไฟล์ .gguf ในโฟลเดอร์ Downloads/ หรือเลือกผ่านการตั้งค่า',
                     style: TextStyle(fontSize: 12, color: Colors.orange.shade300),
                   ),
                 ],

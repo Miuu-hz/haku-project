@@ -3,7 +3,6 @@ package com.example.haku
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.EventChannel
 import android.content.Intent
 import android.os.Bundle
 import android.appwidget.AppWidgetManager
@@ -32,12 +31,12 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         setupWidgetChannel(flutterEngine)
         setupLLMChannel(flutterEngine)
         setupSchedulerChannel(flutterEngine)
     }
-    
+
     /**
      * 📅 Setup Scheduler MethodChannel
      */
@@ -178,75 +177,90 @@ class MainActivity: FlutterFragmentActivity() {
     }
     
     /**
-     * 🤖 Setup LLM MethodChannel สำหรับ MediaPipe
-     * 
-     * ใช้ MediaPipe GenAI แทน llama.cpp + Vulkan
+     * 🤖 Setup LLM MethodChannel — LiteRT-LM (แทน MediaPipe ที่ deprecated)
+     *
+     * Methods:
+     *   loadModel(modelPath, maxTokens, systemInstruction?)  → bool
+     *   generate(prompt)                                     → String
+     *   setSystemInstruction(instruction?)                   → null   ← ใหม่ (Gemma 4 ready)
+     *   unloadModel()                                        → null
+     *   isModelLoaded()                                      → bool
+     *   getModelInfo()                                       → Map
      */
     private fun setupLLMChannel(flutterEngine: FlutterEngine) {
-        val mediaPipeBridge = MediaPipeLLMBridge.getInstance(this)
-        
+        val llmBridge = LiteRTLMBridge.getInstance(this)
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LLM_CHANNEL).setMethodCallHandler {
             call, result ->
-            
+
             try {
                 when (call.method) {
                     "loadModel" -> {
                         val modelPath = call.argument<String>("modelPath")
                         val maxTokens = call.argument<Int>("maxTokens") ?: 1024
-                        
+                        val systemInstruction = call.argument<String>("systemInstruction")
+
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
                             return@setMethodCallHandler
                         }
-                        
-                        Log.i(TAG, "📥 Loading MediaPipe model: $modelPath")
-                        
+
+                        Log.i(TAG, "📥 Loading LiteRT-LM model: $modelPath")
+
                         CoroutineScope(Dispatchers.Main).launch {
-                            val success = mediaPipeBridge.loadModel(
+                            val success = llmBridge.loadModel(
                                 modelPath = modelPath,
-                                maxTokens = maxTokens
+                                maxTokens = maxTokens,
+                                systemInstruction = systemInstruction,
                             )
                             result.success(success)
                         }
                     }
-                    
+
                     "generate" -> {
                         val prompt = call.argument<String>("prompt")
-                        
+
                         if (prompt == null) {
                             result.error("INVALID_PROMPT", "Prompt is null", null)
                             return@setMethodCallHandler
                         }
-                        
-                        if (!mediaPipeBridge.isInitialized) {
-                            result.error("NOT_INITIALIZED", "MediaPipe not initialized", null)
+
+                        if (!llmBridge.isInitialized) {
+                            result.error("NOT_INITIALIZED", "LiteRT-LM not initialized", null)
                             return@setMethodCallHandler
                         }
-                        
+
                         CoroutineScope(Dispatchers.Main).launch {
-                            val response = mediaPipeBridge.generate(prompt)
+                            val response = llmBridge.generate(prompt)
                             result.success(response)
                         }
                     }
-                    
-                    "unloadModel" -> {
-                        mediaPipeBridge.unloadModel()
+
+                    // 🆕 Gemma 4 ready — ตั้ง system prompt โดยไม่ต้อง reload โมเดล
+                    "setSystemInstruction" -> {
+                        val instruction = call.argument<String>("instruction")
+                        llmBridge.setSystemInstruction(instruction)
                         result.success(null)
                     }
-                    
+
+                    "unloadModel" -> {
+                        llmBridge.unloadModel()
+                        result.success(null)
+                    }
+
                     "isModelLoaded" -> {
-                        result.success(mediaPipeBridge.isInitialized)
+                        result.success(llmBridge.isInitialized)
                     }
-                    
+
                     "getModelInfo" -> {
-                        result.success(mediaPipeBridge.getModelInfo())
+                        result.success(llmBridge.getModelInfo())
                     }
-                    
+
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error in MediaPipe method ${call.method}: ${e.message}")
-                result.error("MEDIAPIPE_ERROR", e.message, e.stackTraceToString())
+                Log.e(TAG, "❌ Error in LLM method ${call.method}: ${e.message}")
+                result.error("LLM_ERROR", e.message, e.stackTraceToString())
             }
         }
     }
@@ -296,6 +310,5 @@ class MainActivity: FlutterFragmentActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        // 📝 llama.cpp ถูกปิดการใช้งานแล้ว ไม่ต้อง unload model
     }
 }

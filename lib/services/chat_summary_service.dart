@@ -251,11 +251,15 @@ class ChatSummaryService {
       
       // เรียก LLM (ตอนนี้ชาร์จอยู่ ไม่ต้องห่วงแบต)
       final llm = LLMProviderManager().provider;
-      
+
       if (!llm.isInitialized) {
-        debugPrint('⚠️ LLM not available, skipping summary');
-        _isProcessing = false;
-        return;
+        debugPrint('🔄 LLM not ready, initializing for summary...');
+        final ok = await llm.initialize();
+        if (!ok) {
+          debugPrint('⚠️ LLM init failed, skipping summary');
+          _isProcessing = false;
+          return;
+        }
       }
       
       final prompt = PromptBuilder.buildDailySummaryPrompt(

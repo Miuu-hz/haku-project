@@ -18,7 +18,15 @@ allprojects {
                 project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
                     kotlinOptions {
                         jvmTarget = "21"
+                        freeCompilerArgs += "-Xskip-metadata-version-check"
                     }
+                }
+                // 🔧 แก้ cross-drive path issue บน Windows (F: vs C:)
+                // ข้าม unit test sources ของ Flutter plugins ที่ทำให้ Gradle หา path ข้าม drive ไม่ได้
+                if (project.name != "app") {
+                    project.android.sourceSets.test.java.srcDirs = []
+                    project.android.sourceSets.testDebug.java.srcDirs = []
+                    project.android.sourceSets.testRelease.java.srcDirs = []
                 }
             }
         }
@@ -27,7 +35,14 @@ allprojects {
 
 rootProject.buildDir = '../build'
 subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    // 🔧 แก้ Windows cross-drive path issue (F: project vs C: pub cache)
+    // Flutter plugins อยู่ใน C:\Users\...\Pub\Cache — ไม่สามารถ resolve relative path
+    // ข้าม drive ได้ → ให้แต่ละ plugin build ใน projectDir ของตัวเองแทน
+    if (project.name == "app") {
+        project.buildDir = "${rootProject.buildDir}/${project.name}"
+    } else {
+        project.buildDir = new File(project.projectDir, "build")
+    }
 }
 subprojects {
     project.evaluationDependsOn(':app')

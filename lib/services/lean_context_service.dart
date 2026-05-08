@@ -8,12 +8,11 @@ import 'user_profile_service.dart';
 
 /// 📦 Lean Context Service - บีบอัด Context ให้ประหยัด Token
 ///
-/// ⚠️ Gemma 3 1B via MediaPipe: maxTokens=1024 (input+output รวม)
-/// Budget สำหรับ context: ~400 chars (conservative สำหรับ Thai tokenization)
+/// 🦙 llama.cpp 4B: nCtx=4096 — budget input ~2500 tokens (~3500 chars Thai)
 ///
 /// Format (priority: recent > lean > summary):
-/// - [Recent] 1 pair ล่าสุด แบบ full text (cap 80 chars ต่อ msg)
-/// - [Context] lean messages ล่าสุด 6 รายการ (50 chars ต่อ msg)
+/// - [Recent] 3 pair ล่าสุด แบบ full text (cap 200 chars ต่อ msg)
+/// - [Context] lean messages ล่าสุด 12 รายการ (80 chars ต่อ msg)
 /// - [History] session summaries (English, compact)
 
 class LeanContextService {
@@ -37,12 +36,12 @@ class LeanContextService {
 
   bool _isInitialized = false;
 
-  // Settings — ตั้งค่าให้พอดี token budget ของ Gemma 3 1B (1024 tokens รวม)
-  static const int fullContextCount = 1;    // 1 pair ล่าสุด แบบ full text (~160 chars)
-  static const int maxLeanMessages = 8;     // lean messages สูงสุด (ลดจาก 15)
-  static const int maxSummaries = 3;        // session summaries สูงสุด (ลดจาก 5)
-  static const int _maxFullMsgChars = 80;   // cap full message content
-  static const int _maxLeanToShow = 6;      // lean messages ที่แสดงใน context
+  // Settings — llama.cpp 4B nCtx=4096 (~3500 chars Thai budget สำหรับ input)
+  static const int fullContextCount = 3;    // 3 pair ล่าสุด แบบ full text
+  static const int maxLeanMessages = 20;    // lean messages สูงสุด
+  static const int maxSummaries = 6;        // session summaries สูงสุด
+  static const int _maxFullMsgChars = 200;  // cap full message content
+  static const int _maxLeanToShow = 12;     // lean messages ที่แสดงใน context
 
   /// 🚀 Initialize
   Future<void> initialize() async {
@@ -247,8 +246,8 @@ class LeanContextService {
         .replaceAll('ไม่ใช่', '!ใช่');
 
     // 4. จำกัดความยาว
-    if (lean.length > 50) {
-      lean = '${lean.substring(0, 47)}...';
+    if (lean.length > 80) {
+      lean = '${lean.substring(0, 77)}...';
     }
 
     return lean;
@@ -305,9 +304,9 @@ class LeanContextService {
       topics = topicSet.toList();
     }
 
-    // cap ความยาว summary เพื่อป้องกัน token overflow
-    if (summaryEn.length > 120) {
-      summaryEn = '${summaryEn.substring(0, 117)}...';
+    // cap ความยาว summary
+    if (summaryEn.length > 300) {
+      summaryEn = '${summaryEn.substring(0, 297)}...';
     }
 
     return SessionSummary(

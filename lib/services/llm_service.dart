@@ -9,26 +9,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/constants.dart';
 
-/// 🤖 LLM Service - จัดการโมเดลจาก external models/ folder
+/// 🤖 LLM Service — LiteRT-LM On-device LLM Runtime
 ///
-/// **Battery Optimization (Phase 2.1):**
-/// - Lazy Loading: โมเดลจะถูกโหลดเฉพาะเมื่อมีการเรียกใช้งาน generate()
-/// - Auto-Unload: โมเดลจะถูก unload หลังไม่ใช้งานตามเวลาที่กำหนด (default: 5 นาที)
-/// - ไม่รันเบื้องหลังตลอดเวลา ประหยัดแบตเตอรี่
+/// รองรับโมเดล:
+///   - Gemma 4 E2B/E4B (.litertlm) — แนะนำ
+///   - Gemma 3 1B (.task legacy)
+///   - TFLite ทั่วไป (.tflite)
 ///
 /// โมเดลจะถูกเก็บใน:
 /// - Android: /sdcard/Android/data/com.example.haku/files/models/
 /// - iOS: App Documents/models/
 /// - Development: โหลดจาก ../models/ (relative to app)
-///
-/// วิธีใช้:
-/// 1. ดาวน์โหลดไฟล์ .task จาก Google AI / Kaggle
-/// 2. วางใน folder `models/` หรือ import ผ่านแอพ
-/// 3. แอพจะใช้ MediaPipe GenAI รันโมเดลโดยอัตโมัติ
 
 class LLMService {
-  /// ชื่อไฟล์โมเดลเริ่มต้น (MediaPipe .task format)
-  static const String defaultModelFile = 'gemma-3-270m-it.task';
+  /// ชื่อไฟล์โมเดลเริ่มต้น (LiteRT-LM .litertlm format)
+  static const String defaultModelFile = 'gemma-4-e4b-it.litertlm';
+
+  /// รูปแบบไฟล์โมเดลที่รองรับ
+  static const List<String> supportedExtensions = ['.litertlm', '.task', '.tflite'];
 
   /// เวลาที่ไม่ใช้งานก่อน auto-unload (นาที)
   static const int autoUnloadMinutes = 5;
@@ -59,44 +57,13 @@ class LLMService {
   String get currentModelName => _currentModelName;
   DateTime? get lastUsedTime => _lastUsedTime;
 
-  /// โหลด custom model path จาก SharedPreferences
+  /// 📂 อ่าน custom model path จาก SharedPreferences
   Future<String?> getCustomModelPath() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(StorageKeys.customLlmModelPath);
   }
 
-  /// ตรวจสอบว่าไฟล์ custom model มีอยู่จริงและอ่านได้
-  Future<Map<String, dynamic>> validateCustomModel() async {
-    final customPath = await getCustomModelPath();
-    
-    if (customPath == null || customPath.isEmpty) {
-      return {'valid': false, 'message': 'ไม่ได้ระบุ custom path', 'path': null};
-    }
-    
-    final file = File(customPath);
-    
-    try {
-      if (!await file.exists()) {
-        return {'valid': false, 'message': 'ไฟล์ไม่มีอยู่จริง', 'path': customPath};
-      }
-      
-      final size = await file.length();
-      if (size == 0) {
-        return {'valid': false, 'message': 'ไฟล์ว่างเปล่า', 'path': customPath};
-      }
-      
-      return {
-        'valid': true, 
-        'message': 'ไฟล์พร้อมใช้งาน', 
-        'path': customPath,
-        'size': '${(size / 1024 / 1024).toStringAsFixed(2)} MB',
-      };
-    } catch (e) {
-      return {'valid': false, 'message': 'ไม่สามารถอ่านไฟล์ได้: $e', 'path': customPath};
-    }
-  }
-
-  /// บันทึก custom model path ลง SharedPreferences
+  /// 📂 บันทึก custom model path ลง SharedPreferences
   Future<void> setCustomModelPath(String? path) async {
     final prefs = await SharedPreferences.getInstance();
     if (path == null || path.isEmpty) {
@@ -105,14 +72,56 @@ class LLMService {
       await prefs.setString(StorageKeys.customLlmModelPath, path);
     }
   }
-  
+
+  /// ✅ ตรวจสอบว่าไฟล์ model มีอยู่จริงและอ่านได้
+  Future<Map<String, dynamic>> validateCustomModel() async {
+    final customPath = await getCustomModelPath();
+
+    if (customPath == null || customPath.isEmpty) {
+      return {'valid': false, 'message': 'ไม่ได้ระบุ custom path', 'path': null};
+    }
+
+    final file = File(customPath);
+
+    try {
+      if (!await file.exists()) {
+        return {'valid': false, 'message': 'ไฟล์ไม่มีอยู่จริง', 'path': customPath};
+      }
+
+      final size = await file.length();
+      if (size == 0) {
+        return {'valid': false, 'message': 'ไฟล์ว่างเปล่า', 'path': customPath};
+      }
+
+      if (!_isSupportedExtension(customPath)) {
+        return {
+          'valid': false,
+          'message': 'นามสกุลไฟล์ไม่รองรับ (ต้องเป็น .litertlm, .task, หรือ .tflite)',
+          'path': customPath,
+        };
+      }
+
+      return {
+        'valid': true,
+        'message': 'ไฟล์พร้อมใช้งาน',
+        'path': customPath,
+        'size': '${(size / 1024 / 1024).toStringAsFixed(2)} MB',
+      };
+    } catch (e) {
+      return {'valid': false, 'message': 'ไม่สามารถอ่านไฟล์ได้: $e', 'path': customPath};
+    }
+  }
+
   /// 🚀 เริ่มต้น LLM (โหลดโมเดล)
   ///
-  /// **หมายเหตุ:** ไม่ควรเรียก method นี้โดยตรง ให้ใช้ [ensureLoaded] แทน
-  /// เพื่อให้ระบบ lazy loading ทำงานได้ถูกต้อง
-  ///
-  /// [modelName] - ชื่อไฟล์โมเดล (optional, default = gemma-3-270m-it.task)
-  Future<bool> initialize({String? modelName}) async {
+  /// [modelName] — ชื่อไฟล์โมเดล (optional)
+  /// [maxTokens] — จำนวน token สูงสุด (default: 1024)
+  /// [systemInstruction] — system prompt สำหรับ Gemma 4+ (optional)
+  Future<bool> initialize({
+    String? modelName,
+    int maxTokens = 1024,
+    String? systemInstruction,
+  }) async {
     if (_isInitialized) {
       _resetAutoUnloadTimer();
       return true;
@@ -123,7 +132,6 @@ class LLMService {
     if (modelName != null) _currentModelName = modelName;
 
     try {
-      // หา path โมเดล
       final modelPath = await _getModelPath(_currentModelName);
       if (modelPath == null) {
         if (kDebugMode) print('❌ ไม่พบไฟล์โมเดล: $_currentModelName');
@@ -131,13 +139,11 @@ class LLMService {
         return false;
       }
 
-      // เรียก Native ให้ load โมเดล
-      // gpuLayers: จำนวน layers ที่ให้ GPU ประมวลผล
-      // 0 = CPU only, 99 = GPU ทั้งหมด (Vulkan backend)
       final result = await _channel.invokeMethod('loadModel', {
         'modelPath': modelPath,
-        'contextSize': 2048, // ลดลงเพื่อประหยัด RAM
-        'gpuLayers': 99, // 🎮 ใช้ GPU ทั้งหมด (Vulkan acceleration)
+        'maxTokens': maxTokens,
+        if (systemInstruction != null && systemInstruction.isNotEmpty)
+          'systemInstruction': systemInstruction,
       });
 
       if (result == true) {
@@ -158,9 +164,6 @@ class LLMService {
   }
 
   /// 🔋 ตรวจสอบและโหลดโมเดลถ้าจำเป็น (Lazy Loading)
-  ///
-  /// ใช้ method นี้แทน [initialize] เพื่อให้ระบบ auto-unload ทำงานได้ถูกต้อง
-  /// โมเดลจะถูกโหลดเฉพาะเมื่อเรียกใช้งานจริง
   Future<bool> ensureLoaded({String? modelName}) async {
     if (_isInitialized) {
       _resetAutoUnloadTimer();
@@ -197,13 +200,11 @@ class LLMService {
     _autoUnloadTimer = null;
     if (kDebugMode) print('⏰ Auto-unload timer cancelled');
   }
-  
+
   /// 💬 ส่งข้อความไปให้ LLM
   ///
-  /// **Lazy Loading:** จะโหลดโมเดลอัตโนมัติถ้ายังไม่ได้โหลด
-  /// หลังใช้งานจะตั้ง timer สำหรับ auto-unload เพื่อประหยัดแบตเตอรี่
-  ///
-  /// [autoLoad] - ถ้า true จะโหลดโมเดลอัตโนมัติ (default: true)
+  /// [autoLoad] — ถ้า true จะโหลดโมเดลอัตโนมัติ (default: true)
+  /// [onToken] — callback สำหรับ simulate streaming
   Future<String> generate(
     String prompt, {
     void Function(String token)? onToken,
@@ -211,13 +212,12 @@ class LLMService {
     int maxTokens = 512,
     bool autoLoad = true,
   }) async {
-    // Lazy loading: โหลดโมเดลถ้ายังไม่ได้โหลด
     if (!_isInitialized) {
       if (autoLoad) {
         final loaded = await ensureLoaded();
         if (!loaded) {
-          if (kDebugMode) print('⚠️ ไม่สามารถโหลดโมเดลได้ ใช้ Mock แทน');
-          return ''; // ให้ caller ใช้ fallback
+          if (kDebugMode) print('⚠️ ไม่สามารถโหลดโมเดลได้');
+          return '';
         }
       } else {
         throw StateError('LLM ยังไม่ถูก initialize');
@@ -231,22 +231,24 @@ class LLMService {
       if (onToken == null) {
         final result = await _channel.invokeMethod('generate', {
           'prompt': prompt,
-          'temperature': temperature,
           'maxTokens': maxTokens,
         });
         return result?.toString() ?? '';
       }
 
-      final stream = _channel.invokeMethod('generateStream', {
+      // Simulate streaming: เรียก blocking แล้ว split ทีละ token
+      final result = await _channel.invokeMethod('generate', {
         'prompt': prompt,
-        'temperature': temperature,
         'maxTokens': maxTokens,
       });
+      final text = result?.toString() ?? '';
 
       final buffer = StringBuffer();
-      await for (final token in _tokenStream(stream)) {
+      final tokens = _splitToTokens(text);
+      for (final token in tokens) {
         buffer.write(token);
         onToken(token);
+        await Future.delayed(const Duration(milliseconds: 8));
       }
 
       return buffer.toString();
@@ -258,15 +260,39 @@ class LLMService {
       return '';
     }
   }
-  
+
+  /// 🔄 Split response text into tokens for simulate streaming
+  List<String> _splitToTokens(String text) {
+    final tokens = <String>[];
+    final buffer = StringBuffer();
+
+    for (var i = 0; i < text.length; i++) {
+      final char = text[i];
+      buffer.write(char);
+
+      if (char == ' ' || char == '\n' || _isPunctuation(char) || buffer.length >= 4) {
+        if (buffer.isNotEmpty) {
+          tokens.add(buffer.toString());
+          buffer.clear();
+        }
+      }
+    }
+
+    if (buffer.isNotEmpty) {
+      tokens.add(buffer.toString());
+    }
+
+    return tokens;
+  }
+
+  bool _isPunctuation(String char) {
+    const punctuations = '.,!?;:"。，！？；：';
+    return punctuations.contains(char);
+  }
+
   /// 🔍 หา path ของไฟล์โมเดล
-  /// 
-  /// ลำดับการค้นหา:
-  /// 1. ใน app documents (ถ้าเคย copy ไว้)
-  /// 2. ใน external storage /sdcard/.../models/
-  /// 3. ใน ../models/ (development)
   Future<String?> _getModelPath(String modelName) async {
-    // 0. ตรวจสอบ custom path จาก Settings ก่อน (ไม่ copy, โหลดตรงจาก path เลย)
+    // 0. ตรวจสอบ custom path
     final customPath = await getCustomModelPath();
     if (customPath != null && customPath.isNotEmpty) {
       if (await File(customPath).exists()) {
@@ -285,37 +311,23 @@ class LLMService {
     if (await File(appModelPath).exists()) {
       return appModelPath;
     }
-    
+
     // 2. สร้าง model directory ถ้ายังไม่มี
     if (!await modelDir.exists()) {
       await modelDir.create(recursive: true);
     }
-    
+
     // 3. ตรวจสอบใน external storage (Android)
-    // เช็คหลาย path เพราะ Android มี symbolic links หลายตัว
     final possiblePaths = <String>[
-      // Path /data/local/tmp (dev: adb push)
       '/data/local/tmp/$modelName',
-      // Path /sdcard โดยตรง
       '/sdcard/Android/data/com.example.haku/files/models/$modelName',
-      // Path /storage/emulated/0 โดยตรง
       '/storage/emulated/0/Android/data/com.example.haku/files/models/$modelName',
     ];
 
-    // เพิ่ม path จาก getExternalStorageDirectory (อาจ return null)
     try {
       final extDir = await getExternalStorageDirectory();
-      if (kDebugMode) print('🔍 getExternalStorageDirectory: ${extDir?.path}');
       if (extDir != null) {
         possiblePaths.insert(0, join(extDir.path, 'models', modelName));
-        // Debug: list ไฟล์ทั้งหมดใน models directory
-        final modelsDir = Directory(join(extDir.path, 'models'));
-        if (await modelsDir.exists()) {
-          final files = await modelsDir.list().toList();
-          if (kDebugMode) print('📂 Files in ${modelsDir.path}: ${files.map((f) => f.path).toList()}');
-        } else {
-          if (kDebugMode) print('📂 Models directory does not exist: ${modelsDir.path}');
-        }
       }
     } catch (e) {
       if (kDebugMode) print('⚠️ getExternalStorageDirectory failed: $e');
@@ -333,35 +345,39 @@ class LLMService {
         if (kDebugMode) print('⚠️ Cannot access $path: $e');
       }
     }
-    
-    // 4. ตรวจสอบใน development path (../models/)
+
+    // 4. ตรวจสอบใน development path
     final devModelPath = await _findDevModel(modelName);
     if (devModelPath != null) {
-      // Copy ไปยัง app storage
       if (kDebugMode) print('📥 Copying model from dev path: $devModelPath');
       await File(devModelPath).copy(appModelPath);
       return appModelPath;
     }
-    
+
+    // 5. Auto-discover: หาไฟล์โมเดลที่รองรับใดๆ ใน models/
+    if (await modelDir.exists()) {
+      final files = await modelDir
+          .list()
+          .where((f) => f is File && _isSupportedExtension(f.path))
+          .toList();
+      if (files.isNotEmpty) {
+        return files.first.path;
+      }
+    }
+
     return null;
   }
-  
+
   /// 🔍 หาโมเดลใน development path
   Future<String?> _findDevModel(String modelName) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
-      
-      // ลองหา relative path จาก app documents
-      // ปกติ: /data/data/.../app_flutter -> project_root/models/
       final possiblePaths = [
-        // Flutter run debug
         join(appDir.parent.parent.parent.parent.path, 'models', modelName),
-        // Android studio
         join(appDir.parent.parent.parent.parent.parent.path, 'models', modelName),
-        // iOS Simulator
         join(appDir.parent.parent.path, 'models', modelName),
       ];
-      
+
       for (final path in possiblePaths) {
         if (await File(path).exists()) {
           return path;
@@ -372,19 +388,24 @@ class LLMService {
     }
     return null;
   }
-  
+
   /// 📥 Import โมเดลจาก path ที่ user เลือก
   Future<bool> importModel(String sourcePath, {String? customName}) async {
     try {
+      if (!_isSupportedExtension(sourcePath)) {
+        if (kDebugMode) print('❌ นามสกุลไฟล์ไม่รองรับ: $sourcePath');
+        return false;
+      }
+
       final appDir = await getApplicationDocumentsDirectory();
       final modelDir = Directory(join(appDir.path, 'models'));
       if (!await modelDir.exists()) {
         await modelDir.create(recursive: true);
       }
-      
+
       final fileName = customName ?? basename(sourcePath);
       final destPath = join(modelDir.path, fileName);
-      
+
       await File(sourcePath).copy(destPath);
       if (kDebugMode) print('✅ Imported model to: $destPath');
       return true;
@@ -393,32 +414,32 @@ class LLMService {
       return false;
     }
   }
-  
+
   /// 📋 รายการโมเดลที่มีในเครื่อง
   Future<List<String>> listAvailableModels() async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final modelDir = Directory(join(appDir.path, 'models'));
-      
+
       if (!await modelDir.exists()) return [];
-      
+
       return await modelDir
           .list()
-          .where((f) => f is File && f.path.endsWith('.task'))
+          .where((f) => f is File && _isSupportedExtension(f.path))
           .map((f) => basename(f.path))
           .toList();
     } catch (e) {
       return [];
     }
   }
-  
+
   /// 🗑️ ลบโมเดล
   Future<bool> deleteModel(String modelName) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final modelPath = join(appDir.path, 'models', modelName);
       final file = File(modelPath);
-      
+
       if (await file.exists()) {
         await file.delete();
         return true;
@@ -429,10 +450,8 @@ class LLMService {
       return false;
     }
   }
-  
+
   /// 🧹 ปิดโมเดล
-  ///
-  /// จะถูกเรียกอัตโนมัติจาก auto-unload timer หรือเรียกเองได้
   Future<void> dispose() async {
     _autoUnloadTimer?.cancel();
     _autoUnloadTimer = null;
@@ -448,373 +467,44 @@ class LLMService {
       if (kDebugMode) print('⚠️ Unload model failed: $e');
     }
   }
-  
-  /// 🔄 Stream tokens
-  Stream<String> _tokenStream(dynamic stream) async* {
-    yield* const Stream<String>.empty();
-  }
-  
-  /// 📊 ข้อมูลโมเดล
-  Map<String, dynamic> getModelInfo() => {
-      'name': _currentModelName.replaceAll('.task', ''),
-      'quantization': 'Q4_K_M',
-      'size': '~2.4GB',
-      'contextLength': 4096,
-      'supportsVision': _currentModelName.toLowerCase().contains('vl'),
-    };
-}
 
-/// 📝 Helper: สร้าง Prompt สำหรับ Private Life OS
-///
-/// Haku = Private Life OS (ระบบปฏิบัติการชีวิตส่วนตัว)
-/// ไม่ใช่แค่ไดอารี่ แต่เป็นตัวประมวลผลชีวิตที่:
-/// 1. Proactive - รุก ไม่ใช่รอ (รู้ก่อน เตือนก่อน ทำให้เลย)
-/// 2. Invisible Inputs - รู้ข้อมูลที่คุณไม่ได้พูด (location, time, pattern)
-/// 3. Contextual Intelligence - ฉลาดตามสถานการณ์ (ค้นหาตามบริบท)
-///
-/// ⚠️ Optimized for Gemma 3 1B (small model, limited Thai)
-/// - Keep prompts short and clear
-/// - Use simple Thai sentences
-/// - Provide explicit context
-///
-/// 🧬 HakuPrompts - Private Life OS Prompts
-///
-/// Concept: Haku = Private Life OS (ระบบปฏิบัติการชีวิตส่วนตัว)
-///
-/// บทบาทหลัก:
-/// - รู้ก่อน: วิเคราะห์ pattern จากข้อมูลที่มี
-/// - เตือนก่อน: แจ้งเตือนเรื่องสำคัญ
-/// - ทำให้เลย: ลงมือทำทันที (ลงปฏิทิน, สรุปข้อมูล)
-class HakuPrompts {
-  /// 🧬 System Identity (English = better token efficiency)
-  static const String _hakuIdentity = r'''
-You are "Haku" (箱), a Private Life OS running on the user's phone.
-
-Core Principles:
-1. KNOW BEFORE: Analyze patterns from user's data
-2. WARN BEFORE: Proactive alerts for important matters
-3. DO IT NOW: Immediate actions (schedule, summarize, suggest)
-
-Personality: Smart, Minimalist, Empathetic, Proactive
-Response Style: Short (1-2 sentences), Thai language, friendly emoji
-
-OUTPUT RULES:
-- Output ONLY raw JSON (NO Markdown blocks)
-- "response" field MUST be in Thai
-- "type": "log" | "schedule" | "chat" | "proactive" | "location" | "pattern"
-''';
-
-  /// 🔨 Helper: Current DateTime (สำคัญสำหรับคำนวณเวลา)
-  static String get _now => DateTime.now().toString().substring(0, 16);
-
-  /// 🔍 RAG Question - ถามตอบจากบันทึก
-  static String forRAGQuestion(String question, List<String> contextEntries) {
-    final context = contextEntries.join('\n');
-    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser Records:\n$context\n\nTask: Answer based on records. If not found, say so honestly.\n\nQuestion: $question\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Answer in Thai"\n}<end_of_turn>\n<start_of_turn>model\n';
-  }
-
-  /// 📊 Summarization - สรุปบันทึก
-  static String forSummarization(String entries) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nTask: Summarize these entries in 3-5 Thai sentences with emoji.\nFocus: Mood, main activities, locations, insights.\n\nRecords:\n$entries\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai summary with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
-
-  /// 📅 Event Extraction - ดึงกิจกรรมลงปฏิทิน
-  static String forEventExtraction(String text) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nTask: Extract event details from text to JSON.\nCalculate relative dates (tomorrow, next Friday) based on Current Time.\n\nText: $text\n\nOutput JSON ONLY:\n{\n  "type": "schedule",\n  "data": {\n    "title": "Event name",\n    "date": "YYYY-MM-DD",\n    "time": "HH:MM",\n    "duration_minutes": 60,\n    "location": "Place"\n  },\n  "response": "Thai confirmation message"\n}<end_of_turn>\n<start_of_turn>model\n';
-
-  /// 💬 General Chat
-  static String forChat(String message) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nInput: $message\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai reply"\n}<end_of_turn>\n<start_of_turn>model\n';
-
-  /// 🔔 Proactive Trigger - ทักทายก่อนไม่รอให้ถาม
-  ///
-  /// ใช้เมื่อ Haku ต้องการทักทายผู้ใช้ก่อน (ไม่รอให้ถาม)
-  static String forProactiveTrigger(String context, String suggestedMessage) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nContext:\n$context\n\nSuggested Topic: $suggestedMessage\n\nTask: Create proactive greeting (1-2 sentences, Thai, friendly, emoji).\nReference past data if relevant.\n\nOutput JSON ONLY:\n{\n  "type": "proactive",\n  "response": "Thai greeting message"\n}<end_of_turn>\n<start_of_turn>model\n';
-
-  /// 📍 Location Revisit - จำได้ว่าเคยมาที่นี่ทำอะไร
-  ///
-  /// ใช้เมื่อผู้ใช้กลับมาที่เดิม
-  static String forLocationRevisit(String locationName, List<String> previousVisits) {
-    final history = previousVisits.join('\n');
-    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser is at: $locationName\nPrevious visits:\n$history\n\nTask: Remind user what they did here before and their mood.\nMake it personal and friendly.\n\nOutput JSON ONLY:\n{\n  "type": "location",\n  "data": {\n    "location": "$locationName",\n    "past_activities": ["activity1", "activity2"],\n    "mood_trend": "positive|neutral|negative"\n  },\n  "response": "Thai message reminding past visits"\n}<end_of_turn>\n<start_of_turn>model\n';
-  }
-
-  /// 🧠 Pattern Analysis - วิเคราะห์ pattern ของผู้ใช้
-  ///
-  /// ใช้เมื่อต้องการวิเคราะห์ pattern และให้คำแนะนำ
-  static String forPatternAnalysis(String patternData) => '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now\n\nUser Pattern Data:\n$patternData\n\nTask: Analyze patterns and provide insights + actionable suggestions.\nBe empathetic and proactive.\n\nOutput JSON ONLY:\n{\n  "type": "pattern",\n  "data": {\n    "patterns": ["Pattern 1", "Pattern 2"],\n    "insights": ["Insight 1", "Insight 2"],\n    "suggestions": ["Suggestion 1", "Suggestion 2"]\n  },\n  "response": "Thai analysis and advice"\n}<end_of_turn>\n<start_of_turn>model\n';
-
-  /// 🎯 Chat with Context (Preset/Objective)
-  static String forChatWithContext(
-    String message, {
-    String? presetContext,
-    String? objectiveContext,
-  }) {
-    final preset = presetContext != null ? '\nMode: $presetContext' : '';
-    final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
-
-    return '<start_of_turn>user\n$_hakuIdentity\nCurrent Time: $_now$preset$objective\n\nInput: $message\n\nOutput JSON ONLY:\n{\n  "type": "chat",\n  "response": "Thai reply"\n}<end_of_turn>\n<start_of_turn>model\n';
-  }
-
-  /// 🎬 Full Action Instructions - คำสั่งสำหรับ AI ทำ actions
-  static const String _actionInstructions = r'''
-AVAILABLE ACTIONS (use when needed):
-- Schedule event: [ACTION:SCHEDULE] title="...", date=YYYY-MM-DD, time=HH:MM, location="..."
-- Set reminder: [ACTION:REMINDER] message="...", minutes=15
-- Create objective: [ACTION:OBJECTIVE] title="...", due=YYYY-MM-DD
-- Search place: [ACTION:SEARCH_PLACE] query="ร้านกาแฟ ทองหล่อ", type=cafe
-- Save place: [ACTION:SAVE_PLACE] name="...", lat=13.XXX, lng=100.XXX
-- Web search: [ACTION:WEB_SEARCH] query="..."
-- Sync to Google Calendar: [ACTION:SYNC_CALENDAR] title="...", date=..., time=...
-- Open navigation: [ACTION:NAVIGATE] lat=..., lng=..., name="..."
-- Ask user for location: [ACTION:ASK_LOCATION] message="เลือกสถานที่นัดพบ"
-
-WHEN TO USE ACTIONS:
-- User mentions appointment/event → use SCHEDULE
-- User mentions place → offer to SEARCH_PLACE
-- User asks "what is..." or needs info → use WEB_SEARCH
-- User wants to save location → use SAVE_PLACE
-- User wants to navigate → use NAVIGATE
-''';
-
-  /// 💬 Chat with Actions - AI สามารถสั่งงานได้
-  static String forChatWithActions(
-    String message, {
-    String? presetContext,
-    String? objectiveContext,
-    String? chatHistory,
-    String? locationContext,
-  }) {
-    final preset = presetContext != null ? '\nMode: $presetContext' : '';
-    final objective = objectiveContext != null ? '\nObjective: $objectiveContext' : '';
-    final history = chatHistory != null ? '\n\nChat History:\n$chatHistory' : '';
-    final location = locationContext != null ? '\nCurrent Location: $locationContext' : '';
-
-    return '''<start_of_turn>user
-$_hakuIdentity
-
-$_actionInstructions
-
-Current Time: $_now$preset$objective$location$history
-
-Input: $message
-
-IMPORTANT:
-- If user mentions a meeting/event with location, ask if they want to search for place
-- If user needs information, use WEB_SEARCH
-- Always respond in Thai
-
-Output JSON:
-{
-  "type": "chat",
-  "response": "Thai message (include [ACTION:...] tags if needed)"
-}<end_of_turn>
-<start_of_turn>model
-''';
-  }
-
-  /// 🔍 Process Search Results - ให้ AI ประมวลผลผลลัพธ์
-  static String forProcessSearchResults(
-    String originalQuestion,
-    String searchResults,
-  ) => '''<start_of_turn>user
-$_hakuIdentity
-
-User asked: $originalQuestion
-
-Search Results:
-$searchResults
-
-Task: Summarize the search results and answer user's question in Thai.
-Be helpful and cite sources if available.
-
-Output JSON:
-{
-  "type": "chat",
-  "response": "Thai answer based on search results"
-}<end_of_turn>
-<start_of_turn>model
-''';
-
-  /// 📍 Process Place Results - ให้ AI แนะนำจากผลค้นหาสถานที่
-  static String forProcessPlaceResults(
-    String originalRequest,
-    String placeResults,
-  ) => '''<start_of_turn>user
-$_hakuIdentity
-
-User asked: $originalRequest
-
-Found Places:
-$placeResults
-
-Task: Recommend places from the results in a friendly way.
-Ask if user wants to:
-1. Save any place
-2. Navigate to a place
-3. Add to their schedule
-
-Output JSON:
-{
-  "type": "chat",
-  "response": "Thai recommendation with emoji"
-}<end_of_turn>
-<start_of_turn>model
-''';
-
-  /// 🗺️ Location Context - บอก AI ว่าผู้ใช้อยู่ที่ไหน
-  static String buildLocationContext({
-    String? currentPlace,
-    String? nearbyPlaces,
-    String? lastVisitInfo,
-  }) {
-    final buffer = StringBuffer();
-
-    if (currentPlace != null) {
-      buffer.writeln('📍 Current: $currentPlace');
+  /// 📊 ข้อมูลโมเดลจาก Native
+  Future<Map<dynamic, dynamic>?> getModelInfo() async {
+    try {
+      final info = await _channel.invokeMethod('getModelInfo');
+      return info as Map<dynamic, dynamic>?;
+    } catch (e) {
+      if (kDebugMode) print('❌ Error getting model info: $e');
+      return null;
     }
-    if (nearbyPlaces != null) {
-      buffer.writeln('🏪 Nearby: $nearbyPlaces');
-    }
-    if (lastVisitInfo != null) {
-      buffer.writeln('📝 Last visit: $lastVisitInfo');
-    }
-
-    return buffer.toString();
   }
 
-  // ============================================================
-  // 🏛️ HAKU ENGINE PROMPTS (The Face)
-  // ============================================================
-
-  /// 🎭 The Face - Main chat prompt with full context
-  ///
-  /// Components:
-  /// - [Identity]: User profile (Lean format)
-  /// - [Status]: Time, location, battery
-  /// - [Mem]: RAG topic summaries (English)
-  /// - [Reply]: Referenced context (if replying)
-  /// - [Recent]: Recent messages (Thai)
-  static String forHakuEngine({
-    required String userInput,
-    required String identityCard,
-    required String statusBar,
-    String? memoryContext,
-    String? replyContext,
-    String? recentMessages,
-  }) {
-    final buffer = StringBuffer();
-
-    // System identity (short)
-    buffer.writeln('Role: Haku (Private Life OS)');
-    buffer.writeln('Style: Short Thai, emoji, proactive');
-
-    // Identity Card
-    if (identityCard.isNotEmpty) {
-      buffer.writeln(identityCard);
+  /// ✅ ตรวจสอบว่าโมเดลถูกโหลดแล้วหรือยัง
+  Future<bool> isModelLoaded() async {
+    try {
+      final loaded = await _channel.invokeMethod<bool>('isModelLoaded');
+      _isInitialized = loaded ?? false;
+      return _isInitialized;
+    } catch (e) {
+      return false;
     }
-
-    // Status Bar
-    buffer.writeln(statusBar);
-
-    // Memory (RAG)
-    if (memoryContext != null && memoryContext.isNotEmpty) {
-      buffer.writeln('[Mem]');
-      buffer.writeln(memoryContext);
-    }
-
-    // Reply context
-    if (replyContext != null && replyContext.isNotEmpty) {
-      buffer.writeln('[Reply]');
-      buffer.writeln(replyContext);
-    }
-
-    // Recent messages
-    if (recentMessages != null && recentMessages.isNotEmpty) {
-      buffer.writeln('[Recent]');
-      buffer.writeln(recentMessages);
-    }
-
-    // Actions
-    buffer.writeln(_actionInstructionsLean);
-
-    return '''<start_of_turn>user
-${buffer.toString()}
-Input: $userInput
-
-Reply in Thai (1-2 sentences). Use [ACTION:...] if needed.
-<end_of_turn>
-<start_of_turn>model
-''';
   }
 
-  /// 🎬 Lean Action Instructions
-  static const String _actionInstructionsLean = r'''
-[Actions]
-SCHEDULE:title,date,time,location|REMINDER:msg,mins|OBJECTIVE:title,due
-SEARCH_PLACE:query,type|SAVE_PLACE:name,lat,lng|WEB_SEARCH:query
-SYNC_CALENDAR:title,date|NAVIGATE:lat,lng,name|ASK_LOCATION:msg''';
-
-  // ============================================================
-  // 👷 HAKU ENGINE PROMPTS (The Worker)
-  // ============================================================
-
-  /// 👷 Worker - Summarize Thai to English
-  static String forWorkerSummarize(List<String> messages) {
-    final joined = messages.join('\n');
-    return '''<start_of_turn>user
-Task: Summarize Thai conversation in English (2-3 sentences).
-Focus: topic, emotions, key facts/dates.
-
-$joined
-
-English summary:
-<end_of_turn>
-<start_of_turn>model
-''';
+  /// 🔧 ตั้งค่า system instruction (Gemma 4 ready)
+  Future<void> setSystemInstruction(String instruction) async {
+    try {
+      await _channel.invokeMethod('setSystemInstruction', {
+        'instruction': instruction,
+      });
+      if (kDebugMode) print('🔧 System instruction updated');
+    } catch (e) {
+      if (kDebugMode) print('❌ Failed to set system instruction: $e');
+    }
   }
 
-  /// 👷 Worker - Generate topic name
-  static String forWorkerTopicName(String summary) => '''<start_of_turn>user
-Create short topic name (2-4 words) for:
-$summary
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-Topic:
-<end_of_turn>
-<start_of_turn>model
-''';
-
-  /// 👷 Worker - Extract facts from message
-  static String forWorkerExtractFacts(String message) => '''<start_of_turn>user
-Extract personal facts from Thai message.
-Return: likes[], dislikes[], goals[], or empty.
-
-Message: $message
-
-JSON:
-<end_of_turn>
-<start_of_turn>model
-''';
-
-  // ============================================================
-  // 🔔 PROACTIVE PROMPTS
-  // ============================================================
-
-  /// 🔔 Proactive greeting with context
-  static String forProactiveGreeting({
-    required String identityCard,
-    required String statusBar,
-    required String trigger,
-    String? relevantMemory,
-  }) {
-    final memory = relevantMemory != null ? '\n[Mem]\n$relevantMemory' : '';
-
-    return '''<start_of_turn>user
-Role: Haku (proactive assistant)
-$identityCard
-$statusBar$memory
-
-Trigger: $trigger
-
-Create friendly Thai greeting (1 sentence) based on trigger and context.
-<end_of_turn>
-<start_of_turn>model
-''';
+  static bool _isSupportedExtension(String filePath) {
+    return supportedExtensions.any((ext) => filePath.toLowerCase().endsWith(ext));
   }
 }

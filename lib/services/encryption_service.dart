@@ -13,9 +13,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// - SQLCipher key management
 
 class EncryptionService {
+  // ใช้ encryptedSharedPreferences: false เพื่อหลีกเลี่ยง AEADBadTagException
+  // เมื่อ Keystore key ถูก invalidate หลัง reinstall debug build
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
+      encryptedSharedPreferences: false,
     ),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
@@ -25,26 +27,42 @@ class EncryptionService {
   static const String _dbKeyName = 'haku_db_encryption_key';
   static const String _masterKeyName = 'haku_master_key';
 
+  /// อ่าน key จาก storage พร้อม fallback reset เมื่อ Keystore เสีย
+  static Future<String?> _safeRead(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } catch (_) {
+      // Keystore เสียหาย — ล้าง storage แล้ว generate key ใหม่
+      try { await _storage.deleteAll(); } catch (_) {}
+      return null;
+    }
+  }
+
+  static Future<void> _safeWrite(String key, String value) async {
+    try {
+      await _storage.write(key: key, value: value);
+    } catch (_) {
+      try { await _storage.deleteAll(); } catch (_) {}
+      await _storage.write(key: key, value: value);
+    }
+  }
+
   /// 🔑 สร้าง encryption key สำหรับ database (SQLCipher)
-  /// 
-  /// Key จะถูกสร้างครั้งแรกและเก็บใน Secure Storage
   static Future<String> getOrCreateDatabaseKey() async {
-    String? key = await _storage.read(key: _dbKeyName);
-    
+    String? key = await _safeRead(_dbKeyName);
+
     if (key == null) {
-      // สร้าง key ใหม่ 32 bytes (256-bit)
       final random = Random.secure();
       final keyBytes = List<int>.generate(32, (_) => random.nextInt(256));
       key = base64Encode(keyBytes);
-      
-      await _storage.write(key: _dbKeyName, value: key);
+      await _safeWrite(_dbKeyName, key);
     }
-    
+
     return key;
   }
 
   /// 🗝️ ดึง key สำหรับเปิด database
-  static Future<String?> getDatabaseKey() async => _storage.read(key: _dbKeyName);
+  static Future<String?> getDatabaseKey() async => _safeRead(_dbKeyName);
 
   /// 🔄 สร้าง key ใหม่ (ใช้ตอน reset/change password)
   static Future<String> rotateDatabaseKey() async {
@@ -92,22 +110,26 @@ class EncryptionService {
 
   /// 🗝️ ดึง master key (หรือสร้างใหม่)
   static Future<String> _getMasterKey() async {
-    String? key = await _storage.read(key: _masterKeyName);
-    
+    String? key = await _safeRead(_masterKeyName);
+
     if (key == null) {
       final random = Random.secure();
       final keyBytes = List<int>.generate(32, (_) => random.nextInt(256));
       key = base64Encode(keyBytes);
-      await _storage.write(key: _masterKeyName, value: key);
+      await _safeWrite(_masterKeyName, key);
     }
-    
+
     return key;
   }
 
   /// 🧹 ลบ key ทั้งหมด (ใช้ตอน logout/reset)
   static Future<void> clearAllKeys() async {
-    await _storage.delete(key: _dbKeyName);
-    await _storage.delete(key: _masterKeyName);
+    try {
+      await _storage.delete(key: _dbKeyName);
+      await _storage.delete(key: _masterKeyName);
+    } catch (_) {
+      try { await _storage.deleteAll(); } catch (_) {}
+    }
   }
 
   /// ✅ ตรวจสอบว่ามี key อยู่หรือไม่

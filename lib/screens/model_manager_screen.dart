@@ -73,7 +73,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Text(
-                    '❌ ยังไม่มีโมเดล\nกรุณา import โมเดล .task (MediaPipe)',
+                    '❌ ยังไม่มีโมเดล\nกรุณา import โมเดล .litertlm, .task หรือ .tflite',
                     style: TextStyle(color: Colors.orange),
                   );
                 }
@@ -105,7 +105,7 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.file_upload),
-        label: Text(_isImporting ? 'กำลังนำเข้า...' : '📁 เลือกไฟล์โมเดล (.task)'),
+        label: Text(_isImporting ? 'กำลังนำเข้า...' : '📁 เลือกไฟล์โมเดล (.litertlm, .task, .tflite)'),
       ),
     );
 
@@ -155,7 +155,6 @@ class _ModelManagerScreenState extends ConsumerState<ModelManagerScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
-        allowedExtensions: ['task'],
       );
 
       if (result == null || result.files.single.path == null) {

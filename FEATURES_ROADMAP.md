@@ -1,7 +1,126 @@
 # Haku Features Roadmap - Proactive AI Assistant
 
 > วางแผนฟีเจอร์ AI ตาม Phase พร้อมโมเดลที่ใช้
-> อัปเดตล่าสุด: 2026-03-06
+> อัปเดตล่าสุด: 2026-04-11
+
+---
+
+## 🔄 Infrastructure: LiteRT-LM Migration (main branch) — กำลังทำ
+
+> เปลี่ยน on-device runtime จาก MediaPipe (deprecated) → **LiteRT-LM v0.10.0**
+> เหตุผล: MediaPipe LLM Inference API ถูก Google deprecate แล้ว, LiteRT-LM คือ successor ที่มี true streaming + function calling built-in + รองรับ Gemma 4
+
+### สิ่งที่ทำ
+- [x] ลบ `MediaPipeLLMBridge.kt` (deprecated, reflection-based)
+- [x] สร้าง `LiteRTLMBridge.kt` — clean API ไม่มี reflection
+- [x] อัพเดท `build.gradle` — swap `mediapipe:tasks-genai` → `litertlm-android:0.10.0`
+- [x] อัพเดท `MainActivity.kt` — ใช้ `LiteRTLMBridge` + เพิ่ม `setSystemInstruction` channel
+- [ ] ทดสอบ build + รันบน device จริง
+- [ ] Download `.litertlm` model format จาก HuggingFace (Gemma 3 1B)
+
+### Key Files
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `android/app/src/main/kotlin/.../LiteRTLMBridge.kt` | Engine + Conversation + true streaming |
+| `android/app/build.gradle` | LiteRT-LM + TFLite GPU dependencies |
+
+### Architecture
+```
+Flutter Dart
+  └── MediaPipeLLMService (mediapipe_llm_service.dart)  ← ไม่เปลี่ยน
+        └── MethodChannel (com.example.haku/llm)
+              └── LiteRTLMBridge.kt  ← ใหม่
+                    └── LiteRT-LM Engine (Google)
+                          └── GPU/CPU Backend (auto-fallback)
+```
+
+### Model Support
+```yaml
+current:
+  model: Gemma 3 1B (.task legacy format ยังใช้ได้)
+  format: .task (MediaPipe legacy) หรือ .litertlm (native)
+  context: 4096 tokens (เพิ่มขึ้นจาก 2048)
+
+future_gemma4:
+  model: Gemma 4 E2B (2-bit ~1.5GB) หรือ E4B (4-bit ~4GB)
+  context: 128K tokens
+  new_features: Thinking Mode, multimodal (image+audio), function calling native
+  migration_path: เพิ่ม systemInstruction ผ่าน setSystemInstruction() — API พร้อมแล้ว
+```
+
+---
+
+## 🧠 Future: FunctionGemma 270M as PreClassify Dispatcher (roadmap)
+
+> แทนที่ PreClassify LLM (Gemma 3 1B) ด้วย FunctionGemma 270M ที่เล็กกว่าและ specialized กว่า
+> **สถานะ:** วางแผนไว้ — ต้องทำ LiteRT-LM migration เสร็จก่อน
+
+### แนวคิด
+```
+User Message
+  ↓
+SmartPreprocessor (rule-based, 0 LLM) — เหมือนเดิม
+  ↓ (intent=general)
+FunctionGemma 270M (~288 MB)  ← แทน PreClassify ปัจจุบัน
+  → function call: log_mood / create_event / search / ...
+  → เร็วกว่า (270M vs 1B) + แม่นยำกว่า (specialized for function calling)
+  → โหลดค้างไว้ใน RAM ได้ตลอด (เล็กมาก)
+  ↓
+Gemma 3 1B (Face) — ตอบภาษาไทยธรรมชาติ เหมือนเดิม
+```
+
+### ข้อดี
+- FunctionGemma 270M = 288 MB เท่านั้น โหลดค้างได้ตลอด ไม่ต้อง unload
+- Specialized สำหรับ function calling → แม่นยำกว่า Gemma 3 1B ทำ JSON parsing
+- ลด latency: 270M inference เร็วกว่า 1B มาก
+- เปิดประตูสู่ Skill System แบบ Gallery (loadSkill/runJs/runIntent)
+
+### งานที่ต้องทำ (อนาคต)
+- [ ] Download FunctionGemma 270M `.litertlm` จาก HuggingFace
+- [ ] สร้าง `FunctionLLMBridge.kt` — Engine แยกสำหรับ FunctionGemma
+- [ ] ย้าย `preClassify()` ใน `secret_chat_service.dart` ไปใช้ FunctionGemma แทน
+- [ ] ออกแบบ ToolSet สำหรับ Haku (log_entry, create_event, set_reminder, search_rag, ...)
+- [ ] Skill system: SKILL.md format + JavaScript execution
+
+---
+
+## 🦙 Infrastructure: llama.cpp + OpenCL (branch: feat/llama-cpp-opencl)
+
+> เปลี่ยน on-device runtime จาก MediaPipe → llama.cpp + OpenCL (Adreno GPU)
+> เหตุผล: รองรับ GGUF โดยตรง, context window ใหญ่กว่า (4096+ vs 2048), GPU เร็วกว่าบน Snapdragon 8 Gen 2
+
+### สิ่งที่ทำ
+- [x] สร้าง branch `feat/llama-cpp-opencl`
+- [x] ดาวน์โหลด prebuilt `.so` จาก llama.rn v0.11.3 (OpenCL + Adreno + Hexagon NPU)
+  - `librnllama_v8_2_dotprod_i8mm_hexagon_opencl.so` — llama.cpp core
+  - `libOpenCL.so` — OpenCL ICD loader
+  - `libggml-htp-v73.so` — Hexagon HTP (SM8550 = Z Fold 5)
+- [x] เขียน `android/app/src/main/cpp/llama_flutter.cpp` — JNI glue layer (C++)
+- [x] เขียน `android/app/src/main/cpp/CMakeLists.txt` — native build config
+- [x] อัพเดท `android/app/build.gradle` — เพิ่ม externalNativeBuild
+- [x] เขียน `LlamaChannel.kt` — Kotlin Platform Channel (loadModel / completion streaming / freeModel)
+- [x] เขียน `lib/services/llama_service.dart` — Dart layer แทน MediaPipe service
+- [ ] ทดสอบ build + รันบน Z Fold 5
+
+### Key Files
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `android/app/src/main/cpp/llama_flutter.cpp` | JNI wrapper → เรียก llama.cpp C API |
+| `android/app/src/main/cpp/CMakeLists.txt` | build config, link กับ prebuilt .so |
+| `android/app/src/main/kotlin/.../LlamaChannel.kt` | Flutter ↔ native bridge |
+| `lib/services/llama_service.dart` | Dart API (loadModel, completionStream, generate) |
+
+### Architecture
+```
+Flutter Dart
+  └── LlamaService (llama_service.dart)
+        └── Platform Channel (com.example.haku/llama)
+              └── LlamaChannel.kt (Kotlin)
+                    └── llama_flutter.cpp (JNI C++)
+                          └── librnllama_*_opencl.so (llama.cpp + OpenCL + Hexagon)
+```
+
+---
 
 
 

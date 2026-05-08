@@ -71,3 +71,24 @@ coverage/
 # CLI Test (contains API keys)
 bin/test_cli.dart
 
+# Android Native Build
+.cxx/
+*.keystore
+!**/debug.keystore
+.kotlin/
+*.hprof
+
+# Node (ถ้ามี scripts)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Native libraries (prebuilt — re-downloadable จาก llama.rn)
+android/app/src/main/jniLibs/
+**/libggml-htp*.so
+
+# Firebase
+android/app/google-services.json
+ios/GoogleService-Info.plist
+

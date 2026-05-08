@@ -82,6 +82,16 @@ class SmartPreprocessor {
     caseSensitive: false,
   );
 
+  /// คำที่บ่งบอกว่าถาม "ตารางงาน/นัดหมาย" (query — ไม่ใช่สร้างใหม่)
+  /// เช่น "งานวันนี้", "ตารางพรุ่งนี้", "มีอะไรวันนี้", "วันนี้มีนัดไหม"
+  static final RegExp _scheduleQueryPattern = RegExp(
+    r'(งาน|ตาราง|นัด|ประชุม|กิจกรรม|schedule)(วันนี้|พรุ่งนี้|พรุ้งนี้|มะรืน|อาทิตย์นี้|สัปดาห์นี้)|'
+    r'(วันนี้|พรุ่งนี้|พรุ้งนี้)(มี)?อะไร|(วันนี้|พรุ่งนี้)(มี)?นัด|'
+    r'(today|tomorrow).{0,15}(schedule|meeting|appointment|event)|'
+    r'(schedule|meeting|appointment).{0,10}(today|tomorrow)',
+    caseSensitive: false,
+  );
+
   // ============================================================
   // 🚀 MAIN PREPROCESSING
   // ============================================================
@@ -178,6 +188,39 @@ class SmartPreprocessor {
         }
       } catch (e) {
         debugPrint('⚠️ Weather fetch skipped: $e');
+      }
+    }
+
+    // 2.2 📅 Device Calendar Query — ถ้าถามตาราง inject events จาก Android Calendar
+    if (_scheduleQueryPattern.hasMatch(userMessage)) {
+      debugPrint('📅 Schedule query detected, fetching device calendar...');
+      try {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        // ถามพรุ่งนี้ → ดึงพรุ่งนี้, อื่นๆ → ดึงวันนี้ + 2 วันข้างหน้า
+        final isAskingTomorrow = RegExp(r'พรุ่งนี้|พรุ้งนี้|tomorrow').hasMatch(userMessage);
+        final rangeStart = isAskingTomorrow ? today.add(const Duration(days: 1)) : today;
+        final rangeEnd = rangeStart.add(Duration(days: isAskingTomorrow ? 1 : 2));
+
+        final events = await SchedulerService().getCalendarEvents(rangeStart, rangeEnd)
+            .timeout(const Duration(seconds: 4));
+
+        if (events.isNotEmpty) {
+          final lines = events.map((e) {
+            final title = e['title'] ?? e['eventTitle'] ?? '(ไม่มีชื่อ)';
+            final startMs = e['startTime'] as int?;
+            final timeStr = startMs != null
+                ? () { final dt = DateTime.fromMillisecondsSinceEpoch(startMs); return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}'; }()
+                : '';
+            final loc = (e['location'] ?? '') as String;
+            return '• $timeStr $title${loc.isNotEmpty ? " @$loc" : ""}'.trim();
+          }).join('\n');
+          enrichedContext = '[ตารางนัดหมาย]\n$lines\n$enrichedContext';
+          intent = DetectedIntent.schedule;
+          debugPrint('📅 Device calendar injected: ${events.length} events');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Device calendar fetch skipped: $e');
       }
     }
 

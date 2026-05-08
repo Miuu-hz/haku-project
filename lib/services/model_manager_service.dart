@@ -3,64 +3,69 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-
-
-import 'mediapipe_llm_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 📦 Model Manager Service
-/// 
-/// จัดการโมเดล MediaPipe (.task files):
-/// - ดาวน์โหลดโมเดลจาก URL
-/// - ตรวจสอบความถูกต้องของไฟล์
+///
+/// จัดการโมเดล llama.cpp (.gguf files):
+/// - ค้นหาโมเดลในเครื่อง (Downloads + app docs)
+/// - บันทึก/อ่าน active model path ใน SharedPreferences
+/// - ดาวน์โหลดโมเดล
 /// - ลบโมเดลที่ไม่ต้องการ
-/// - แสดงรายการโมเดลที่มี
 
 class ModelManagerService {
   static final ModelManagerService _instance = ModelManagerService._internal();
   factory ModelManagerService() => _instance;
   ModelManagerService._internal();
 
-  /// 📁 โฟลเดอร์สำหรับเก็บโมเดล
+  static const String _prefModelPath = 'llama_model_path';
+
+  // ── Path helpers ──
+
+  /// โฟลเดอร์ app docs สำหรับเก็บโมเดลที่ดาวน์โหลดผ่าน app
   Future<Directory> get _modelsDir async {
     final appDir = await getApplicationDocumentsDirectory();
-    final modelsDir = Directory('${appDir.path}/models');
-    if (!await modelsDir.exists()) {
-      await modelsDir.create(recursive: true);
-    }
-    return modelsDir;
+    final dir = Directory('${appDir.path}/models');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir;
   }
 
-  /// 📋 รายการโมเดลที่แนะนำ
-  static const Map<String, ModelInfo> recommendedModels = {
-    'gemma-3-270m-it': ModelInfo(
-      name: 'Gemma 3 270M IT',
-      description: 'Google Gemma 3 270M (Instruct) - เร็วที่สุด',
-      sizeMB: 180,
-      url: 'https://storage.googleapis.com/mediapipe-models/gemma-3-270m-it/task.task',
-      recommended: true,
-    ),
-    'gemma-3-4b-it': ModelInfo(
-      name: 'Gemma 3 4B IT',
-      description: 'Google Gemma 3 4B (Instruct) - คุณภาพสูง',
-      sizeMB: 2800,
-      url: 'https://storage.googleapis.com/mediapipe-models/gemma-3-4b-it/task.task',
-      recommended: false,
-    ),
-  };
+  // ── Active model path ──
 
-  /// 📋 ดึงรายการโมเดลที่มีในเครื่อง
+  /// บันทึก path ของโมเดลที่เลือก
+  Future<void> setActiveModelPath(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefModelPath, path);
+    debugPrint('💾 Active model set: $path');
+  }
+
+  /// อ่าน path ของโมเดลที่เลือกไว้
+  Future<String?> getActiveModelPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(_prefModelPath);
+    if (path == null) return null;
+    // ตรวจว่าไฟล์ยังอยู่จริง
+    if (!await File(path).exists()) {
+      await prefs.remove(_prefModelPath);
+      return null;
+    }
+    return path;
+  }
+
+  // ── Scan local models ──
+
+  /// ค้นหาไฟล์ .gguf ใน Downloads + app docs
   Future<List<LocalModel>> getLocalModels() async {
-    final modelsDir = await _modelsDir;
     final models = <LocalModel>[];
+    final scanDirs = await _getScanDirs();
 
-    if (await modelsDir.exists()) {
-      await for (final entity in modelsDir.list()) {
-        if (entity is File && entity.path.endsWith('.task')) {
+    for (final dir in scanDirs) {
+      if (!await dir.exists()) continue;
+      await for (final entity in dir.list(recursive: false)) {
+        if (entity is File && entity.path.endsWith('.gguf')) {
           final stat = await entity.stat();
-          final fileName = entity.uri.pathSegments.last;
-          
           models.add(LocalModel(
-            name: fileName.replaceAll('.task', ''),
+            name: entity.uri.pathSegments.last.replaceAll('.gguf', ''),
             path: entity.path,
             sizeBytes: stat.size,
             modifiedAt: stat.modified,
@@ -72,33 +77,51 @@ class ModelManagerService {
     return models..sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
   }
 
-  /// 📥 ดาวน์โหลดโมเดล
-  /// 
-  /// @param url URL ของไฟล์ .task
-  /// @param fileName ชื่อไฟล์ที่จะบันทึก
-  /// @param onProgress callback แจ้งความคืบหน้า (0.0 - 1.0)
+  /// โฟลเดอร์ที่จะ scan หาโมเดล
+  Future<List<Directory>> _getScanDirs() async {
+    final dirs = <Directory>[];
+
+    // 1. app docs/models (โมเดลที่โหลดผ่าน app)
+    dirs.add(await _modelsDir);
+
+    // 2. Downloads folder (โมเดลที่โหลดผ่าน browser)
+    if (Platform.isAndroid) {
+      dirs.add(Directory('/storage/emulated/0/Download'));
+    }
+
+    return dirs;
+  }
+
+  /// auto-select: หาโมเดลตัวแรก (newest) แล้วบันทึกเป็น active
+  Future<String?> autoSelectModel() async {
+    final models = await getLocalModels();
+    if (models.isEmpty) return null;
+    await setActiveModelPath(models.first.path);
+    return models.first.path;
+  }
+
+  // ── Download ──
+
+  /// ดาวน์โหลดโมเดล .gguf จาก URL
   Future<bool> downloadModel(
     String url,
     String fileName, {
     required void Function(double progress) onProgress,
   }) async {
     try {
-      debugPrint('📥 Downloading model from: $url');
-      
+      debugPrint('📥 Downloading model: $fileName');
       final modelsDir = await _modelsDir;
-      final filePath = '${modelsDir.path}/$fileName.task';
-      
-      // ตรวจสอบว่ามีไฟล์อยู่แล้วหรือไม่
+      final filePath = '${modelsDir.path}/$fileName';
+
       final existingFile = File(filePath);
       if (await existingFile.exists()) {
         debugPrint('⚠️ Model already exists: $filePath');
         return true;
       }
 
-      // ดาวน์โหลด
       final request = http.Request('GET', Uri.parse(url));
       final response = await http.Client().send(request);
-      
+
       if (response.statusCode != 200) {
         debugPrint('❌ Download failed: ${response.statusCode}');
         return false;
@@ -106,84 +129,47 @@ class ModelManagerService {
 
       final totalBytes = response.contentLength ?? 0;
       var receivedBytes = 0;
-      
-      final file = File(filePath);
-      final sink = file.openWrite();
-      
+      final sink = File(filePath).openWrite();
+
       await for (final chunk in response.stream) {
         sink.add(chunk);
         receivedBytes += chunk.length;
-        
-        if (totalBytes > 0) {
-          onProgress(receivedBytes / totalBytes);
-        }
+        if (totalBytes > 0) onProgress(receivedBytes / totalBytes);
       }
-      
+
       await sink.close();
-      
-      debugPrint('✅ Model downloaded: $filePath (${receivedBytes ~/ 1024 ~/ 1024} MB)');
+      debugPrint('✅ Downloaded: $filePath (${receivedBytes ~/ 1024 ~/ 1024} MB)');
       return true;
-      
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('❌ Download error: $e');
-      debugPrint('Stack: $stackTrace');
       return false;
     }
   }
 
-  /// 📥 ดาวน์โหลดโมเดลที่แนะนำ
-  Future<bool> downloadRecommendedModel(String modelKey) async {
-    final model = recommendedModels[modelKey];
-    if (model == null) {
-      debugPrint('❌ Unknown model: $modelKey');
-      return false;
-    }
+  // ── Delete ──
 
-    return downloadModel(
-      model.url,
-      modelKey,
-      onProgress: (progress) {
-        debugPrint('📥 Download progress: ${(progress * 100).toStringAsFixed(1)}%');
-      },
-    );
-  }
-
-  /// 🗑️ ลบโมเดล
   Future<bool> deleteModel(String path) async {
     try {
       final file = File(path);
-      if (await file.exists()) {
-        await file.delete();
-        
-        // ถ้าลบโมเดลที่กำลังใช้งานอยู่ ให้ clear custom path
-        final currentPath = await MediaPipeLLMService().getCustomModelPath();
-        if (currentPath == path) {
-          await MediaPipeLLMService().setCustomModelPath(null);
-        }
-        
-        debugPrint('🗑️ Model deleted: $path');
-        return true;
+      if (!await file.exists()) return false;
+      await file.delete();
+      // ถ้าลบโมเดลที่ active อยู่ ให้ clear
+      final activePath = await getActiveModelPath();
+      if (activePath == path) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_prefModelPath);
       }
-      return false;
+      debugPrint('🗑️ Model deleted: $path');
+      return true;
     } catch (e) {
       debugPrint('❌ Delete error: $e');
       return false;
     }
   }
 
-  /// ✅ ตรวจสอบว่ามีโมเดลพร้อมใช้งานหรือไม่
-  Future<bool> hasModelAvailable() async {
-    final models = await getLocalModels();
-    return models.isNotEmpty;
-  }
+  // ── Helpers ──
 
-  /// 🔍 หาโมเดลที่มีขนาดเล็กที่สุด (สำหรับ auto-select)
-  Future<LocalModel?> getSmallestModel() async {
-    final models = await getLocalModels();
-    if (models.isEmpty) return null;
-    
-    return models.reduce((a, b) => a.sizeBytes < b.sizeBytes ? a : b);
-  }
+  Future<bool> hasModelAvailable() async => (await getLocalModels()).isNotEmpty;
 }
 
 /// 📋 ข้อมูลโมเดลที่แนะนำ
