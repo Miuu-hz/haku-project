@@ -49,6 +49,12 @@ class LiteRTLMBridge(private val context: Context) {
     private var currentModelPath: String? = null
     private var currentSystemInstruction: String? = null
     private var _maxTokens: Int = 1024
+    private var _temperature: Double = 0.8
+    private var _topK: Int = 40
+    private var _topP: Double = 0.95
+
+    // Stateful conversation — เก็บ KV cache ข้ามรอบ (ต่อ session)
+    private var currentConversation: Conversation? = null
 
     val isInitialized: Boolean get() = engine?.isInitialized() ?: false
 
@@ -102,35 +108,76 @@ class LiteRTLMBridge(private val context: Context) {
 
     /**
      * 🔧 ตั้ง system instruction ใหม่ — ไม่ต้อง reload โมเดล
-     * ใช้สำหรับ upgrade ไป Gemma 4 ที่ต้องการ system prompt
+     * รีเซ็ต currentConversation เพราะ SI เปลี่ยน → KV cache เก่าใช้ไม่ได้
      */
     fun setSystemInstruction(instruction: String?) {
         currentSystemInstruction = instruction
+        resetConversation()
         Log.i(TAG, "🔧 system instruction: ${instruction?.take(60)}...")
     }
 
-    // ── Conversation Factory ───────────────────────────────────────────────────
+    /**
+     * 🔄 รีเซ็ต Conversation — เริ่ม session ใหม่ (ลบ KV cache เก่า)
+     * เรียกเมื่อผู้ใช้เริ่มสนทนาใหม่หรือ system instruction เปลี่ยน
+     */
+    fun resetConversation() {
+        try {
+            currentConversation?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ ปิด conversation เก่าล้มเหลว (อาจปิดแล้ว): ${e.message}")
+        }
+        currentConversation = null
+        Log.i(TAG, "🔄 Conversation รีเซ็ตแล้ว")
+    }
 
     /**
-     * สร้าง Conversation ใหม่สำหรับแต่ละ request
-     *
-     * Haku จัดการ history ที่ Dart side ด้วย LeanContext
-     * → ส่ง full prompt ทุกครั้ง → conversation stateless ต่อ request
+     * 🔧 ตั้งค่า sampler parameters — ไม่ต้อง reload โมเดล
      */
-    private fun newConversation(): Conversation? {
+    fun setSamplerParams(temperature: Double? = null, topK: Int? = null, topP: Double? = null) {
+        temperature?.let { _temperature = it }
+        topK?.let { _topK = it }
+        topP?.let { _topP = it }
+        Log.i(TAG, "🔧 sampler: temp=$_temperature, topK=$_topK, topP=$_topP")
+    }
+
+    // ── Conversation Management ────────────────────────────────────────────────
+
+    /**
+     * ดึง/สร้าง Conversation ปัจจุบัน (lazy)
+     *
+     * Stateful: เก็บ KV cache ข้ามรอบ → inference เร็วขึ้นใน session เดียวกัน
+     * เรียก resetConversation() เพื่อเริ่ม session ใหม่
+     */
+    private fun getOrCreateConversation(): Conversation? {
+        currentConversation?.let { return it }
+
         val eng = engine ?: return null
-
-        val sampler = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.8, seed = 0)
-
+        val sampler = SamplerConfig(topK = _topK, topP = _topP, temperature = _temperature, seed = 0)
         val config = ConversationConfig(
             systemInstruction = currentSystemInstruction?.let { Contents.of(it) },
             samplerConfig = sampler,
         )
 
         return try {
-            eng.createConversation(config)
+            eng.createConversation(config).also { currentConversation = it }
         } catch (e: Exception) {
             Log.e(TAG, "❌ สร้าง Conversation ล้มเหลว: ${e.message}")
+            null
+        }
+    }
+
+    /** สร้าง Conversation แบบ one-shot (stateless) — ไม่บันทึกใน currentConversation */
+    private fun newOneshotConversation(): Conversation? {
+        val eng = engine ?: return null
+        val sampler = SamplerConfig(topK = _topK, topP = _topP, temperature = _temperature, seed = 0)
+        val config = ConversationConfig(
+            systemInstruction = currentSystemInstruction?.let { Contents.of(it) },
+            samplerConfig = sampler,
+        )
+        return try {
+            eng.createConversation(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ สร้าง one-shot Conversation ล้มเหลว: ${e.message}")
             null
         }
     }
@@ -138,8 +185,10 @@ class LiteRTLMBridge(private val context: Context) {
     // ── Inference ─────────────────────────────────────────────────────────────
 
     /**
-     * 💬 Generate แบบ blocking — คืน full response
-     * ใช้สำหรับ MethodChannel "generate" จาก Dart
+     * 💬 Generate แบบ one-shot blocking — stateless (สร้าง Conversation ใหม่ทุกครั้ง)
+     *
+     * ใช้สำหรับ background tasks เช่น SecretChat, WorkerService
+     * ที่ต้องการ isolated context ไม่เกี่ยวกับ session ปัจจุบัน
      */
     suspend fun generate(prompt: String): String = withContext(Dispatchers.IO) {
         if (!isInitialized) {
@@ -147,7 +196,7 @@ class LiteRTLMBridge(private val context: Context) {
             return@withContext ""
         }
 
-        val conversation = newConversation() ?: return@withContext ""
+        val conversation = newOneshotConversation() ?: return@withContext ""
 
         return@withContext try {
             val result = StringBuilder()
@@ -157,9 +206,7 @@ class LiteRTLMBridge(private val context: Context) {
                 override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
                     result.append(message.toString())
                 }
-                override fun onDone() {
-                    latch.countDown()
-                }
+                override fun onDone() { latch.countDown() }
                 override fun onError(throwable: Throwable) {
                     Log.e(TAG, "❌ inference error: ${throwable.message}")
                     latch.countDown()
@@ -178,8 +225,51 @@ class LiteRTLMBridge(private val context: Context) {
     }
 
     /**
+     * 💬 Generate แบบ stateful blocking — ใช้ KV cache ต่อ session
+     *
+     * เรียกเมื่อ user ส่งข้อความในหน้า Chat ปกติ
+     * ส่งแค่ user message (ไม่มี history ใน string) — Conversation จัดการ context เอง
+     * เรียก resetConversation() ก่อนเมื่อเริ่ม session ใหม่
+     */
+    suspend fun generateTurn(userMessage: String): String = withContext(Dispatchers.IO) {
+        if (!isInitialized) {
+            Log.e(TAG, "❌ ยังไม่ได้โหลดโมเดล")
+            return@withContext ""
+        }
+
+        val conversation = getOrCreateConversation() ?: return@withContext ""
+
+        return@withContext try {
+            val result = StringBuilder()
+            val latch = CountDownLatch(1)
+
+            conversation.sendMessageAsync(userMessage, object : MessageCallback {
+                override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
+                    result.append(message.toString())
+                }
+                override fun onDone() { latch.countDown() }
+                override fun onError(throwable: Throwable) {
+                    Log.e(TAG, "❌ generateTurn error: ${throwable.message}")
+                    // รีเซ็ต conversation เมื่อ error — state อาจเสีย
+                    resetConversation()
+                    latch.countDown()
+                }
+            })
+
+            latch.await()
+            result.toString()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ generateTurn ล้มเหลว: ${e.message}")
+            resetConversation()
+            ""
+        }
+    }
+
+    /**
      * 💬 Generate แบบ true streaming — callback ทุก token จริงๆ
      * ต่างจาก MediaPipe เดิมที่ simulate streaming โดย chunk ผลลัพธ์
+     * ใช้ one-shot conversation (stateless) เพราะ streaming มักเป็น background call
      */
     suspend fun generateStream(
         prompt: String,
@@ -191,7 +281,7 @@ class LiteRTLMBridge(private val context: Context) {
             return@withContext
         }
 
-        val conversation = newConversation() ?: return@withContext
+        val conversation = newOneshotConversation() ?: return@withContext
 
         try {
             val latch = CountDownLatch(1)
@@ -222,9 +312,10 @@ class LiteRTLMBridge(private val context: Context) {
     // ── Lifecycle ──────────────────────────────────────────────────────────────
 
     /**
-     * 🗑️ ปิด Engine และคืน memory
+     * 🗑️ ปิด Conversation + Engine และคืน memory
      */
     fun unloadModel() {
+        resetConversation()
         try {
             engine?.close()
             engine = null
@@ -240,6 +331,7 @@ class LiteRTLMBridge(private val context: Context) {
         "modelPath"            to currentModelPath,
         "backend"              to "LiteRT-LM",
         "hasSystemInstruction" to (currentSystemInstruction != null),
+        "hasActiveSession"     to (currentConversation != null),
         "status"               to if (isInitialized) "Ready" else "Not loaded",
     )
 }

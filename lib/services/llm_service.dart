@@ -7,7 +7,9 @@ import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/llm_model_config.dart';
 import '../utils/constants.dart';
+import 'llm_settings_service.dart';
 
 /// 🤖 LLM Service — LiteRT-LM On-device LLM Runtime
 ///
@@ -30,6 +32,10 @@ class LLMService {
 
   /// เวลาที่ไม่ใช้งานก่อน auto-unload (นาที)
   static const int autoUnloadMinutes = 5;
+
+  /// Model config ปัจจุบัน (detect จากชื่อไฟล์ + user override)
+  LLMModelConfig _modelConfig = LLMModelConfig.unknown;
+  LLMModelConfig get modelConfig => _modelConfig;
 
   // MethodChannel สื่อสารกับ Native (Android/iOS)
   static const MethodChannel _channel = MethodChannel('com.example.haku/llm');
@@ -70,6 +76,8 @@ class LLMService {
       await prefs.remove(StorageKeys.customLlmModelPath);
     } else {
       await prefs.setString(StorageKeys.customLlmModelPath, path);
+      // extract filename so detect() sees the real model name
+      _currentModelName = path.split('/').last;
     }
   }
 
@@ -115,11 +123,11 @@ class LLMService {
   /// 🚀 เริ่มต้น LLM (โหลดโมเดล)
   ///
   /// [modelName] — ชื่อไฟล์โมเดล (optional)
-  /// [maxTokens] — จำนวน token สูงสุด (default: 1024)
+  /// [maxTokens] — จำนวน token สูงสุด (default: จาก model config)
   /// [systemInstruction] — system prompt สำหรับ Gemma 4+ (optional)
   Future<bool> initialize({
     String? modelName,
-    int maxTokens = 1024,
+    int? maxTokens,
     String? systemInstruction,
   }) async {
     if (_isInitialized) {
@@ -131,6 +139,12 @@ class LLMService {
     _isLoading = true;
     if (modelName != null) _currentModelName = modelName;
 
+    // Detect model config จากชื่อไฟล์ + โหลด user override
+    final baseConfig = LLMModelConfig.detect(_currentModelName);
+    _modelConfig = await LlmSettingsService().loadEffectiveConfig(baseConfig);
+
+    final effectiveMaxTokens = maxTokens ?? _modelConfig.maxNumTokens;
+
     try {
       final modelPath = await _getModelPath(_currentModelName);
       if (modelPath == null) {
@@ -141,7 +155,7 @@ class LLMService {
 
       final result = await _channel.invokeMethod('loadModel', {
         'modelPath': modelPath,
-        'maxTokens': maxTokens,
+        'maxTokens': effectiveMaxTokens,
         if (systemInstruction != null && systemInstruction.isNotEmpty)
           'systemInstruction': systemInstruction,
       });
@@ -205,11 +219,13 @@ class LLMService {
   ///
   /// [autoLoad] — ถ้า true จะโหลดโมเดลอัตโนมัติ (default: true)
   /// [onToken] — callback สำหรับ simulate streaming
+  /// [temperature] — ความสร้างสรรค์ (default: จาก model config)
+  /// [maxTokens] — max output tokens (default: จาก model config)
   Future<String> generate(
     String prompt, {
     void Function(String token)? onToken,
-    double temperature = 0.7,
-    int maxTokens = 512,
+    double? temperature,
+    int? maxTokens,
     bool autoLoad = true,
   }) async {
     if (!_isInitialized) {
@@ -227,20 +243,25 @@ class LLMService {
     _lastUsedTime = DateTime.now();
     _resetAutoUnloadTimer();
 
+    final effectiveTemp = temperature ?? _modelConfig.defaultTemperature;
+    final effectiveMaxTokens = maxTokens ?? _modelConfig.faceMaxTokens;
+
     try {
+      final args = {
+        'prompt': prompt,
+        'maxTokens': effectiveMaxTokens,
+        'temperature': effectiveTemp,
+        'topK': _modelConfig.defaultTopK,
+        'topP': _modelConfig.defaultTopP,
+      };
+
       if (onToken == null) {
-        final result = await _channel.invokeMethod('generate', {
-          'prompt': prompt,
-          'maxTokens': maxTokens,
-        });
+        final result = await _channel.invokeMethod('generate', args);
         return result?.toString() ?? '';
       }
 
       // Simulate streaming: เรียก blocking แล้ว split ทีละ token
-      final result = await _channel.invokeMethod('generate', {
-        'prompt': prompt,
-        'maxTokens': maxTokens,
-      });
+      final result = await _channel.invokeMethod('generate', args);
       final text = result?.toString() ?? '';
 
       final buffer = StringBuffer();
@@ -248,6 +269,7 @@ class LLMService {
       for (final token in tokens) {
         buffer.write(token);
         onToken(token);
+        // ignore: inference_failure_on_instance_creation
         await Future.delayed(const Duration(milliseconds: 8));
       }
 
@@ -491,6 +513,7 @@ class LLMService {
   }
 
   /// 🔧 ตั้งค่า system instruction (Gemma 4 ready)
+  /// รีเซ็ต conversation อัตโนมัติ (Native side จัดการ)
   Future<void> setSystemInstruction(String instruction) async {
     try {
       await _channel.invokeMethod('setSystemInstruction', {
@@ -499,6 +522,55 @@ class LLMService {
       if (kDebugMode) print('🔧 System instruction updated');
     } catch (e) {
       if (kDebugMode) print('❌ Failed to set system instruction: $e');
+    }
+  }
+
+  /// 💬 Generate แบบ stateful — ใช้ KV cache ต่อ session
+  ///
+  /// ส่งแค่ user message (ไม่มี history ใน string)
+  /// Conversation บน Native จัดการ context ผ่าน KV cache เอง
+  /// เรียก resetConversation() ก่อนเมื่อเริ่ม session ใหม่
+  Future<String> generateTurn(
+    String userMessage, {
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (!_isInitialized) {
+      final loaded = await ensureLoaded();
+      if (!loaded) return '';
+    }
+
+    _lastUsedTime = DateTime.now();
+    _resetAutoUnloadTimer();
+
+    final effectiveTemp = temperature ?? _modelConfig.defaultTemperature;
+    final effectiveMaxTokens = maxTokens ?? _modelConfig.faceMaxTokens;
+
+    try {
+      final result = await _channel.invokeMethod('generateTurn', {
+        'prompt': userMessage,
+        'maxTokens': effectiveMaxTokens,
+        'temperature': effectiveTemp,
+        'topK': _modelConfig.defaultTopK,
+        'topP': _modelConfig.defaultTopP,
+      });
+      return result?.toString() ?? '';
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('❌ generateTurn PlatformException: ${e.message}');
+      return '';
+    } catch (e) {
+      if (kDebugMode) print('❌ generateTurn ล้มเหลว: $e');
+      return '';
+    }
+  }
+
+  /// 🔄 รีเซ็ต Conversation — เริ่ม session ใหม่ (ลบ KV cache เก่า)
+  Future<void> resetConversation() async {
+    try {
+      await _channel.invokeMethod('resetConversation');
+      if (kDebugMode) print('🔄 Conversation รีเซ็ตแล้ว');
+    } catch (e) {
+      if (kDebugMode) print('❌ resetConversation ล้มเหลว: $e');
     }
   }
 

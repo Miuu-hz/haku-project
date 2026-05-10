@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'battery_aware_service.dart';
 import 'chat_history_service.dart';
 import 'geofence_service.dart';
+import 'llm_service.dart';
 import 'topic_service.dart';
 import 'user_profile_service.dart';
 import 'vector_service.dart';
@@ -39,7 +41,12 @@ class ContextBuilder {
   static const int recentMessageCount = 5;
   static const int replyContextRadius = 2; // ±2 messages
   static const int maxRagResults = 3;
-  static const int maxContextTokens = 600; // Token budget for context
+
+  /// Token budget for context — dynamic ตาม model config
+  int get maxContextTokens {
+    final config = LLMService().modelConfig;
+    return config.modelId == 'unknown' ? 600 : config.maxContextTokens;
+  }
 
   /// 🚀 Initialize
   Future<void> initialize() async {
@@ -132,7 +139,11 @@ class ContextBuilder {
       parts.add('📍${currentZone.name}');
     }
 
-    // TODO: Add battery, music, etc.
+    // Battery
+    final battery = BatteryAwareService();
+    final level = battery.batteryLevel;
+    final chargingIcon = battery.isChargingOrFull ? '⚡' : '🔋';
+    parts.add('$chargingIcon$level%');
 
     return '[${parts.join("|")}]';
   }
@@ -368,5 +379,5 @@ class AIContext {
   bool get hasMemory => memory.isNotEmpty;
 
   /// Is within token budget
-  bool get isWithinBudget => estimatedTokens <= ContextBuilder.maxContextTokens;
+  bool get isWithinBudget => estimatedTokens <= ContextBuilder().maxContextTokens;
 }

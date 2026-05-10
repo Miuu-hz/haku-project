@@ -202,9 +202,12 @@ class _ExpandableFabState extends State<ExpandableFab>
                   heroTag: 'quick',
                   onPressed: () {
                     _toggle();
-                    // TODO: Quick capture dialog
-
-                    
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => const NewEntryScreen(),
+                      ),
+                    );
                   },
                   backgroundColor: const Color(0xFF6B4E71),
                   child: const Icon(Icons.bolt),

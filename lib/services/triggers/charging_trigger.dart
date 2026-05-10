@@ -6,8 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../battery_aware_service.dart';
 import '../deferred_task_service.dart';
-import '../lean_context_service.dart';
-import '../notification_service.dart';
+import '../scheduler_service.dart';
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 import '../worker_service.dart';
@@ -27,14 +26,12 @@ import 'timer_trigger.dart';
 
 class ChargingTrigger {
   final BatteryAwareService batteryService;
-  final LeanContextService leanContext;
   final UnifiedVectorService vectorService;
   final UserProfileService userProfile;
   final void Function(ChargingTriggerEvent) onTrigger;
 
   ChargingTrigger({
     required this.batteryService,
-    required this.leanContext,
     required this.vectorService,
     required this.userProfile,
     required this.onTrigger,
@@ -153,13 +150,9 @@ class ChargingTrigger {
     try {
       final now = DateTime.now();
 
-      // 1. End current session and create summary
-      final sessionSummary = await leanContext.endSession();
-
       // 2. Run ManagerSummaryStrategy (NEW - Orchestrator Pattern)
       debugPrint('📊 Running ManagerSummaryStrategy...');
       final managerStrategy = ManagerSummaryStrategy(
-        leanContext: leanContext,
         vectorService: vectorService,
         userProfile: userProfile,
       );
@@ -169,7 +162,7 @@ class ChargingTrigger {
       await _executeWorkerTasks(managerResult.workerTasks);
 
       // 4. Analyze health flags (legacy support)
-      final healthAnalysis = await _analyzeHealth(sessionSummary);
+      final healthAnalysis = await _analyzeHealth();
 
       // 5. Extract facts learned today
       final factsLearned = await _extractDailyFacts();
@@ -177,8 +170,8 @@ class ChargingTrigger {
       // 6. Create daily summary
       final dailySummary = DailySummary(
         date: now,
-        sessionSummary: sessionSummary?.summaryEn ?? 'No conversations today',
-        topics: sessionSummary?.topics ?? [],
+        sessionSummary: 'No conversations today',
+        topics: const [],
         healthFlags: healthAnalysis,
         factsLearned: factsLearned,
         createdAt: now,
@@ -227,10 +220,19 @@ class ChargingTrigger {
         switch (task.worker) {
           case WorkerType.reminder:
             debugPrint('  ⏰ Reminder: ${task.action}');
-            // Schedule via NotificationService
-            final notificationService = NotificationService();
-            await notificationService.initialize();
-            // TODO: Parse reminder data and schedule
+            // Parse reminder data and schedule via DeferredTaskService
+            final reminderTitle = task.data?['title'] as String? ?? task.action;
+            final reminderBody = task.data?['body'] as String? ?? 'อย่าลืมนะคะ';
+            final delayMinutes = task.data?['delayMinutes'] as int?;
+            DeferredTaskService().enqueue(
+              taskType: 'reminder',
+              payload: {
+                'title': reminderTitle,
+                'body': reminderBody,
+                if (delayMinutes != null) 'delayMinutes': delayMinutes,
+              },
+              priority: TaskPriority.high,
+            );
             break;
             
           case WorkerType.fact:
@@ -266,41 +268,20 @@ class ChargingTrigger {
     await workerService.runBatchProcess();
   }
 
-  /// 💊 Analyze health from session
-  Future<Map<String, dynamic>> _analyzeHealth(SessionSummary? summary) async {
+  /// 💊 Analyze health from vector store
+  Future<Map<String, dynamic>> _analyzeHealth() async {
     final healthFlags = <String, dynamic>{};
 
-    if (summary == null) return healthFlags;
+    final healthFacts = vectorService.getByCategory('health_log');
+    final periodFacts = healthFacts.where((f) =>
+      f.content.contains('period') || f.metadata?['condition'] == 'period'
+    ).toList();
 
-    final summaryLower = summary.summaryEn.toLowerCase();
-    final topics = summary.topics;
-
-    // ตรวจจับ period
-    if (summaryLower.contains('period') ||
-        summaryLower.contains('menstr') ||
-        topics.contains('health')) {
-
-      // ค้นหาข้อมูลเพิ่มเติมจาก RAG
-      final healthFacts = vectorService.getByCategory('health_log');
-      final periodFacts = healthFacts.where((f) =>
-        f.content.contains('period') || f.metadata?['condition'] == 'period'
-      ).toList();
-
-      if (periodFacts.isNotEmpty) {
-        healthFlags['period'] = true;
-        healthFlags['period_day'] = 1; // อาจคำนวณจากวันที่บันทึกล่าสุด
-        healthFlags['prediction'] = 'possible_cramps_in_2-5_days';
-        healthFlags['action'] = 'schedule_daily_health_check';
-      }
-    }
-
-    // ตรวจจับอาการอื่นๆ
-    if (summaryLower.contains('tired') || summaryLower.contains('exhaust')) {
-      healthFlags['fatigue'] = true;
-    }
-
-    if (summaryLower.contains('pain') || summaryLower.contains('hurt')) {
-      healthFlags['pain'] = true;
+    if (periodFacts.isNotEmpty) {
+      healthFlags['period'] = true;
+      healthFlags['period_day'] = 1;
+      healthFlags['prediction'] = 'possible_cramps_in_2-5_days';
+      healthFlags['action'] = 'schedule_daily_health_check';
     }
 
     return healthFlags;
@@ -343,7 +324,7 @@ class ChargingTrigger {
 
     // Add health follow-up if needed
     if (summary.healthFlags['period'] == true) {
-      morningMessage += '\n💊 วันนี้อาการเป็นไงบ้างคะ?';
+      morningMessage += '\nวันนี้อาการเป็นไงบ้างคะ?';
 
       // Schedule health check for next 5 days
       for (var i = 1; i <= 5; i++) {
@@ -378,21 +359,35 @@ class ChargingTrigger {
     if (userName.isNotEmpty) {
       greeting += ' คุณ$userName';
     }
-    greeting += '! ☀️';
+    greeting += '!';
 
     // Check yesterday's summary for context
     final yesterday = _dailySummaries.lastOrNull;
     String? healthNote;
+    String? scheduleNote;
 
     if (yesterday != null) {
       // Health follow-up
       if (yesterday.healthFlags['period'] == true) {
         final day = (yesterday.healthFlags['period_day'] as int? ?? 1) + 1;
-        healthNote = '💊 วันที่ $day ของรอบ - อาการเป็นไงบ้างคะ?';
+        healthNote = 'วันที่ $day ของรอบ - อาการเป็นไงบ้างคะ?';
       }
+    }
 
-      // TODO: Check calendar for today's events
-      // scheduleNote = 'วันนี้มีนัดหมาย: ...';
+    // Check calendar for today's events
+    try {
+      final dayStart = DateTime(today.year, today.month, today.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final events = await SchedulerService().getCalendarEvents(dayStart, dayEnd);
+      if (events.isNotEmpty) {
+        final titles = events.take(3).map((e) => e['title'] as String? ?? 'นัดหมาย').join(', ');
+        scheduleNote = 'วันนี้มีนัดหมาย: $titles';
+        if (events.length > 3) {
+          scheduleNote += ' และอีก ${events.length - 3} รายการ';
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load calendar events: $e');
     }
 
     // Build message
@@ -401,11 +396,10 @@ class ChargingTrigger {
       buffer.writeln();
       buffer.write(healthNote);
     }
-    // TODO: Add schedule note when calendar integration is ready
-    // if (scheduleNote != null) {
-    //   buffer.writeln();
-    //   buffer.write(scheduleNote);
-    // }
+    if (scheduleNote != null) {
+      buffer.writeln();
+      buffer.write(scheduleNote);
+    }
 
     return ChargingTriggerEvent(
       type: ChargingTriggerType.morningNotification,
@@ -413,7 +407,7 @@ class ChargingTrigger {
       data: {
         'date': today.toIso8601String(),
         'hasHealthNote': healthNote != null,
-        'hasScheduleNote': false, // TODO: Update when calendar is integrated
+        'hasScheduleNote': scheduleNote != null,
       },
     );
   }

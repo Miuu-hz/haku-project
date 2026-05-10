@@ -1,0 +1,302 @@
+/* ============================================================
+   Haku Crystal — Design Tokens
+   Foundations for a glass-crystal, vivid, on-device AI assistant.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap");
+
+:root {
+  /* ---------- Color :: Field ---------- */
+  --field-0: #050817;          /* deepest, behind everything */
+  --field-1: #070b1a;          /* default scaffold */
+  --field-2: #0e1638;          /* lifted */
+  --field-3: #141f4a;          /* nav bar / sheet */
+
+  /* ---------- Color :: Glass surface ---------- */
+  --glass-fill:        rgba(255, 255, 255, 0.72);
+  --glass-fill-strong: rgba(255, 255, 255, 0.88);
+  --glass-fill-soft:   rgba(255, 255, 255, 0.55);
+  --glass-edge:        rgba(255, 255, 255, 0.65);
+  --glass-highlight:   rgba(255, 255, 255, 0.85);
+  --glass-stroke:      rgba(80, 90, 140, 0.10);
+
+  /* ---------- Color :: Crystal primary (from app icon) ---------- */
+  --crystal-50:  #e6fbff;
+  --crystal-100: #c4f4ff;
+  --crystal-200: #93ecff;
+  --crystal-300: #5fe2ff;
+  --crystal-400: #3cdfff;   /* CORE primary — the glow */
+  --crystal-500: #1fc4e8;
+  --crystal-600: #0ea1c4;
+  --crystal-700: #0c7e9b;
+  --crystal-900: #0a1f4d;   /* navy outline of the cube */
+
+  /* ---------- Color :: Lavender (Haku heritage) ---------- */
+  --lavender-300: #c8b3df;
+  --lavender-400: #b69bd2;
+  --lavender-500: #9b7cb6;
+  --lavender-600: #7e5d9b;
+  --lavender-700: #6b4e71;
+
+  /* ---------- Color :: Vivid accents (Now-Brief categories) ---------- */
+  --vivid-lime:    #a8ff60;
+  --vivid-magenta: #ff6bd0;
+  --vivid-gold:    #ffd66b;
+  --vivid-coral:   #ff8c66;
+  --vivid-mint:    #5fffc7;
+
+  /* ---------- Color :: Foreground ---------- */
+  --fg-1: #050a1e;     /* primary text on light glass */
+  --fg-2: #1f2a55;     /* secondary */
+  --fg-3: #44528a;     /* tertiary / hint */
+  --fg-4: #8a93b5;     /* disabled / divider-on-glass */
+  --fg-on-cyan: #04141a;
+
+  /* ---------- Color :: Semantic ---------- */
+  --ok:    #5fffc7;
+  --warn:  #ffd66b;
+  --err:   #ff6b8a;
+  --info:  var(--crystal-400);
+
+  /* ---------- Type :: families ---------- */
+  --font-sans: "Noto Sans Thai", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Inter", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-icon: "Material Symbols Rounded";
+
+  /* ---------- Type :: scale ---------- */
+  --t-display:  700 56px/1.05 var(--font-display);
+  --t-h1:       700 36px/1.1  var(--font-display);
+  --t-h2:       600 28px/1.2  var(--font-display);
+  --t-h3:       600 22px/1.25 var(--font-sans);
+  --t-h4:       600 18px/1.3  var(--font-sans);
+  --t-body:     400 15px/1.5  var(--font-sans);
+  --t-body-md:  500 15px/1.5  var(--font-sans);
+  --t-label:    500 13px/1.3  var(--font-sans);
+  --t-caption:  500 12px/1.35 var(--font-sans);
+  --t-eyebrow:  600 11px/1    var(--font-sans);
+  --t-mono-sm:  400 12px/1.4  var(--font-mono);
+  --t-numeral:  700 64px/1    var(--font-display);
+  --letter-eyebrow: 0.18em;
+  --letter-display: -0.02em;
+
+  /* ---------- Spacing scale (8px base) ---------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 48px;
+  --s-9: 64px;
+  --s-10: 96px;
+
+  /* ---------- Radii ---------- */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 16px;
+  --r-4: 22px;
+  --r-5: 28px;
+  --r-6: 36px;
+  --r-pill: 999px;
+
+  /* ---------- Borders ---------- */
+  --hair: 1px;
+
+  /* ---------- Shadows / glows ---------- */
+  --shadow-glass-1:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 0 0 1px rgba(80, 90, 140, 0.08),
+    0 10px 28px -10px rgba(40, 60, 130, 0.25);
+  --shadow-glass-2:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 0 0 1px rgba(80, 90, 140, 0.10),
+    0 18px 40px -14px rgba(40, 60, 130, 0.30);
+  --shadow-glass-pressed:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 0 0 1px rgba(60, 223, 255, 0.25),
+    inset 0 0 24px rgba(60, 223, 255, 0.18);
+  --glow-cyan:
+    0 0 0 1px rgba(60, 223, 255, 0.35),
+    0 0 24px rgba(60, 223, 255, 0.45),
+    0 0 64px rgba(60, 223, 255, 0.25);
+  --glow-lavender:
+    0 0 0 1px rgba(182, 155, 226, 0.35),
+    0 0 24px rgba(182, 155, 226, 0.45),
+    0 0 64px rgba(155, 124, 182, 0.25);
+  --glow-magenta:
+    0 0 0 1px rgba(255, 107, 208, 0.35),
+    0 0 24px rgba(255, 107, 208, 0.45);
+  --glow-lime:
+    0 0 0 1px rgba(168, 255, 96, 0.35),
+    0 0 24px rgba(168, 255, 96, 0.40);
+
+  /* ---------- Motion ---------- */
+  --ease-rise:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snap:    cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-glide:   cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:   180ms;
+  --dur-base:   320ms;
+  --dur-rise:   620ms;
+  --dur-pop:    540ms;
+  --dur-shimmer: 4000ms;
+  --dur-breath:  1600ms;
+  --ease-spring: cubic-bezier(0.16, 1.4, 0.3, 1);
+  --ease-pop:    cubic-bezier(0.18, 1.8, 0.32, 1);
+
+  /* ---------- Field background image ---------- */
+  --field-aurora:
+    radial-gradient(900px 600px at 12% 6%,  rgba(80, 215, 255, 0.85), transparent 60%),
+    radial-gradient(700px 700px at 92% 96%, rgba(195, 155, 255, 0.80), transparent 60%),
+    radial-gradient(540px 420px at 70% 8%,  rgba(255, 140, 215, 0.65), transparent 60%),
+    radial-gradient(460px 380px at 8% 92%,  rgba(168, 255, 130, 0.45), transparent 60%),
+    linear-gradient(180deg, #f3faff 0%, #e6efff 45%, #f3e6ff 100%);
+}
+
+/* ============================================================
+   Base / utility classes
+   ============================================================ */
+
+.haku-field {
+  background: var(--field-aurora);
+  color: var(--fg-1);
+  font: var(--t-body);
+}
+
+.haku-field::before {
+  /* film grain to break banding on the gradient */
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  z-index: 0;
+}
+
+.haku-glass {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+  border-radius: var(--r-4);
+  box-shadow: var(--shadow-glass-1);
+  position: relative;
+  overflow: hidden;
+}
+
+.haku-glass--strong { background: var(--glass-fill-strong); }
+.haku-glass--soft   { background: var(--glass-fill-soft); }
+
+.haku-glass::after {
+  /* caustic shimmer */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.06) 48%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.06) 52%,
+    transparent 70%
+  );
+  background-size: 220% 220%;
+  background-position: 110% 50%;
+  animation: haku-shimmer var(--dur-shimmer) var(--ease-glide) infinite;
+}
+
+@keyframes haku-shimmer {
+  0%   { background-position: 110% 50%; }
+  60%  { background-position: -10% 50%; }
+  100% { background-position: -10% 50%; }
+}
+
+@keyframes haku-rise {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes haku-pop {
+  0%   { opacity: 0; transform: scale(0.6) translateY(8px); }
+  55%  { opacity: 1; transform: scale(1.06) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes haku-bubble-in {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.85); }
+  55%  { transform: translateY(-3px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+@keyframes haku-slide-right {
+  0%   { opacity: 0; transform: translateX(-22px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes haku-breath {
+  0%, 100% { opacity: 0.7; transform: scale(0.94); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+
+@keyframes haku-orb-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1)    rotate(0deg); }
+  33%  { transform: translate3d(40px, -30px, 0) scale(1.12) rotate(60deg); }
+  66%  { transform: translate3d(-30px, 40px, 0) scale(0.92) rotate(180deg); }
+  100% { transform: translate3d(0, 0, 0) scale(1)    rotate(360deg); }
+}
+
+@keyframes haku-hue-shift {
+  0%, 100% { filter: hue-rotate(0deg) saturate(1.1); }
+  50%      { filter: hue-rotate(20deg) saturate(1.35); }
+}
+
+@keyframes haku-thinking {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(60,223,255,0.55), 0 0 32px rgba(60,223,255,0.45); }
+  50%      { transform: scale(1.18); box-shadow: 0 0 0 18px rgba(60,223,255,0), 0 0 48px rgba(60,223,255,0.65); }
+}
+
+@keyframes haku-typing-bounce {
+  0%, 80%, 100% { transform: translateY(0)    scale(0.85); opacity: 0.5; }
+  40%           { transform: translateY(-6px) scale(1.1);  opacity: 1; }
+}
+
+.haku-rise { animation: haku-rise var(--dur-rise) var(--ease-spring) both; }
+.haku-pop  { animation: haku-pop  var(--dur-pop)  var(--ease-pop) both; }
+.haku-bubble-in { animation: haku-bubble-in 520ms var(--ease-spring) both; }
+.haku-slide-right { animation: haku-slide-right 480ms var(--ease-rise) both; }
+.haku-breath { animation: haku-breath var(--dur-breath) var(--ease-glide) infinite; }
+.haku-thinking { animation: haku-thinking 1800ms var(--ease-glide) infinite; }
+.haku-hue { animation: haku-hue-shift 8s ease-in-out infinite; }
+
+/* Material Symbols defaults */
+.msr {
+  font-family: var(--font-icon);
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+.msr--filled { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
+.msr--thin   { font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24; }
+
+/* Eyebrow / label utilities */
+.haku-eyebrow {
+  font: var(--t-eyebrow);
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/entry.dart';
@@ -448,7 +450,40 @@ class _ViewEntryScreenState extends State<ViewEntryScreen> {
               fontFamily: 'monospace',
             ),
           ),
-          // TODO: Phase 2 - แสดงแผนที่ Mini ตรงนี้
+          if (widget.entry.latitude != null && widget.entry.longitude != null) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 200,
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: LatLng(widget.entry.latitude!, widget.entry.longitude!),
+                    initialZoom: 15,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.none,
+                    ),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.haku.app',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(widget.entry.latitude!, widget.entry.longitude!),
+                          width: 40,
+                          height: 40,
+                          child: const Icon(Icons.location_on, color: Color(0xFFFF6B6B), size: 40),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

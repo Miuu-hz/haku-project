@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/llm_model_config.dart';
+
 /// 🔌 LLM Provider — Abstract Interface
 ///
 /// Abstraction layer สำหรับ LLM ทุกชนิด ทั้ง on-device (MediaPipe)
@@ -17,11 +19,14 @@ abstract class LLMProvider {
   /// กำลังโหลดโมเดลอยู่
   bool get isLoading;
 
+  /// Model config ปัจจุบัน
+  LLMModelConfig get modelConfig;
+
   /// 🚀 Initialize provider
   ///
   /// สำหรับ on-device: โหลดโมเดลจากไฟล์
   /// สำหรับ cloud: ตรวจสอบ connection + health check
-  Future<bool> initialize({int maxTokens = 1024});
+  Future<bool> initialize({int? maxTokens});
 
   /// 💬 Generate text จาก prompt
   Future<String> generate(String prompt);
@@ -44,7 +49,10 @@ class MockLLMProvider implements LLMProvider {
   bool get isLoading => false;
 
   @override
-  Future<bool> initialize({int maxTokens = 1024}) async {
+  LLMModelConfig get modelConfig => LLMModelConfig.unknown;
+
+  @override
+  Future<bool> initialize({int? maxTokens}) async {
     _initialized = true;
     debugPrint('🧪 Mock LLM Provider initialized');
     return true;

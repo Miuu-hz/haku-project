@@ -3,6 +3,8 @@
 // 🎭 THE FACE (Realtime): ตอบสนทนาไทยธรรมชาติ (ไม่ใช่ JSON!)
 // 👷 THE WORKER (Batch): สร้าง structured data สำหรับ RAG
 
+import 'llm_service.dart';
+
 class PromptBuilder {
   // ═══════════════════════════════════════════════════════════
   // 🎭 THE FACE - Realtime Chat (ตอบเป็นภาษาไทยธรรมชาติ)
@@ -48,21 +50,19 @@ Output:''';
   /// 🗣️ Stage 1: THE FACE — General Chat (ตอบเป็นภาษาไทยธรรมชาติ)
   /// ใช้สำหรับ On-device Gemma (ต้องการ chat template tokens)
   ///
-  /// ⚠️ MediaPipe maxTokens=1024 (input+output รวม)
-  /// Budget: system~70t + datetime~10t + user~50t + output~100t = ~230t
-  /// เหลือ context ได้ ~794t ≈ 400 chars (conservative สำหรับ Thai)
-  static const int _gemmaMaxContextChars = 400;
-
   static String buildGemmaPrompt({
     required String userMessage,
     String? context,
   }) {
     final timeContext = 'Current DateTime: $_currentDateTime';
 
-    // ตัด context ที่ยาวเกินไปก่อนส่ง Gemma — เก็บส่วนท้าย (recent) ซึ่งสำคัญกว่า
+    // ตัด context ให้พอดีกับ model config — ไม่ใช่ hardcode 400 อีกต่อไป
     String? ctx = context;
-    if (ctx != null && ctx.length > _gemmaMaxContextChars) {
-      ctx = ctx.substring(ctx.length - _gemmaMaxContextChars);
+    if (ctx != null && ctx.isNotEmpty) {
+      final maxChars = LLMService().modelConfig.maxContextChars;
+      if (ctx.length > maxChars) {
+        ctx = ctx.substring(ctx.length - maxChars);
+      }
     }
 
     final contextSection = ctx != null && ctx.isNotEmpty
@@ -82,6 +82,38 @@ Output:''';
     if (text.isEmpty) return false;
     final thaiCount = text.codeUnits.where((c) => c >= 0x0E00 && c <= 0x0E7F).length;
     return thaiCount / text.length > 0.20;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 💬 Stateful LiteRT-LM — แยก System Instruction ออกจาก User Turn
+  // ═══════════════════════════════════════════════════════════
+
+  /// System Instruction สำหรับ Stateful Conversation (ตั้งครั้งเดียวต่อ session)
+  ///
+  /// Conversation API จัดการ template tokens เอง → ไม่ต้องใส่ <start_of_turn>
+  static String buildSystemInstruction() => hakuFacePrompt;
+
+  /// User Turn สำหรับ Stateful Conversation (ส่งทุกรอบ)
+  ///
+  /// ไม่มี history ใน string — Conversation จัดการ KV cache เอง
+  static String buildUserTurn({
+    required String userMessage,
+    String? context,
+  }) {
+    final timeContext = 'Current DateTime: $_currentDateTime';
+
+    String? ctx = context;
+    if (ctx != null && ctx.isNotEmpty) {
+      final maxChars = LLMService().modelConfig.maxContextChars;
+      if (ctx.length > maxChars) ctx = ctx.substring(ctx.length - maxChars);
+    }
+
+    final contextSection = ctx != null && ctx.isNotEmpty ? '\nContext:\n$ctx' : '';
+    final langInstruction = _isThai(userMessage)
+        ? 'ตอบเป็นภาษาไทยเท่านั้น 1-2 ประโยค'
+        : 'Reply in English only. 1-2 sentences.';
+
+    return '$langInstruction\n$timeContext$contextSection\n\nUser: $userMessage';
   }
 
   /// ☁️ Stage 1: THE FACE — Cloud LLM (OpenRouter, Gemini, Claude, OpenAI)
@@ -135,38 +167,6 @@ Output:''';
   // 🔬 Pre-Classify — LLM intent from user message only (before Face)
   // ═══════════════════════════════════════════════════════════
 
-  /// 🔬 Pre-Classify Prompt — language-agnostic intent extraction
-  ///
-  /// ใช้ก่อน Face LLM เพื่อให้ Face รู้ intent และตอบได้ถูกต้อง
-  /// ทำงานได้ทุกภาษา (LLM เข้าใจ) — ไม่ต้องพึ่ง Thai regex
-  static String buildPreClassifyPrompt({required String userMessage}) {
-    final now = _currentDateTime;
-    return '''<start_of_turn>user
-Role: Intent Classifier. Current Date: $now
-
-Classify this message. Output JSON ONLY (no markdown).
-
-Message: "$userMessage"
-
-Intent rules (pick exactly one):
-- "schedule" = user is TELLING about a new future event they have ("มีนัด","จะไป","ต้องไป")
-- "query"    = user is ASKING about their own schedule/tasks ("ต้องทำอะไรบ้าง","มีอะไรวันนี้","วางแผนไว้")
-- "remind"   = user wants an alert/reminder set
-- "search"   = asking for external info (news, weather, prices, facts)
-- "log"      = sharing past activity/experience
-- "chat"     = casual conversation
-
-Key distinction: "schedule" = ADDING new event. "query" = ASKING about existing plans.
-
-Output JSON ONLY:
-{
-  "intent": "schedule|query|remind|search|log|chat",
-  "summary_en": "max 12 word English summary",
-  "action": {"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}
-}<end_of_turn>
-<start_of_turn>model
-''';
-  }
 
   // ═══════════════════════════════════════════════════════════
   // 👷 THE WORKER - Batch Processing (สร้าง structured data)

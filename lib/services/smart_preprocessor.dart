@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import '../models/entry.dart';
 import 'database_helper.dart';
-import 'lean_context_service.dart';
 import 'rag_service.dart';
 import 'scheduler_service.dart';
 import 'user_profile_service.dart';
@@ -42,7 +41,6 @@ class SmartPreprocessor {
   SmartPreprocessor._internal();
 
   final UserProfileService _userProfile = UserProfileService();
-  final LeanContextService _leanContext = LeanContextService();
 
   // Workers
   final FactWorker _factWorker = FactWorker();
@@ -92,6 +90,8 @@ class SmartPreprocessor {
     caseSensitive: false,
   );
 
+  static final RegExp _tomorrowPattern = RegExp(r'พรุ่งนี้|พรุ้งนี้|tomorrow', caseSensitive: false);
+
   // ============================================================
   // 🚀 MAIN PREPROCESSING
   // ============================================================
@@ -101,11 +101,7 @@ class SmartPreprocessor {
   /// Returns: PreprocessResult ที่มี:
   /// - enrichedContext: ข้อมูลเสริมจาก web search, user profile
   /// - detectedIntent: intent ที่ตรวจจับได้
-  Future<PreprocessResult> preprocess(
-    String userMessage, {
-    List<ChatHistoryItem>? recentHistory,
-    bool useLeanContext = true,
-  }) async {
+  Future<PreprocessResult> preprocess(String userMessage) async {
     debugPrint('🧠 SmartPreprocessor: Processing "$userMessage"');
 
     String enrichedContext = '';
@@ -113,8 +109,7 @@ class SmartPreprocessor {
     final workerResults = WorkerResults();
 
     // 0. Initialize services
-    await Future.wait([
-      _leanContext.initialize(),
+    await Future.wait<void>([
       _calendarWorker.initialize(),
       _reminderWorker.initialize(),
       _goalWorker.initialize(),
@@ -198,7 +193,7 @@ class SmartPreprocessor {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         // ถามพรุ่งนี้ → ดึงพรุ่งนี้, อื่นๆ → ดึงวันนี้ + 2 วันข้างหน้า
-        final isAskingTomorrow = RegExp(r'พรุ่งนี้|พรุ้งนี้|tomorrow').hasMatch(userMessage);
+        final isAskingTomorrow = _tomorrowPattern.hasMatch(userMessage);
         final rangeStart = isAskingTomorrow ? today.add(const Duration(days: 1)) : today;
         final rangeEnd = rangeStart.add(Duration(days: isAskingTomorrow ? 1 : 2));
 
@@ -209,9 +204,7 @@ class SmartPreprocessor {
           final lines = events.map((e) {
             final title = e['title'] ?? e['eventTitle'] ?? '(ไม่มีชื่อ)';
             final startMs = e['startTime'] as int?;
-            final timeStr = startMs != null
-                ? () { final dt = DateTime.fromMillisecondsSinceEpoch(startMs); return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}'; }()
-                : '';
+            final timeStr = startMs != null ? _fmtTime(DateTime.fromMillisecondsSinceEpoch(startMs)) : '';
             final loc = (e['location'] ?? '') as String;
             return '• $timeStr $title${loc.isNotEmpty ? " @$loc" : ""}'.trim();
           }).join('\n');
@@ -260,82 +253,58 @@ class SmartPreprocessor {
       } catch (_) {}
     }
 
-    // 3. 📦 Build Context
-    if (useLeanContext) {
-      // Build lean context with worker data
-      final contextParts = <String>[];
+    // 3. 📦 Build Context — worker data + enriched context (ไม่มี chat history → จัดการโดย LiteRT Conversation)
+    final contextParts = <String>[];
 
-      // Identity
-      final identity = _userProfile.getIdentityCard();
-      if (identity.isNotEmpty) contextParts.add(identity);
+    final identity = _userProfile.getIdentityCard();
+    if (identity.isNotEmpty) contextParts.add(identity);
 
-      // Health (if any)
-      final healthLean = _healthDoctor.leanFormat;
-      if (healthLean.isNotEmpty) contextParts.add(healthLean);
+    final healthLean = _healthDoctor.leanFormat;
+    if (healthLean.isNotEmpty) contextParts.add(healthLean);
 
-      // Calendar (upcoming)
-      final calendarLean = _calendarWorker.getLeanFormat();
-      if (calendarLean.isNotEmpty) contextParts.add(calendarLean);
+    final calendarLean = _calendarWorker.getLeanFormat();
+    if (calendarLean.isNotEmpty) contextParts.add(calendarLean);
 
-      // 🔍 Conflict check — ถ้า detect schedule intent ให้ตรวจ overlap + เสนอ slot ว่าง (2.11)
-      if (intent == DetectedIntent.schedule &&
-          workerResults.calendarEvents.isNotEmpty) {
-        final first = workerResults.calendarEvents.first;
-        final timeStr = first.time != null
-            ? '${first.time!.hour.toString().padLeft(2, '0')}:${first.time!.minute.toString().padLeft(2, '0')}'
-            : null;
-        final eventInfo = EventInfo(
-          title: first.title,
-          date: first.date,
-          time: timeStr,
-          originalText: '',
-        );
-        try {
-          final scheduler = SchedulerService();
-          final conflict = await scheduler
-              .checkConflicts(eventInfo)
+    // Conflict check — ถ้า detect schedule intent ตรวจ overlap + เสนอ slot ว่าง
+    if (intent == DetectedIntent.schedule &&
+        workerResults.calendarEvents.isNotEmpty) {
+      final first = workerResults.calendarEvents.first;
+      final timeStr = first.time != null ? _fmtTod(first.time!) : null;
+      final eventInfo = EventInfo(
+        title: first.title,
+        date: first.date,
+        time: timeStr,
+        originalText: '',
+      );
+      try {
+        final scheduler = SchedulerService();
+        final conflict = await scheduler
+            .checkConflicts(eventInfo)
+            .timeout(const Duration(seconds: 3));
+        if (conflict.hasConflict) {
+          final names = conflict.conflicts
+              .map((e) => e['title'] as String? ?? 'กิจกรรม')
+              .join(', ');
+          final freeSlot = await scheduler
+              .findNextFreeSlot(conflict.proposedStart, eventInfo.durationMinutes)
               .timeout(const Duration(seconds: 3));
-          if (conflict.hasConflict) {
-            final names = conflict.conflicts
-                .map((e) => e['title'] as String? ?? 'กิจกรรม')
-                .join(', ');
-            final freeSlot = await scheduler
-                .findNextFreeSlot(
-                    conflict.proposedStart, eventInfo.durationMinutes)
-                .timeout(const Duration(seconds: 3));
-            final slotStr = freeSlot != null
-                ? '[FreeSlot:${freeSlot.hour.toString().padLeft(2, '0')}:${freeSlot.minute.toString().padLeft(2, '0')}]'
-                : '';
-            contextParts.add('[Conflict:$names]$slotStr');
-            debugPrint('⚠️ Conflict: $names | FreeSlot: $freeSlot');
-          }
-        } catch (e) {
-          debugPrint('⚠️ Conflict check skipped: $e');
+          final slotStr = freeSlot != null ? '[FreeSlot:${_fmtTime(freeSlot)}]' : '';
+          contextParts.add('[Conflict:$names]$slotStr');
+          debugPrint('⚠️ Conflict: $names | FreeSlot: $freeSlot');
         }
+      } catch (e) {
+        debugPrint('⚠️ Conflict check skipped: $e');
       }
+    }
 
-      // Reminders
-      final reminderLean = _reminderWorker.getLeanFormat();
-      if (reminderLean.isNotEmpty) contextParts.add(reminderLean);
+    final reminderLean = _reminderWorker.getLeanFormat();
+    if (reminderLean.isNotEmpty) contextParts.add(reminderLean);
 
-      // Goals
-      final goalLean = _goalWorker.getLeanFormat();
-      if (goalLean.isNotEmpty) contextParts.add(goalLean);
+    final goalLean = _goalWorker.getLeanFormat();
+    if (goalLean.isNotEmpty) contextParts.add(goalLean);
 
-      // Lean chat history
-      enrichedContext = '${contextParts.join("\n")}\n${_leanContext.buildContextForAI()}\n$enrichedContext';
-      debugPrint('📦 Using Lean Context: ~${_leanContext.getEstimatedTokenCount()} tokens');
-    } else {
-      // ใช้แบบเดิม
-      final identity = _userProfile.getIdentityCard();
-      if (identity.isNotEmpty) {
-        enrichedContext = '👤 ผู้ใช้: $identity\n$enrichedContext';
-      }
-
-      if (recentHistory != null && recentHistory.isNotEmpty) {
-        final historyStr = _buildChatHistory(recentHistory);
-        enrichedContext = '$historyStr\n$enrichedContext';
-      }
+    if (contextParts.isNotEmpty) {
+      enrichedContext = '${contextParts.join("\n")}\n$enrichedContext';
     }
 
     debugPrint('✅ Preprocessing complete, context length: ${enrichedContext.length}');
@@ -348,32 +317,6 @@ class SmartPreprocessor {
     );
   }
 
-  /// ➕ Add message to Lean Context
-  Future<void> addToLeanContext(String content, {required bool isUser}) async {
-    await _leanContext.initialize();
-    if (isUser) {
-      await _leanContext.addUserMessage(content);
-    } else {
-      await _leanContext.addAIMessage(content);
-    }
-  }
-
-  /// 🔄 Update last AI lean entry with English (Secret Chat output, async)
-  void updateLeanContextWithEnglish(String englishSummary) {
-    _leanContext.updateLastPairWithEnglish(englishSummary);
-  }
-
-  /// 🔄 Update last USER lean entry with English (from preClassify, instant)
-  /// เรียกทันทีหลัง preClassify returns — ไม่ต้องรอ SecretChat async
-  void updateUserMessageWithEnglish(String englishSummary) {
-    _leanContext.updateLastUserMessageWithEnglish(englishSummary);
-  }
-
-  /// 📊 Get Lean Context stats
-  Map<String, dynamic> getLeanContextStats() => _leanContext.getSessionInfo();
-
-  /// 🗑️ Clear lean context (messages + session summaries)
-  Future<void> clearLeanContext() => _leanContext.clearAll();
 
   // ============================================================
   // 🔍 DETECTION METHODS
@@ -443,28 +386,6 @@ class SmartPreprocessor {
       }
     }
     return null;
-  }
-
-  /// สร้าง Chat History string
-  String _buildChatHistory(List<ChatHistoryItem> history) {
-    if (history.isEmpty) return '';
-
-    final buffer = StringBuffer();
-    buffer.writeln('💬 บทสนทนาล่าสุด:');
-
-    // เอาแค่ 6 ข้อความล่าสุด (3 รอบสนทนา)
-    final recent = history.length > 6 ? history.sublist(history.length - 6) : history;
-
-    for (final item in recent) {
-      final role = item.isUser ? 'User' : 'Haku';
-      // ตัดข้อความยาวเกินไป
-      final content = item.content.length > 100
-          ? '${item.content.substring(0, 100)}...'
-          : item.content;
-      buffer.writeln('$role: $content');
-    }
-
-    return buffer.toString();
   }
 
   // ============================================================
@@ -654,15 +575,13 @@ class WorkerResults {
 
     for (final e in calendarEvents) {
       final dateStr = _formatEventDate(e.date);
-      final timeStr = e.time != null
-          ? ' ${e.time!.hour.toString().padLeft(2, '0')}:${e.time!.minute.toString().padLeft(2, '0')}'
-          : '';
+      final timeStr = e.time != null ? ' ${_fmtTod(e.time!)}' : '';
       lines.add('📅 ${e.title} · $dateStr$timeStr');
     }
 
     for (final r in reminders) {
       final timeStr = r.time != null
-          ? ' · ${r.time!.hour.toString().padLeft(2, '0')}:${r.time!.minute.toString().padLeft(2, '0')}'
+          ? ' · ${_fmtTod(r.time!)}'
           : '';
       final freqStr = r.frequency == ReminderFrequency.daily ? ' · ทุกวัน' : '';
       lines.add('⏰ ${r.content}$timeStr$freqStr');
@@ -710,15 +629,9 @@ enum QuickActionType {
   askUserName,
 }
 
-/// Chat History Item
-class ChatHistoryItem {
-  final String content;
-  final bool isUser;
-  final DateTime timestamp;
+String _fmtTime(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
-  ChatHistoryItem({
-    required this.content,
-    required this.isUser,
-    DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
-}
+String _fmtTod(dynamic tod) =>
+    '${tod.hour.toString().padLeft(2, '0')}:${tod.minute.toString().padLeft(2, '0')}';
+

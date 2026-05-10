@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1);overflow:hidden}
+  html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}
+  html,body{scrollbar-width:none;-ms-overflow-style:none}
+  .wrap{padding:22px 24px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+  label{display:flex;flex-direction:column;gap:8px}
+  .lbl{font:var(--t-label);color:var(--fg-2)}
+  .field{display:flex;align-items:center;gap:12px;height:52px;padding:0 18px;border-radius:var(--r-4);background:rgba(28,42,82,0.42);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(255,255,255,.06),0 8px 24px -12px rgba(0,0,0,.45);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);transition:box-shadow .25s ease}
+  .field input,.field textarea{flex:1;background:transparent;border:0;outline:0;color:var(--fg-1);font:var(--t-body);font-family:var(--font-sans)}
+  .field input::placeholder,.field textarea::placeholder{color:var(--fg-3)}
+  .field--focus{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 1px rgba(182,155,226,.45),0 8px 24px -10px rgba(155,124,182,.35)}
+  .field--focus .msr{color:var(--lavender-300)}
+  .msr{color:var(--fg-3);transition:color .25s ease}
+  .ta{min-height:104px;padding:14px 18px;align-items:flex-start}
+  .ta textarea{resize:none;line-height:1.55}
+  .ta textarea::-webkit-scrollbar{width:0;display:none}
+  .ta textarea{scrollbar-width:none;-ms-overflow-style:none}
+  .hint{font:var(--t-caption);color:var(--fg-3);margin:0;padding-left:4px}
+</style></head><body><div class="wrap">
+  <label>
+    <span class="lbl">ค้นหา</span>
+    <div class="field"><span class="msr">search</span><input placeholder="ค้นหาบันทึก..."></div>
+  </label>
+  <label>
+    <span class="lbl">บันทึกใหม่</span>
+    <div class="field field--focus"><span class="msr">edit</span><input value="วันนี้กินกาแฟตอนเช้าที่ร้านเดิม"></div>
+    <p class="hint">เก็บไว้ในเครื่อง · ไม่มีใครเห็นนอกจากคุณ</p>
+  </label>
+  <label>
+    <span class="lbl">เนื้อหา</span>
+    <div class="field ta"><span class="msr">notes</span><textarea placeholder="วันนี้เป็นยังไงบ้าง?&#10;เล่าให้ Haku ฟังหน่อย..."></textarea></div>
+  </label>
+</div></body></html>

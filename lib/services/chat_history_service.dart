@@ -287,7 +287,8 @@ $messagesText
 สรุป (ไม่เกิน 3 ประโยค):''';
 
       // เรียก LLM สรุป
-      final summaryContent = await _llmService.generate(summaryPrompt);
+      final maxTokens = _llmService.modelConfig.summaryMaxTokens;
+      final summaryContent = await _llmService.generate(summaryPrompt, maxTokens: maxTokens);
 
       // สร้าง summary object
       final firstDate = toSummarize.first.timestamp;

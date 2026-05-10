@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Colors — Crystal</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1)}
+  .wrap{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;gap:8px}
+  .sw{flex:1;height:64px;border-radius:var(--r-3);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+  .sw .lab{position:absolute;left:10px;bottom:8px;font:var(--t-mono-sm);color:#fff;mix-blend-mode:difference}
+  .ttl{font:var(--t-eyebrow);letter-spacing:var(--letter-eyebrow);text-transform:uppercase;color:var(--fg-3);margin:0}
+  .glow{margin-top:4px;height:80px;border-radius:var(--r-4);background:radial-gradient(120% 120% at 0% 0%,var(--crystal-300),var(--crystal-500) 55%,var(--crystal-900));box-shadow:var(--glow-cyan);display:flex;align-items:center;justify-content:center;font:var(--t-h3);color:#04141a}
+</style></head><body><div class="wrap">
+  <p class="ttl">Crystal — primary</p>
+  <div class="row">
+    <div class="sw" style="background:var(--crystal-100)"><span class="lab">100 · #C4F4FF</span></div>
+    <div class="sw" style="background:var(--crystal-300)"><span class="lab">300 · #5FE2FF</span></div>
+    <div class="sw" style="background:var(--crystal-400)"><span class="lab">400 · #3CDFFF</span></div>
+    <div class="sw" style="background:var(--crystal-600)"><span class="lab">600 · #0EA1C4</span></div>
+    <div class="sw" style="background:var(--crystal-900)"><span class="lab">900 · #0A1F4D</span></div>
+  </div>
+  <div class="glow">Crystal core · the glow inside the box</div>
+</div></body></html>

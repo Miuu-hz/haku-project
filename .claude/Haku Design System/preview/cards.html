@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Glass card</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1)}
+  .wrap{padding:24px;display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+  .card{position:relative;border-radius:var(--r-4);padding:18px 20px;background:var(--glass-fill);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);box-shadow:var(--shadow-glass-1);overflow:hidden}
+  .accent{position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--crystal-400) 30%,var(--crystal-300) 50%,var(--crystal-400) 70%,transparent);opacity:.7}
+  .eye{font:var(--t-eyebrow);letter-spacing:var(--letter-eyebrow);text-transform:uppercase;color:var(--crystal-300);display:flex;align-items:center;gap:6px;margin:0 0 10px}
+  .num{font:var(--t-numeral);font-size:42px;letter-spacing:var(--letter-display);background:linear-gradient(180deg,#fff,var(--crystal-300) 70%,var(--crystal-500));-webkit-background-clip:text;background-clip:text;color:transparent;margin:0}
+  .sub{font:var(--t-caption);color:var(--fg-3);margin:4px 0 0}
+  .card.lav .accent{background:linear-gradient(90deg,transparent,var(--lavender-400),transparent)}
+  .card.lav .eye{color:var(--lavender-400)}
+  .row{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--lavender-400);box-shadow:0 0 12px var(--lavender-400)}
+</style></head><body><div class="wrap">
+  <div class="card"><span class="accent"></span>
+    <p class="eye"><span class="msr" style="font-size:14px">wb_sunny</span> Weather · ตอนนี้</p>
+    <p class="num">28°</p>
+    <p class="sub">ฝนเล็กน้อย · ความรู้สึก 31° · กรุงเทพฯ</p>
+  </div>
+  <div class="card lav"><span class="accent"></span>
+    <p class="eye"><span class="msr" style="font-size:14px">favorite</span> Mood · 7 วันที่ผ่านมา</p>
+    <p style="margin:0;font:var(--t-h3)">ดี ↗</p>
+    <p class="sub">ขึ้นจากสัปดาห์ก่อน 12%</p>
+    <div class="row">
+      <span class="dot"></span><span class="dot" style="opacity:.7"></span><span class="dot" style="opacity:.5"></span><span class="dot" style="opacity:.4"></span><span class="dot"></span><span class="dot" style="opacity:.85"></span><span class="dot"></span>
+    </div>
+  </div>
+</div></body></html>

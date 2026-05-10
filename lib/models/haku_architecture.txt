@@ -1,5 +1,7 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           HAKU AI SYSTEM                                     │
+│                           HAKU AI SYSTEM (current)                           │
+│                     Model: Gemma 4 E2B/E4B via LiteRT-LM                    │
+│                     Context: 4K–8K tokens (no lean syntax needed)            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -7,21 +9,34 @@
 │  │                                                                         │ │
 │  │  ① SmartPreprocessor (rule-based, 0 LLM tokens)                        │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ User message (Thai)                                              │   │ │
+│  │  │ User message (Thai/EN)                                           │   │ │
 │  │  │  → FactWorker / CalendarWorker / HealthDoctor (0 tok, regex)    │   │ │
-│  │  │  → [Fast Path] SQL LIKE search on Thai entries                  │   │ │
-│  │  │    (e.g. "เคยไปทะเล" → SELECT * WHERE content LIKE '%ทะเล%')    │   │ │
-│  │  │  → Build lean context (profile + history + found entries)       │   │ │
+│  │  │  → PATH A: rule matched → handle directly (search/calendar/…)  │   │ │
+│  │  │  → PATH B: intent=general → ไปขั้นถัดไป                          │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ② Stage 1: The Face (ตอบ user ทันที)                                  │ │
+│  │                              │ (PATH B only)                            │ │
+│  │  ② TagContextService (0 LLM — keyword + SQL search)                    │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Gemma 3 1B — ตอบภาษาไทยธรรมชาติ (1-2 ประโยค)                    │   │ │
-│  │  │ Input: lean context + user message                              │   │ │
-│  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
+│  │  │ keyword extraction จาก userMessage                              │   │ │
+│  │  │ → SQL search บน english_chat_log + diary entries               │   │ │
+│  │  │ → ถ้าเจอ → prepend "Past related:\n[d/m] @loc ..." ใน context  │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ③ Secret Chat (async หลัง Face ตอบ — ไม่ block UI)                    │ │
+│  │  ③ Calendar Context (0 LLM — keyword-based)                            │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ _isScheduleQuery(userMessage) → keyword check                   │   │ │
+│  │  │ ถ้า true → inject today's events จาก Google Calendar            │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ④ Stage 1: The Face (ตอบ user ทันที)                                  │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ Gemma 4 E2B/E4B (LiteRT-LM) — ตอบภาษาไทยธรรมชาติ               │   │ │
+│  │  │ Input: context (tag history + calendar) + user message          │   │ │
+│  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
+│  │  │ Context budget: 1,500–3,000 chars (4K–8K token window)          │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                              │                                          │ │
+│  │  ⑤ Secret Chat (async หลัง Face ตอบ — ไม่ block UI)                    │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
 │  │  │ Input: Thai exchange (user msg + AI response)                   │   │ │
 │  │  │ LLM: buildWorkerExtractPrompt() → JSON extraction               │   │ │
@@ -32,9 +47,10 @@
 │  │  │   location: "beach", mood: 8                                    │   │ │
 │  │  │ }                                                               │   │ │
 │  │  │ → Store in SharedPreferences (english_chat_log, 50 entries)    │   │ │
+│  │  │ → TagContextService.saveTagsToRecentEntry() → merge to SQLite  │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ④ Big Manager (async — dispatch from English log)                      │ │
+│  │  ⑥ Big Manager (async — dispatch from English log)                      │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
 │  │  │ Reads EnglishLogEntry (no LLM call — intent already extracted)  │   │ │
 │  │  │ dispatch:                                                        │   │ │
@@ -44,6 +60,15 @@
 │  │  │   intent=chat     → (no action, logged only)                    │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  TOKEN BUDGET (per exchange):                                                │
+│  ④ Face LLM:     1 call  (ตอบ user)                                         │
+│  ⑤ Secret Chat:  1 call  (extract → English log, async)                     │
+│  ⑥ Big Manager:  0 calls (อ่าน intent จาก Secret Chat โดยตรง)               │
+│  ─────────────────────────────────────────────────────                      │
+│  Total: 2 calls/exchange (ลดจาก 2-3 เพราะลบ PreClassify ออกแล้ว)            │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                      SEARCH STRATEGY                                    │ │
@@ -55,14 +80,21 @@
 │  │  │ → ถ้าเจอ → เพิ่มใน context ก่อนส่ง Face                         │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                                                                         │ │
+│  │  Tag Context (0 LLM — TagContextService):                               │ │
+│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
+│  │  │ keyword → search english_chat_log + SQLite entries              │   │ │
+│  │  │ → "Past related:\n[5/1] @beach User went to beach"              │   │ │
+│  │  │ → prepend ใน context window (Gemma 4 รองรับ 4K+ token)          │   │ │
+│  │  └─────────────────────────────────────────────────────────────────┘   │ │
+│  │                                                                         │ │
 │  │  Slow Path (future, LLM-assisted):                                      │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ ถ้า Fast Path ไม่เจอ → แสดง "thinking..." animation             │   │ │
-│  │  │ → Translate Thai query → English                                │   │ │
-│  │  │ → Vector search English DB (whitespace tokenizer ใช้ได้)        │   │ │
+│  │  │ ถ้า Fast Path ไม่เจอ → Vector search English DB (sqlite-vec)    │   │ │
 │  │  │ → ส่ง context ให้ Face ตอบ                                       │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                      TRIGGER LAYER (Event-based)                        │ │
@@ -76,6 +108,8 @@
 │  │   • เริ่ม ManagerSummary       • สุขภาพ + ตารางวัน                       │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                 BACKGROUND LAYER (จบวัน/ตอนชาร์จ)                       │ │
 │  │                                                                         │ │
@@ -86,18 +120,18 @@
 │  │   │              ManagerSummaryStrategy (Orchestrator)              │  │ │
 │  │   │                                                                  │  │ │
 │  │   │  1. รวม English logs ทั้งวัน                                     │  │ │
-│  │   │  2. วิเคราะห์ pattern + extract insights                         │  │ │
+│  │   │  2. วิเคราะห์ pattern + extract insights (จาก VectorService)    │  │ │
 │  │   │  3. Dispatch ไปยัง Specialists                                   │  │ │
 │  │   └─────────────────────────────────────────────────────────────────┘  │ │
 │  │                              │                                          │ │
 │  │           ┌──────────────────┼──────────────────┐                       │ │
 │  │           ▼                  ▼                  ▼                       │ │
 │  │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │ │
-│  │   │HealthDoctor│   │FactWorker   │   │CalendarWork │                  │ │
+│  │   │HealthDoctor │   │FactWorker   │   │CalendarWork │                  │ │
 │  │   │             │   │             │   │             │                  │ │
 │  │   │ • period    │   │ • fav place │   │ • predict   │                  │ │
-│  │   │ • symptoms  │   │   KidsHouse │   │   events    │                  │ │
-│  │   │ • track 2-5d│   │ • fruit salad│  │   2-5 days  │                  │ │
+│  │   │ • symptoms  │   │ • habits    │   │   events    │                  │ │
+│  │   │ • track 2-5d│   │ • facts     │   │   2-5 days  │                  │ │
 │  │   └─────────────┘   └─────────────┘   └─────────────┘                  │ │
 │  │          │                 │                  │                         │ │
 │  │          ▼                 ▼                  ▼                         │ │
@@ -109,29 +143,11 @@
 │  │   └─────────────────────────────────────────────────┘                  │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                    NOTIFICATION LAYER (Proactive)                       │ │
-│  │                                                                         │ │
-│  │   🌅 Morning (6:00)              📱 Widget                              │ │
-│  │   ┌─────────────────────┐       ┌─────────────────────┐                │ │
-│  │   │ สวัสดีตอนเช้าค่ะ ฟุกิ  │       │ 📅 วันนี้:           │                │ │
-│  │   │ อาการเป็นไงบ้างคะ?  │       │ • ติดตามอาการ       │                │ │
-│  │   │ วันนี้ไม่มีนัดหมาย    │       │ • ไม่มีนัดหมาย       │                │ │
-│  │   └─────────────────────┘       └─────────────────────┘                │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  TOKEN BUDGET (per exchange):                                                │
-│  ① Face LLM:     1 call  (ตอบ user)                                         │
-│  ③ Secret Chat:  1 call  (แปล + extract → English log)                      │
-│  ④ Big Manager:  0 calls (อ่าน intent จาก Secret Chat result โดยตรง)        │
-│  ─────────────────────────────────────────────────────                      │
-│  Total: 2 calls/exchange (เท่าเดิม แต่ได้ English log + structured data)    │
-│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 
 ─────────────────────────────────────────────────────────────┐
-│                   SmartPreprocessor                          │
+│                   SmartPreprocessor (PATH B)                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │   User Message: "นัดหมอพรุ่งนี้ ฉันเป็นเมนด้วย"                │
@@ -140,43 +156,44 @@
 │        │                │                │                  │
 │        ▼                ▼                ▼                  │
 │   ┌─────────┐    ┌───────────┐    ┌────────────┐           │
-│   │FactWork │    │CalendarWk │    │HealthDoc  │           │
-│   │ 0 tok   │    │ 0 tok     │    │ 0 tok     │           │
+│   │FactWork │    │CalendarWk │    │HealthDoc   │           │
+│   │ 0 tok   │    │ 0 tok     │    │ 0 tok      │           │
 │   └─────────┘    └───────────┘    └────────────┘           │
 │        │                │                │                  │
 │        ▼                ▼                ▼                  │
 │   ┌─────────────────────────────────────────────────────┐  │
 │   │              WorkerResults                          │  │
-│   │ facts: [], events: [หมอ], health: [period]         │  │
+│   │ facts: [], events: [หมอ], health: [period]          │  │
 │   └─────────────────────────────────────────────────────┘  │
 │                         │                                    │
 │        ┌────────────────┘                                    │
 │        ▼                                                     │
-│   [Fast Path Search] SQL LIKE '%หมอ%', '%เมน%'               │
-│   → เจอ entry เก่า? → เพิ่มใน context                        │
+│   [TagContextService] keyword search on english_chat_log    │
+│   → "Past related:\n[3/1] @clinic User visited doctor..."   │
+│                         │                                    │
+│   [Calendar Context] _isScheduleQuery("นัดหมอ") → true       │
+│   → inject today/tomorrow events from Google Calendar       │
 │                         │                                    │
 │                         ▼                                    │
 │   ┌─────────────────────────────────────────────────────┐  │
-│   │              Lean Context Builder                    │  │
-│   │ [Name:ฟุกิ][Health:Period:0d][Cal:หมอ,พรุ่งนี้]       │  │
-│   │ [Context] U:...|H:...|U:...|H:...                   │  │
-│   │ [Recent] Full Thai                                   │  │
-│   │ [Found] entry: "ไปหาหมอ 3 เดือนก่อน..."              │  │
+│   │              Context Window (Gemma 4)                │  │
+│   │ [Profile: name=ฟุกิ][Health:Period][Cal:หมอ,พรุ่งนี้] │  │
+│   │ [Past related] 3/1 @clinic "ไปหาหมอ 3 เดือนก่อน"     │  │
+│   │ [Calendar] พรุ่งนี้: หมอ 09:00                        │  │
 │   └─────────────────────────────────────────────────────┘  │
 │                         │                                    │
 │                         ▼                                    │
-│                    Gemma 3 1B (Face)                         │
+│             Gemma 4 E2B/E4B (Face) — LiteRT-LM              │
 │                         │                                    │
 │                         ▼ (async, หลังตอบ user)              │
-│                    Secret Chat                               │
-│                    → English log                             │
-│                    → Big Manager dispatch                    │
+│               Secret Chat → EnglishLogEntry                  │
+│               → Big Manager dispatch (0 LLM)                │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                      TriggerService                              │
+│                         TriggerService                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
@@ -186,14 +203,34 @@
 │   │ • เช้า 6 โมง  │    │ • Morning   │    │ • Health insights  │ │
 │   │ • Health    │    │ • Health    │    │ • Dispatch workers  │ │
 │   └─────────────┘    └─────────────┘    └─────────────────────┘ │
-│           │                │                      │              │
-│           └────────────────┼──────────────────────┘              │
-│                            ▼                                     │
-│                  ┌─────────────────────┐                        │
-│                  │  RAG Storage        │                        │
-│                  │ (English — from     │                        │
-│                  │  Secret Chat +      │                        │
-│                  │  TranslatorWorker)  │                        │
-│                  └─────────────────────┘                        │
+│                             │                                    │
+│                             ▼                                    │
+│                   ┌─────────────────────┐                       │
+│                   │  UnifiedVectorService│                       │
+│                   │  + UserProfileService│                       │
+│                   │  (no LeanContext)    │                       │
+│                   └─────────────────────┘                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│                  REMOVED (migration to Gemma 4)                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ✂️ LeanContextService     — lean syntax ไม่จำเป็นแล้ว           │
+│     (lean Thai ~50 chars/msg → English ~15 chars/msg)           │
+│     เหตุผล: Gemma 4 รองรับ 4K-8K token window                    │
+│                                                                  │
+│  ✂️ PreClassify step       — LLM call ก่อน Face                  │
+│     (detect intent: schedule/query/search/log/chat)             │
+│     เหตุผล: Gemma 4 เข้าใจ intent ได้เองโดยตรง                  │
+│     แทนที่ด้วย: _isScheduleQuery() keyword check (0 LLM)         │
+│                                                                  │
+│  ✂️ PreClassifyResult class — ผล intent+summary จาก PreClassify  │
+│  ✂️ buildPreClassifyPrompt() — prompt สำหรับ classify            │
+│                                                                  │
+│  Before: 2-3 LLM calls/exchange (PreClassify + Face + Secret)   │
+│  After:  2 LLM calls/exchange   (Face + Secret)                 │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘

@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
-import '../models/entry.dart';
 import 'database_helper.dart';
 
 /// 🤖 AI Service - จัดการการตอบคำถามจาก AI
@@ -130,22 +129,4 @@ class AIService {
     }
   }
 
-  /// 🔍 Semantic Search (เตรียมไว้ Phase 2)
-  /// 
-  /// จะใช้ sqlite-vec สำหรับค้นหาความหมาย
-  static Future<List<Entry>> semanticSearch(String query) async {
-    // TODO: Phase 2 - Implement with sqlite-vec
-    // 1. แปลง query เป็น vector
-    // 2. ค้นหาใน vector database
-    // 3. คืนค่า entries ที่ใกล้เคียง
-    return [];
-  }
-
-  /// 🧠 Generate embedding (เตรียมไว้ Phase 2)
-  /// 
-  /// ใช้โมเดลขนาดเล็ก (all-MiniLM-L6-v2 หรือ bge-small)
-  static Future<List<double>> generateEmbedding(String text) async {
-    // TODO: Phase 2 - Load ONNX model via flutter_onnx
-    return [];
-  }
 }

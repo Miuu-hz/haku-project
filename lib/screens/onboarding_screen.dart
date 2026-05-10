@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/encryption_service.dart';
 
@@ -69,10 +70,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // สร้าง encryption key
     await EncryptionService.getOrCreateDatabaseKey();
     
-    // TODO: บันทึกว่า onboarding เสร็จแล้ว
-    // await SharedPreferences.getInstance().then((prefs) {
-    //   prefs.setBool('onboarding_complete', true);
-    // });
+    // บันทึกว่า onboarding เสร็จแล้ว
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
     
     if (mounted) {
       widget.onComplete();

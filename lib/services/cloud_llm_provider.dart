@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/llm_model_config.dart';
 import 'llm_provider.dart';
 import 'mcp_client.dart';
 
@@ -35,6 +36,7 @@ class CloudLLMProvider implements LLMProvider {
   bool _isInitialized = false;
   bool _isLoading = false;
   int _maxTokens = 1024;
+  final LLMModelConfig _modelConfig = LLMModelConfig.cloud;
 
   CloudLLMProvider({
     required this.cloudProvider,
@@ -67,14 +69,17 @@ class CloudLLMProvider implements LLMProvider {
   @override
   bool get isLoading => _isLoading;
 
+  @override
+  LLMModelConfig get modelConfig => _modelConfig;
+
   /// Initialize = verify connection via health check
   @override
-  Future<bool> initialize({int maxTokens = 1024}) async {
+  Future<bool> initialize({int? maxTokens}) async {
     if (_isInitialized) return true;
     if (_isLoading) return false;
 
     _isLoading = true;
-    _maxTokens = maxTokens;
+    _maxTokens = maxTokens ?? _modelConfig.maxNumTokens;
 
     try {
       debugPrint('☁️ Initializing $providerName...');

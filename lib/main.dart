@@ -12,12 +12,13 @@ import 'services/background_task_service.dart';
 import 'services/biometric_service.dart';
 import 'services/encryption_service.dart';
 import 'services/widget_service.dart';
+import 'utils/haku_design_tokens.dart';
 
 /// 🎌 Haku (箱) - AI Personal Life Logger
-/// 
+///
 /// แอพบันทึกชีวิตประจำวันที่เน้นความเป็นส่วนตัว (Privacy-First)
 /// ทำงานบนอุปกรณ์โดยไม่ต้องส่งข้อมูลขึ้น Cloud
-/// 
+///
 /// Phase 1 FINAL Features:
 /// - ✅ SQLite + SQLCipher Encryption
 /// - ✅ Biometric Lock (Face ID / Fingerprint)
@@ -47,53 +48,166 @@ void main() async {
   );
 }
 
-/// 🎨 ธีมหลักของแอพ
+/// 🎨 ธีมหลักของแอพ — Haku Crystal (light aurora + glass)
 class HakuApp extends StatelessWidget {
   const HakuApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-      title: 'Haku - AI Life Logger',
-      debugShowCheckedModeBanner: false,
-      
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6B4E71),
-          brightness: Brightness.dark,
+        title: 'Haku - AI Life Logger',
+        debugShowCheckedModeBanner: false,
+        theme: _buildCrystalTheme(),
+        home: const AppEntryPoint(),
+      );
+
+  ThemeData _buildCrystalTheme() {
+    final baseTextTheme = GoogleFonts.notoSansThaiTextTheme(
+      GoogleFonts.interTextTheme(ThemeData.light().textTheme),
+    );
+
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: kCrystal400,
+      brightness: Brightness.light,
+      primary: kCrystal400,
+      secondary: kLavender500,
+      surface: kGlassFill,
+      onSurface: kFg1,
+      error: kErr,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: Colors.transparent,
+      textTheme: baseTextTheme.copyWith(
+        displayLarge: kDisplay.copyWith(fontFamily: baseTextTheme.displayLarge?.fontFamily),
+        headlineLarge: kH1.copyWith(fontFamily: baseTextTheme.headlineLarge?.fontFamily),
+        headlineMedium: kH2.copyWith(fontFamily: baseTextTheme.headlineMedium?.fontFamily),
+        headlineSmall: kH3.copyWith(fontFamily: baseTextTheme.headlineSmall?.fontFamily),
+        titleLarge: kH4.copyWith(fontFamily: baseTextTheme.titleLarge?.fontFamily),
+        bodyLarge: kBody.copyWith(fontFamily: baseTextTheme.bodyLarge?.fontFamily),
+        bodyMedium: kBodyMd.copyWith(fontFamily: baseTextTheme.bodyMedium?.fontFamily),
+        labelLarge: kLabel.copyWith(fontFamily: baseTextTheme.labelLarge?.fontFamily),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: kGlassFill,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kR4),
+          side: const BorderSide(color: kGlassEdge, width: 1),
         ),
-        useMaterial3: true,
-        textTheme: GoogleFonts.notoSansThaiTextTheme(
-          ThemeData.dark().textTheme,
+      ),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: kGlassFill,
+        foregroundColor: kFg1,
+        titleTextStyle: GoogleFonts.notoSansThai(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: kFg1,
         ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        iconTheme: const IconThemeData(color: kFg1),
+        actionsIconTheme: const IconThemeData(color: kFg1),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: kCrystal400,
+        foregroundColor: kFgOnCyan,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kR3),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: kGlassFillSoft,
+        indicatorColor: kCrystal400.withAlpha(40),
+        labelTextStyle: WidgetStateProperty.all(
+          GoogleFonts.notoSansThai(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: kFg3,
           ),
         ),
-        appBarTheme: AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: const Color(0xFF1A1A2E),
-          titleTextStyle: GoogleFonts.notoSansThai(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          backgroundColor: const Color(0xFF9B7CB6),
-          foregroundColor: Colors.white,
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: kCrystal600);
+          }
+          return const IconThemeData(color: kFg3);
+        }),
+        elevation: 0,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: kGlassFillStrong,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(kR5),
+            topRight: Radius.circular(kR5),
           ),
         ),
       ),
-      
-      home: const AppEntryPoint(),
+      dialogTheme: DialogThemeData(
+        backgroundColor: kGlassFillStrong,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kR4),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: kField2,
+        contentTextStyle: GoogleFonts.notoSansThai(
+          color: Colors.white,
+          fontSize: 14,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kR3),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: kGlassFillSoft,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(kR3),
+          borderSide: const BorderSide(color: kGlassStroke),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(kR3),
+          borderSide: const BorderSide(color: kGlassStroke),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(kR3),
+          borderSide: const BorderSide(color: kCrystal400, width: 1.5),
+        ),
+        hintStyle: const TextStyle(color: kFg4),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: kGlassFillSoft,
+        selectedColor: kCrystal400.withAlpha(30),
+        labelStyle: GoogleFonts.notoSansThai(
+          fontSize: 13,
+          color: kFg1,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kRPill),
+          side: const BorderSide(color: kGlassStroke),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: kGlassStroke,
+        thickness: 1,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: kGlassFillStrong,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kR3),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: kFg3,
+        textColor: kFg1,
+      ),
     );
+  }
 }
 
 /// 🚪 จุดเริ่มต้นของแอพ
@@ -125,17 +239,17 @@ class _AppEntryPointState extends State<AppEntryPoint>
   Future<void> _initializeApp() async {
     // ตรวจสอบว่ามี encryption key หรือยัง (คือเคย onboarding หรือยัง)
     final hasKey = await EncryptionService.hasEncryptionKey();
-    
+
     // ตรวจสอบว่าเปิดมาจาก Widget หรือไม่
     final widgetAction = await WidgetService.getWidgetAction();
     if (widgetAction != null) {
       final question = widgetAction['question'] as String?;
       if (question != null) _pendingWidgetQuestion = question;
     }
-    
+
     setState(() {
       _showOnboarding = !hasKey;
-      _isLocked = hasKey && _biometricEnabled;  // ล็อกถ้ามี key และเปิด biometric
+      _isLocked = hasKey && _biometricEnabled; // ล็อกถ้ามี key และเปิด biometric
       _isLoading = false;
     });
   }
@@ -156,12 +270,12 @@ class _AppEntryPointState extends State<AppEntryPoint>
         _lastActiveTime = DateTime.now();
         _startLockTimer();
         break;
-        
+
       case AppLifecycleState.resumed:
         _lockTimer?.cancel();
         _checkShouldLock();
         break;
-        
+
       default:
         break;
     }
@@ -178,12 +292,12 @@ class _AppEntryPointState extends State<AppEntryPoint>
 
   void _checkShouldLock() {
     if (_lastActiveTime == null || !_biometricEnabled) return;
-    
+
     final shouldLock = BiometricService.shouldLock(
       _lastActiveTime,
       lockAfterMinutes: _autoLockMinutes,
     );
-    
+
     if (shouldLock && mounted) {
       setState(() => _isLocked = true);
     }
@@ -206,9 +320,12 @@ class _AppEntryPointState extends State<AppEntryPoint>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF9B7CB6)),
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(gradient: kFieldGradient),
+          child: const Center(
+            child: CircularProgressIndicator(color: kCrystal400),
+          ),
         ),
       );
     }

@@ -181,8 +181,10 @@ class MainActivity: FlutterFragmentActivity() {
      *
      * Methods:
      *   loadModel(modelPath, maxTokens, systemInstruction?)  → bool
-     *   generate(prompt)                                     → String
-     *   setSystemInstruction(instruction?)                   → null   ← ใหม่ (Gemma 4 ready)
+     *   generate(prompt)                                     → String   [stateless, one-shot]
+     *   generateTurn(prompt)                                 → String   [stateful, KV cache]
+     *   resetConversation()                                  → null     [เริ่ม session ใหม่]
+     *   setSystemInstruction(instruction?)                   → null
      *   unloadModel()                                        → null
      *   isModelLoaded()                                      → bool
      *   getModelInfo()                                       → Map
@@ -230,13 +232,50 @@ class MainActivity: FlutterFragmentActivity() {
                             return@setMethodCallHandler
                         }
 
+                        // อ่าน sampler parameters จาก Dart (optional)
+                        val temperature = call.argument<Double>("temperature")
+                        val topK = call.argument<Int>("topK")
+                        val topP = call.argument<Double>("topP")
+                        llmBridge.setSamplerParams(temperature, topK, topP)
+
                         CoroutineScope(Dispatchers.Main).launch {
                             val response = llmBridge.generate(prompt)
                             result.success(response)
                         }
                     }
 
-                    // 🆕 Gemma 4 ready — ตั้ง system prompt โดยไม่ต้อง reload โมเดล
+                    // 💬 Stateful generate — ใช้ KV cache ต่อ session
+                    "generateTurn" -> {
+                        val prompt = call.argument<String>("prompt")
+
+                        if (prompt == null) {
+                            result.error("INVALID_PROMPT", "Prompt is null", null)
+                            return@setMethodCallHandler
+                        }
+
+                        if (!llmBridge.isInitialized) {
+                            result.error("NOT_INITIALIZED", "LiteRT-LM not initialized", null)
+                            return@setMethodCallHandler
+                        }
+
+                        val temperature = call.argument<Double>("temperature")
+                        val topK = call.argument<Int>("topK")
+                        val topP = call.argument<Double>("topP")
+                        llmBridge.setSamplerParams(temperature, topK, topP)
+
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val response = llmBridge.generateTurn(prompt)
+                            result.success(response)
+                        }
+                    }
+
+                    // 🔄 รีเซ็ต Conversation — เริ่ม session ใหม่
+                    "resetConversation" -> {
+                        llmBridge.resetConversation()
+                        result.success(null)
+                    }
+
+                    // ตั้ง system prompt โดยไม่ต้อง reload โมเดล (รีเซ็ต conversation อัตโนมัติ)
                     "setSystemInstruction" -> {
                         val instruction = call.argument<String>("instruction")
                         llmBridge.setSystemInstruction(instruction)

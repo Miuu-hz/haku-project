@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwimport '../services/context_retriever.dart';
+import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
 import '../services/manager_dispatch_service.dart';
 import '../services/mvp_trigger_service.dart';
@@ -16,6 +16,7 @@ import '../services/rag_service.dart';
 import '../services/background_task_handlers.dart';
 import '../services/chat_summary_service.dart';
 import '../services/deferred_task_service.dart';
+import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/secret_chat_service.dart';
@@ -28,9 +29,10 @@ import '../services/geofence_service.dart';
 import '../services/location_service.dart';
 import '../services/scheduler_service.dart';
 import '../services/web_search_service.dart';
+import '../utils/haku_design_tokens.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
-/// 
+///
 /// คุยกับ AI ที่รู้จักข้อมูลของคุณจาก Journal
 /// รองรับ RAG (ค้นหาบันทึก) + LLM (ตอบคำถาม)
 
@@ -100,8 +102,6 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     // ล้าง UI history
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyKey);
-    // ล้าง lean context (session messages + summaries)
-    await SmartPreprocessor().clearLeanContext();
     // ล้าง secret chat English log
     await SecretChatService().clearAll();
     debugPrint('💬 Chat history + AI memory cleared (Set Zero)');
@@ -157,8 +157,6 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         debugPrint('⚡ Quick action: ${quickAction.type.name}');
         state = state.where((m) => !m.isLoading).toList();
         addMessage(ChatMessage.assistant(quickAction.response));
-        await preprocessor.addToLeanContext(userMessage, isUser: true);
-        await preprocessor.addToLeanContext(quickAction.response, isUser: false);
         return;
       }
 
@@ -168,17 +166,13 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       if (useContext) {
         try {
           debugPrint('🧠 Running SmartPreprocessor...');
-          preprocessResult = await preprocessor.preprocess(
-            userMessage,
-            useLeanContext: true,
-          );
+          preprocessResult = await preprocessor.preprocess(userMessage);
           contextStr = preprocessResult.enrichedContext;
           debugPrint('✅ Preprocessing complete:');
           debugPrint('   - Intent: ${preprocessResult.detectedIntent}');
           debugPrint('   - Context length: ${contextStr.length}');
           debugPrint('   - Worker results: ${preprocessResult.workerResults.getSummary()}');
 
-          await preprocessor.addToLeanContext(userMessage, isUser: true);
         } catch (e, stackTrace) {
           debugPrint('⚠️ SmartPreprocessor failed: $e');
           debugPrint('Stack: $stackTrace');
@@ -211,7 +205,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         // แสดง intermediate message แทน loading
         state = state.where((m) => !m.isLoading).toList();
         addMessage(
-            ChatMessage.searching('รับทราบค่ะ กำลังค้นหาให้นะคะ... 🔍'));
+            ChatMessage.searching('รับทราบค่ะ กำลังค้นหาให้นะคะ...'));
 
         // Execute web search
         final searchQuery = preprocessResult!.searchQuery ?? userMessage;
@@ -273,7 +267,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           }
         } else {
           // webResult == '' → search ran but found nothing; null → exception
-          response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ 🙏';
+          response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ';
         }
 
         // Replace searching message with real response
@@ -283,76 +277,26 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           sources: useContext ? _extractSources(contextStr) : null,
         ));
 
-        // Save to lean context
-        if (response.isNotEmpty) {
-          await SmartPreprocessor()
-              .addToLeanContext(response, isUser: false);
-        }
       } else {
         // ──────────────────────────────────────────────────────
-        // PATH B: General message — Secret Chat First Architecture
+        // PATH B: General message
         //
-        // Step 1: PreClassify (LLM) if rule-based intent = general
-        //   → language-agnostic intent detection
-        //   → Face gets context hint for correct response
-        // Step 2: Face LLM — Thai natural response + intent hint
-        // Step 3: [async] logExchange reuses preClassify (0 extra LLM call)
+        // 1.5: TagContextService — keyword search past entries (0 LLM)
+        // 1.6: Calendar Context  — inject if schedule query (0 LLM)
+        // 2:   Face LLM          — Thai natural response
         // ──────────────────────────────────────────────────────
-
-        // 1. PreClassify — runs only when rule-based couldn't classify
-        PreClassifyResult? preClassify;
-        final ruleIntent = preprocessResult?.detectedIntent ?? DetectedIntent.general;
-        if (llm.isInitialized && ruleIntent == DetectedIntent.general) {
-          if (_isEnglishMessage(userMessage)) {
-            // ⚡ English fast-path: ข้าม LLM preClassify
-            // English ไม่ต้อง translate → ใช้ข้อความโดยตรงเป็น lean context
-            debugPrint('🔬 PreClassify: English fast-path (skip LLM)');
-            final summary = userMessage.length > 60
-                ? '${userMessage.substring(0, 57)}...'
-                : userMessage;
-            // ตรวจ schedule query จาก keywords แทน LLM
-            final lowerEn = userMessage.toLowerCase();
-            final isScheduleQuery = (lowerEn.contains('schedule') ||
-                    lowerEn.contains('appointment') ||
-                    lowerEn.contains('plan') ||
-                    lowerEn.contains('calendar') ||
-                    lowerEn.contains('today') ||
-                    lowerEn.contains('tomorrow')) &&
-                (lowerEn.contains('what') ||
-                    lowerEn.contains('any') ||
-                    lowerEn.contains('have') ||
-                    lowerEn.contains('show') ||
-                    lowerEn.contains('list'));
-            final enIntent = isScheduleQuery ? 'query' : 'chat';
-            preClassify = PreClassifyResult(intent: enIntent, summaryEn: summary);
-            SmartPreprocessor().updateUserMessageWithEnglish(summary);
-          } else {
-            debugPrint('🔬 PreClassify: rule-based missed, asking LLM...');
-            preClassify = await SecretChatService().preClassify(userMessage);
-            if (preClassify != null) {
-              // 📦 ใช้ English summary แทน Thai ใน lean context ทันที (ประหยัด ~3x tokens)
-              SmartPreprocessor().updateUserMessageWithEnglish(preClassify.summaryEn);
-              if (preClassify.contextHint.isNotEmpty) {
-                // Inject intent hint at front of context for Face
-                contextStr = '${preClassify.contextHint}\n$contextStr';
-                debugPrint('🔬 PreClassify injected: ${preClassify.contextHint}');
-              }
-            }
-          }
-        }
 
         // 1.5. Tag Context — ดึง related past entries by keywords + location
         final tagCtx = await TagContextService().buildContext(
           userMessage: userMessage,
-          summaryEn: preClassify?.summaryEn,
         );
         if (tagCtx != null && tagCtx.isNotEmpty) {
           contextStr = tagCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
           debugPrint('🏷️ Tag context injected (${tagCtx.length} chars)');
         }
 
-        // 1.6. Calendar Context — inject today's events เมื่อ intent=query
-        if (preClassify?.intent == 'query') {
+        // 1.6. Calendar Context — inject when message looks like a schedule query
+        if (_isScheduleQuery(userMessage)) {
           final calCtx = await _buildCalendarContext(userMessage);
           if (calCtx.isNotEmpty) {
             contextStr = calCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
@@ -366,24 +310,27 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         if (llm.isInitialized) {
           try {
             final isCloud = LLMProviderManager().activeType != ProviderType.onDevice;
-            final prompt = isCloud
-                ? PromptBuilder.buildCloudPrompt(
-                    userMessage: userMessage,
-                    context: contextStr.isNotEmpty ? contextStr : null,
-                  )
-                : PromptBuilder.buildGemmaPrompt(
-                    userMessage: userMessage,
-                    context: contextStr.isNotEmpty ? contextStr : null,
-                  );
-            final isOnDevice = !isCloud;
-            response = await llm.generate(prompt)
-                .timeout(
-                  Duration(seconds: isOnDevice ? 120 : 30),
-                  onTimeout: () {
-                    debugPrint('⏱️ LLM timeout — falling back to mock');
-                    return '';
-                  },
-                );
+            final ctx = contextStr.isNotEmpty ? contextStr : null;
+
+            if (isCloud) {
+              // Cloud: stateless full prompt
+              final prompt = PromptBuilder.buildCloudPrompt(
+                userMessage: userMessage,
+                context: ctx,
+              );
+              response = await llm.generate(prompt).timeout(
+                const Duration(seconds: 30),
+                onTimeout: () { debugPrint('⏱️ Cloud LLM timeout'); return ''; },
+              );
+            } else {
+              // On-device: stateful conversation — send only user turn, KV cache handles history
+              final liteRT = llm as LiteRTLLMProvider;
+              final turn = PromptBuilder.buildUserTurn(userMessage: userMessage, context: ctx);
+              response = await liteRT.generateTurn(turn).timeout(
+                const Duration(seconds: 120),
+                onTimeout: () { debugPrint('⏱️ On-device LLM timeout'); return ''; },
+              );
+            }
           } catch (e) {
             debugPrint('❌ LLM generate error: $e');
             response = null;
@@ -414,13 +361,9 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           addMessage(ChatMessage.workerSummary(brainDumpSummary));
         }
 
-        // Save to lean context
-        await SmartPreprocessor()
-            .addToLeanContext(displayText, isUser: false);
-
-        // 3. [async] Secret Chat log — reuses preClassify (0 extra LLM call)
+        // 3. [async] Secret Chat log
         if (llm.isInitialized) {
-          _runSecretChat(userMessage, displayText, preClassify: preClassify);
+          _runSecretChat(userMessage, displayText);
         }
       }
 
@@ -486,11 +429,7 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   ///
   /// ทำ async หลัง Face ตอบ (ไม่ block UI)
   /// Big Manager ใช้ intent จาก extraction result โดยตรง (0 LLM calls เพิ่ม)
-  void _runSecretChat(
-    String userMessage,
-    String aiResponse, {
-    PreClassifyResult? preClassify,
-  }) {
+  void _runSecretChat(String userMessage, String aiResponse) {
     Future(() async {
       try {
         debugPrint('🤫 Secret Chat: translating exchange...');
@@ -498,13 +437,11 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         final logEntry = await secretChat.logExchange(
           userMessage: userMessage,
           aiResponse: aiResponse,
-          preClassifyResult: preClassify,
         );
 
         if (logEntry != null) {
           debugPrint('🤫 Secret Chat done: ${logEntry.summaryEn}');
           // 📦 Replace Thai lean context with compact English (saves ~3-5x tokens)
-          SmartPreprocessor().updateLeanContextWithEnglish(logEntry.summaryEn);
           // 🏷️ Auto-tag + location → SQLite entry ล่าสุด (best-effort, ไม่ block)
           TagContextService().saveTagsToRecentEntry(logEntry);
           // 📍 Resolve place sentiment ถ้ามี active feedback request
@@ -571,28 +508,28 @@ Reply in Thai (1-2 sentences):
     try {
       // สร้าง prompt จาก trigger context
       final prompt = await _buildTriggerPrompt(trigger);
-      
+
       String response;
       final llm = LLMProviderManager().provider;
-      
+
       // 🔋 Lazy Loading: ลองโหลด LLM ถ้ายังไม่ได้โหลด
       if (!llm.isInitialized && !llm.isLoading) {
         await llm.initialize();
       }
-      
+
       if (llm.isInitialized) {
         response = await llm.generate(prompt);
         response = _extractResponseText(response);
       } else {
         response = trigger.suggestedMessage ?? 'สวัสดีค่ะ!';
       }
-      
+
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.proactive(
         response,
         triggerTitle: trigger.displayTitle,
       ));
-      
+
     } catch (e) {
       state = state.where((m) => !m.isLoading).toList();
       addMessage(ChatMessage.assistant(trigger.suggestedMessage ?? 'สวัสดีค่ะ!'));
@@ -602,11 +539,11 @@ Reply in Thai (1-2 sentences):
   /// 📝 สร้าง Prompt สำหรับ Trigger (Gemma-3 format)
   Future<String> _buildTriggerPrompt(TriggerEvent trigger) async {
     final triggerContextStr = ContextRetriever().buildContextString(trigger.context);
-    
+
     // ดึง context เพิ่มเติมจาก ContextRetriever
     final fullContextData = await ContextRetriever().retrieveFullContext();
     final fullContextStr = ContextRetriever().buildContextString(fullContextData);
-    
+
     return PromptBuilder.buildProactivePrompt(
       triggerContext: triggerContextStr,
       suggestedMessage: trigger.suggestedMessage ?? 'สวัสดีค่ะ',
@@ -614,13 +551,12 @@ Reply in Thai (1-2 sentences):
     );
   }
 
-
-
-  /// 🌐 ตรวจว่าข้อความเป็น English (ASCII > 70%)
-  bool _isEnglishMessage(String text) {
-    if (text.trim().isEmpty) return false;
-    final asciiCount = text.codeUnits.where((c) => c < 128).length;
-    return asciiCount / text.length > 0.7;
+  /// 📅 ตรวจว่าข้อความถามเรื่อง schedule/calendar
+  bool _isScheduleQuery(String text) {
+    final lower = text.toLowerCase();
+    const queryWords = ['ต้องทำอะไร', 'มีอะไร', 'มีนัด', 'วางแผน', 'ตาราง',
+        'schedule', 'calendar', 'appointment', 'plan', 'today', 'tomorrow'];
+    return queryWords.any(lower.contains);
   }
 
   /// 🔗 ดึง sources จาก context (เฉพาะวันที่ที่เป็น log entries จริงๆ ไม่ใช่ future events)
@@ -718,14 +654,14 @@ Reply in Thai (1-2 sentences):
     );
 
     if (todayEntries.isEmpty && calEvents.isEmpty) {
-      return 'วันนี้ ($dateStr) ยังไม่มีบันทึกหรือนัดหมายเลยค่ะ 📝 ลองเริ่มบันทึกสิ่งที่ทำวันนี้กันนะคะ!';
+      return 'วันนี้ ($dateStr) ยังไม่มีบันทึกหรือนัดหมายเลยค่ะ ลองเริ่มบันทึกสิ่งที่ทำวันนี้กันนะคะ!';
     }
 
-    buf.writeln('📋 สรุปวันที่ $dateStr');
+    buf.writeln('สรุปวันที่ $dateStr');
 
     // นัดหมายจาก Calendar
     if (calEvents.isNotEmpty) {
-      buf.writeln('\n📅 นัดหมายวันนี้ (${calEvents.length} รายการ):');
+      buf.writeln('\nนัดหมายวันนี้ (${calEvents.length} รายการ):');
       for (final e in calEvents) {
         final title = e['title'] as String? ?? 'กิจกรรม';
         final ms = e['startTime'] as int?;
@@ -741,7 +677,7 @@ Reply in Thai (1-2 sentences):
 
     // บันทึกจาก Diary
     if (todayEntries.isNotEmpty) {
-      buf.writeln('\n📝 บันทึกวันนี้ (${todayEntries.length} รายการ):');
+      buf.writeln('\nบันทึกวันนี้ (${todayEntries.length} รายการ):');
       for (final entry in todayEntries) {
         final e = entry as dynamic;
         final t = e.createdAt as DateTime;
@@ -778,10 +714,10 @@ Reply in Thai (1-2 sentences):
     }).toList();
 
     if (foodEntries.isEmpty) {
-      return 'วันนี้ยังไม่พบบันทึกเรื่องอาหารเลยค่ะ 🍽️ กินอะไรไปบ้างเล่าให้ฟังหน่อยนะคะ!';
+      return 'วันนี้ยังไม่พบบันทึกเรื่องอาหารเลยค่ะ กินอะไรไปบ้างเล่าให้ฟังหน่อยนะคะ!';
     }
 
-    final buf = StringBuffer('🍜 วันนี้กินอะไรไปบ้าง:\n');
+    final buf = StringBuffer('วันนี้กินอะไรไปบ้าง:\n');
     for (final entry in foodEntries) {
       final e = entry as dynamic;
       final t = e.createdAt as DateTime;
@@ -795,9 +731,9 @@ Reply in Thai (1-2 sentences):
     final buf = StringBuffer();
 
     if (todayEntries.isEmpty) {
-      buf.writeln('วันนี้ยังไม่มีบันทึกเลยค่ะ 📝 เริ่มเล่าให้ฟังได้เลยนะคะ!');
+      buf.writeln('วันนี้ยังไม่มีบันทึกเลยค่ะ เริ่มเล่าให้ฟังได้เลยนะคะ!');
     } else {
-      buf.writeln('😊 ไทม์ไลน์วันนี้:');
+      buf.writeln('ไทม์ไลน์วันนี้:');
       for (final entry in todayEntries) {
         final e = entry as dynamic;
         final t = e.createdAt as DateTime;
@@ -811,9 +747,9 @@ Reply in Thai (1-2 sentences):
     try {
       final insights = await CorrelationService().analyze();
       if (insights.isNotEmpty) {
-        buf.writeln('\n🔍 สิ่งที่ฮาคุสังเกตเห็น:');
+        buf.writeln('\nสิ่งที่ฮาคุสังเกตเห็น:');
         for (final insight in insights.take(3)) {
-          final icon = insight.isPositive ? '✨' : '⚠️';
+          final icon = insight.isPositive ? '✓' : '!';
           buf.writeln('$icon ${insight.message}');
         }
       }
@@ -839,9 +775,9 @@ Reply in Thai (1-2 sentences):
       }).toList();
 
       if (mentionEntries.isEmpty) {
-        return 'วันนี้ยังไม่มีบันทึกสถานที่เลยค่ะ 📍 ลองเปิด GPS ไว้ขณะบันทึกนะคะ!';
+        return 'วันนี้ยังไม่มีบันทึกสถานที่เลยค่ะ ลองเปิด GPS ไว้ขณะบันทึกนะคะ!';
       }
-      final buf = StringBuffer('📍 สถานที่ที่กล่าวถึงวันนี้:\n');
+      final buf = StringBuffer('สถานที่ที่กล่าวถึงวันนี้:\n');
       for (final e in mentionEntries) {
         final en = e as dynamic;
         final t = en.createdAt as DateTime;
@@ -860,7 +796,7 @@ Reply in Thai (1-2 sentences):
       if (seen.add(loc)) locations.add(loc);
     }
 
-    final buf = StringBuffer('📍 วันนี้ไปที่ไหนบ้าง (${locations.length} สถานที่):\n');
+    final buf = StringBuffer('วันนี้ไปที่ไหนบ้าง (${locations.length} สถานที่):\n');
     for (final loc in locations) {
       buf.writeln('• $loc');
     }
@@ -868,7 +804,7 @@ Reply in Thai (1-2 sentences):
     // เลือกสถานที่ล่าสุดที่ยังไม่มี sentiment บันทึกไว้
     askAboutPlace = await _pickPlaceToAsk(locations);
     if (askAboutPlace != null) {
-      buf.writeln('\nแล้วที่ $askAboutPlace เป็นยังไงบ้างคะ? 🙂');
+      buf.writeln('\nแล้วที่ $askAboutPlace เป็นยังไงบ้างคะ?');
 
       // activate PlaceFeedbackService ถ้ามี request ที่ match
       final pending = PlaceFeedbackService().dequeuePending();
@@ -905,7 +841,7 @@ Reply in Thai (1-2 sentences):
         .toList();
 
     if (withMood.isEmpty) {
-      return 'วันนี้ยังไม่มีการบันทึกอารมณ์เลยค่ะ 💭';
+      return 'วันนี้ยังไม่มีการบันทึกอารมณ์เลยค่ะ';
     }
 
     final moodCounts = <int, int>{};
@@ -933,7 +869,7 @@ Reply in Thai (1-2 sentences):
       case 3: return '😐';
       case 4: return '🙂';
       case 5: return '😄';
-      default: return '📝';
+      default: return '';
     }
   }
 
@@ -959,7 +895,7 @@ extension _IntRange on int {
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String? initialQuestion;
-  
+
   const ChatScreen({super.key, this.initialQuestion});
 
   @override
@@ -973,24 +909,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _contextEnabled = true;
 
   final List<QuickQuestion> _quickQuestions = [
-    QuickQuestion(icon: '📅', text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
-    QuickQuestion(icon: '🍜', text: 'วันนี้กินอะไร?', query: '',             isAction: true, actionType: 'food_today'),
-    QuickQuestion(icon: '😊', text: 'วันนี้เป็นยังไง?', query: '',           isAction: true, actionType: 'day_review'),
-    QuickQuestion(icon: '📍', text: 'ไปไหนมาบ้าง?', query: '',              isAction: true, actionType: 'places_today'),
-    QuickQuestion(icon: '🎵', text: 'อารมณ์ดีไหม?',  query: '',             isAction: true, actionType: 'mood_today'),
-    QuickQuestion(icon: '🌐', text: 'ค้นเว็บ',        query: '',             isCustom: true),
+    QuickQuestion(icon: Icons.calendar_today_outlined, text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
+    QuickQuestion(icon: Icons.restaurant_outlined, text: 'วันนี้กินอะไร?', query: '',             isAction: true, actionType: 'food_today'),
+    QuickQuestion(icon: Icons.sentiment_satisfied_outlined, text: 'วันนี้เป็นยังไง?', query: '',           isAction: true, actionType: 'day_review'),
+    QuickQuestion(icon: Icons.place_outlined, text: 'ไปไหนมาบ้าง?', query: '',              isAction: true, actionType: 'places_today'),
+    QuickQuestion(icon: Icons.mood_outlined, text: 'อารมณ์ดีไหม?',  query: '',             isAction: true, actionType: 'mood_today'),
+    QuickQuestion(icon: Icons.language_outlined, text: 'ค้นเว็บ',        query: '',             isCustom: true),
   ];
 
   @override
   void initState() {
     super.initState();
     _initializeServices();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialQuestion != null) {
         _sendQuickQuestionByText(widget.initialQuestion!);
       }
     });
+  }
+
+  /// 🔄 เริ่ม LiteRT Conversation session ใหม่
+  /// รีเซ็ต KV cache + ตั้ง system instruction ครั้งเดียวต่อ session
+  void _startNewLiteRTSession() {
+    final provider = LLMProviderManager().provider;
+    if (provider is LiteRTLLMProvider) {
+      provider.resetConversation();
+      provider.setSystemInstruction(PromptBuilder.buildSystemInstruction());
+      debugPrint('🔄 LiteRT session ใหม่ — system instruction ตั้งแล้ว');
+    }
   }
 
   Future<void> _initializeServices() async {
@@ -999,17 +946,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       debugPrint('🔄 Initializing RAG...');
       await RAGService().initialize();
       debugPrint('✅ RAG initialized: ${RAGService().isInitialized}');
-      
+
       // 🎛️ Initialize LLM Provider Manager (load saved preference)
       debugPrint('🔄 Initializing LLM Provider Manager...');
       await LLMProviderManager().initialize();
       debugPrint('✅ LLM Provider: ${LLMProviderManager().providerName}');
 
-      // 📝 NOTE: LLM จะถูกโหลดแบบ Lazy Loading
-      // เมื่อมีการเรียก generate() ครั้งแรกเท่านั้น
-      // ไม่โหลดตอน initState เพื่อประหยัดแบตเตอรี่
+      // รีเซ็ต stateful Conversation เมื่อเริ่ม chat session ใหม่
+      // System instruction ตั้งครั้งเดียว — Conversation จัดการ KV cache เอง
+      _startNewLiteRTSession();
+
       debugPrint('💡 LLM จะโหลดแบบ Lazy Loading (เมื่อใช้งานจริง)');
-      
+
       // 🔋 Initialize Chat Summary Service (Deferred Processing)
       debugPrint('🔄 Initializing Chat Summary Service...');
       await ChatSummaryService().initialize();
@@ -1030,7 +978,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         debugPrint('✅ Entries indexed');
       }
-      
+
       // Initialize Notification Service
       debugPrint('🔄 Initializing Notification Service...');
       final notificationService = NotificationService();
@@ -1042,12 +990,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       notificationService.onNotificationTap = (event) {
         _handleTrigger(event);
       };
-      
+
       // Initialize MVP Trigger Service
       debugPrint('🔄 Initializing Trigger Service...');
       final triggerService = MVPTriggerService();
       await triggerService.initialize();
-      
+
       // ตั้ง callback เมื่อมี trigger - แสดงทั้งในแอพและ notification
       triggerService.onTrigger = (event) {
         _handleTrigger(event);
@@ -1088,10 +1036,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 💬 ส่งข้อความตอบกลับจาก Quick Reply Notification
   Future<void> _sendQuickReplyFromNotification(String reply) async {
     debugPrint('💬 Quick reply from notification: $reply');
-    
+
     // ส่งข้อความไปให้ AI เหมือนกับผู้ใช้พิมพ์เอง
     await ref.read(chatHistoryProvider.notifier).sendToAI(reply);
-    
+
     // Scroll ไปล่างสุด
     _scrollToBottom();
   }
@@ -1124,7 +1072,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       text,
       useContext: _contextEnabled,
     );
-    
+
     setState(() => _isTyping = false);
     _scrollToBottom();
   }
@@ -1137,21 +1085,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         builder: (ctx) {
           final ctrl = TextEditingController();
           return AlertDialog(
-            backgroundColor: const Color(0xFF1A1A2E),
-            title: const Text('🌐 ค้นหาบนเว็บ', style: TextStyle(color: Colors.white)),
+            title: const Row(
+              children: [
+                Icon(Icons.language, color: kCrystal400),
+                SizedBox(width: 8),
+                Text('ค้นหาบนเว็บ'),
+              ],
+            ),
             content: TextField(
               controller: ctrl,
               autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'พิมพ์สิ่งที่ต้องการค้นหา...',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-                filled: true,
-                fillColor: const Color(0xFF2A2A3E),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
               ),
               onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
             ),
@@ -1159,7 +1104,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ยกเลิก')),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                child: const Text('ค้นหา', style: TextStyle(color: Color(0xFF9B7CB6))),
+                child: const Text('ค้นหา', style: TextStyle(color: kCrystal600)),
               ),
             ],
           );
@@ -1191,7 +1136,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendQuickQuestionByText(String questionText) async {
     final question = _quickQuestions.firstWhere(
       (q) => questionText.contains(q.text) || q.text.contains(questionText),
-      orElse: () => QuickQuestion(icon: '❓', text: questionText, query: questionText),
+      orElse: () => QuickQuestion(icon: Icons.help_outline, text: questionText, query: questionText),
     );
 
     await _sendQuickQuestion(question);
@@ -1205,32 +1150,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: Colors.transparent,
+      appBar: HakuGlassAppBar(
         title: Row(
           children: [
             Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF9B7CB6), Color(0xFF6B4E71)],
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [kCrystal300, kCrystal500],
                 ),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.all(Radius.circular(18)),
               ),
               child: const Center(
-                child: Text('箱', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text('箱', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kFgOnCyan)),
               ),
             ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Haku AI', style: TextStyle(fontSize: 16)),
+                const Text('Haku AI', style: TextStyle(fontSize: 16, color: kFg1, fontWeight: FontWeight.w600)),
                 Text(
-                  llmService.isInitialized ? '${LLMProviderManager().providerName} 🟢' : 'Mock Mode 🟡',
-                  style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.normal),
+                  llmService.isInitialized ? '${LLMProviderManager().providerName} Online' : 'Mock Mode',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: llmService.isInitialized ? kOk : kWarn,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
               ],
             ),
@@ -1239,7 +1187,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         actions: [
           // Toggle Context
           IconButton(
-            icon: Icon(_contextEnabled ? Icons.psychology : Icons.psychology_outlined),
+            icon: Icon(_contextEnabled ? Icons.psychology : Icons.psychology_outlined, color: kFg3),
             tooltip: _contextEnabled ? 'Context: ON' : 'Context: OFF',
             onPressed: () {
               setState(() => _contextEnabled = !_contextEnabled);
@@ -1249,18 +1197,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert, color: kFg3),
             onSelected: (value) async {
               if (value == 'clear') {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    backgroundColor: const Color(0xFF1A1A2E),
-                    title: const Text('ล้างประวัติแชท', style: TextStyle(color: Colors.white)),
-                    content: const Text('ข้อความทั้งหมดจะถูกลบออก ยืนยันไหมคะ?', style: TextStyle(color: Colors.white70)),
+                    title: const Text('ล้างประวัติแชท'),
+                    content: const Text('ข้อความทั้งหมดจะถูกลบออก ยืนยันไหมคะ?'),
                     actions: [
                       TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ', style: TextStyle(color: Colors.redAccent))),
+                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ', style: TextStyle(color: kErr))),
                     ],
                   ),
                 );
@@ -1271,7 +1218,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'clear', child: Row(children: [
-                Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                Icon(Icons.delete_outline, size: 18, color: kErr),
                 SizedBox(width: 8),
                 Text('ล้างประวัติแชท'),
               ])),
@@ -1279,40 +1226,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: HakuAuroraBackground(
         children: [
-          // Status Bar
-          if (!llmService.isInitialized)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-              color: Colors.orange.withValues(alpha: 0.12),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 14, color: Colors.orange.shade300),
-                  const SizedBox(width: 8),
-                  Text(
-                    'โหมดออฟไลน์: วางไฟล์ .gguf ในโฟลเดอร์ Downloads/ หรือเลือกผ่านการตั้งค่า',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade300),
+          Column(
+            children: [
+              // Status Bar
+              if (!llmService.isInitialized)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: kWarn.withAlpha(20),
+                    borderRadius: BorderRadius.circular(kR3),
+                    border: Border.all(color: kWarn.withAlpha(60)),
                   ),
-                ],
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: kWarn.withAlpha(180)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'โหมดออฟไลน์: วางไฟล์ .gguf ในโฟลเดอร์ Downloads/ หรือเลือกผ่านการตั้งค่า',
+                          style: TextStyle(fontSize: 12, color: kFg3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Messages
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) => _ChatBubble(message: messages[index]),
+                ),
               ),
-            ),
 
-          // Messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: messages.length,
-              itemBuilder: (context, index) => _ChatBubble(message: messages[index]),
-            ),
+              // Quick Questions
+              if (!_isTyping) _buildQuickQuestions(),
+
+              // Input
+              _buildInputArea(),
+            ],
           ),
-
-          // Quick Questions
-          if (!_isTyping) _buildQuickQuestions(),
-
-          // Input
-          _buildInputArea(),
         ],
       ),
     );
@@ -1329,11 +1287,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         itemBuilder: (context, index) {
           final question = _quickQuestions[index];
           return ActionChip(
-            avatar: Text(question.icon),
+            avatar: Icon(question.icon, size: 18, color: kFg3),
             label: Text(question.text),
-            backgroundColor: const Color(0xFF2A2A3E),
-            side: BorderSide.none,
-            labelStyle: const TextStyle(color: Colors.white),
+            backgroundColor: kGlassFillSoft,
+            side: const BorderSide(color: kGlassStroke),
+            labelStyle: const TextStyle(color: kFg1, fontSize: 13),
             onPressed: () => _sendQuickQuestion(question),
           );
         },
@@ -1342,16 +1300,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildInputArea() => Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+      decoration: const BoxDecoration(
+        color: kGlassFillSoft,
+        border: Border(
+          top: BorderSide(color: kGlassEdge, width: 1),
+        ),
       ),
       child: SafeArea(
         child: Row(
           children: [
             IconButton(
               icon: const Icon(Icons.mic_none),
-              color: Colors.white60,
+              color: kFg3,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('ฟีเจอร์เสียงจะมาใน Phase 2.5')),
@@ -1361,14 +1321,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Expanded(
               child: TextField(
                 controller: _messageController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: kFg1),
                 decoration: InputDecoration(
                   hintText: 'ถามฮาคุสิ...',
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                  hintStyle: TextStyle(color: kFg4.withAlpha(180)),
                   filled: true,
-                  fillColor: const Color(0xFF2A2A3E),
+                  fillColor: kGlassFill,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(kRPill),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -1385,13 +1345,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       child: SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: kCrystal400),
                       ),
                     ),
                   )
                 : IconButton(
                     icon: const Icon(Icons.send),
-                    color: const Color(0xFF9B7CB6),
+                    color: kCrystal500,
                     onPressed: _sendMessage,
                   ),
           ],
@@ -1416,8 +1376,14 @@ class _ChatBubble extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: kGlassFill,
                 borderRadius: BorderRadius.circular(20),
+                border: const Border(
+                  top: BorderSide(color: kGlassEdge, width: 1),
+                  left: BorderSide(color: kGlassStroke, width: 0.5),
+                  right: BorderSide(color: kGlassStroke, width: 0.5),
+                  bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1462,11 +1428,11 @@ class _ChatBubble extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF9B7CB6), Color(0xFF6B4E71)]),
-                borderRadius: BorderRadius.circular(16),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [kCrystal300, kCrystal500]),
+                borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
-              child: const Center(child: Text('箱', style: TextStyle(fontSize: 14))),
+              child: const Center(child: Text('箱', style: TextStyle(fontSize: 14, color: kFgOnCyan))),
             ),
             const SizedBox(width: 8),
           ],
@@ -1474,46 +1440,72 @@ class _ChatBubble extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser ? const Color(0xFF9B7CB6) : const Color(0xFF2A2A3E),
+                gradient: isUser
+                    ? const LinearGradient(colors: [kCrystal300, kCrystal500])
+                    : null,
+                color: isUser ? null : kGlassFill,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
                   bottomLeft: Radius.circular(isUser ? 20 : 4),
                   bottomRight: Radius.circular(isUser ? 4 : 20),
                 ),
+                border: isUser
+                    ? null
+                    : const Border(
+                        top: BorderSide(color: kGlassEdge, width: 1),
+                        left: BorderSide(color: kGlassStroke, width: 0.5),
+                        right: BorderSide(color: kGlassStroke, width: 0.5),
+                        bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                      ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.content,
-                    style: TextStyle(
-                      color: isUser ? Colors.white : Colors.white.withValues(alpha: 0.9),
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (message.sources != null && message.sources!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+              child: Builder(builder: (context) {
+                // Parse <thinking>...</thinking> block from model response
+                final raw = message.content;
+                final thinkMatch = RegExp(
+                  r'<thinking>([\s\S]*?)<\/thinking>',
+                  caseSensitive: false,
+                ).firstMatch(raw);
+                final thinking = thinkMatch?.group(1)?.trim();
+                final reply = thinkMatch != null
+                    ? raw.replaceFirst(thinkMatch.group(0)!, '').trim()
+                    : raw;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isUser && thinking != null && thinking.isNotEmpty)
+                      _ThinkingSection(thinking: thinking),
                     Text(
-                      'อ้างอิง: ${message.sources!.join(', ')}',
+                      reply,
                       style: TextStyle(
+                        color: isUser ? kFgOnCyan : kFg1,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (message.sources != null && message.sources!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'อ้างอิง: ${message.sources!.join(', ')}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: kFg3.withAlpha(180),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      timeFormat.format(message.timestamp),
+                      style: TextStyle(
+                        color: isUser ? kFgOnCyan.withAlpha(180) : kFg4,
                         fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 4),
-                  Text(
-                    timeFormat.format(message.timestamp),
-                    style: TextStyle(
-                      color: isUser ? Colors.white.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.4),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+                );
+              }),
             ),
           ),
         ],
@@ -1526,7 +1518,7 @@ class _ChatBubble extends StatelessWidget {
       width: 8,
       height: 8,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.4 + (index * 0.2)),
+        color: kCrystal400.withAlpha(100 + (index * 60)),
         borderRadius: BorderRadius.circular(4),
       ),
     );
@@ -1544,13 +1536,12 @@ class _ChatBubble extends StatelessWidget {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [Color(0xFF9B7CB6), Color(0xFF6B4E71)]),
-              borderRadius: BorderRadius.circular(16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [kCrystal300, kCrystal500]),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
             child: const Center(
-                child: Text('箱', style: TextStyle(fontSize: 14))),
+                child: Text('箱', style: TextStyle(fontSize: 14, color: kFgOnCyan))),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -1558,12 +1549,18 @@ class _ChatBubble extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: const BoxDecoration(
-                color: Color(0xFF2A2A3E),
+                color: kGlassFill,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(20),
                   topRight: Radius.circular(20),
                   bottomLeft: Radius.circular(4),
                   bottomRight: Radius.circular(20),
+                ),
+                border: Border(
+                  top: BorderSide(color: kGlassEdge, width: 1),
+                  left: BorderSide(color: kGlassStroke, width: 0.5),
+                  right: BorderSide(color: kGlassStroke, width: 0.5),
+                  bottom: BorderSide(color: kGlassStroke, width: 0.5),
                 ),
               ),
               child: Column(
@@ -1577,15 +1574,15 @@ class _ChatBubble extends StatelessWidget {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Color(0xFF9B7CB6),
+                          color: kCrystal400,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           message.content,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
+                          style: const TextStyle(
+                            color: kFg1,
                             fontSize: 15,
                             height: 1.4,
                           ),
@@ -1596,8 +1593,8 @@ class _ChatBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     timeFormat.format(message.timestamp),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                    style: const TextStyle(
+                      color: kFg4,
                       fontSize: 10,
                     ),
                   ),
@@ -1620,10 +1617,10 @@ class _ChatBubble extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A3A2A),
-          borderRadius: BorderRadius.circular(16),
+          color: kVividMint.withAlpha(20),
+          borderRadius: BorderRadius.circular(kR4),
           border: Border.all(
-            color: const Color(0xFF2ECC71).withValues(alpha: 0.3),
+            color: kVividMint.withAlpha(80),
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1632,11 +1629,12 @@ class _ChatBubble extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text('✅ ', style: TextStyle(fontSize: 14)),
+                const Icon(Icons.check_circle_outline, size: 16, color: kOk),
+                const SizedBox(width: 6),
                 Text(
                   header,
                   style: const TextStyle(
-                    color: Color(0xFF2ECC71),
+                    color: kOk,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1649,8 +1647,8 @@ class _ChatBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   line,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
+                  style: const TextStyle(
+                    color: kFg1,
                     fontSize: 13,
                   ),
                 ),
@@ -1665,7 +1663,7 @@ class _ChatBubble extends StatelessWidget {
   /// 🔔 แสดง Proactive Bubble (Trigger message)
   Widget _buildProactiveBubble(ChatMessage message) {
     final timeFormat = DateFormat('HH:mm');
-    
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -1675,20 +1673,20 @@ class _ChatBubble extends StatelessWidget {
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFFFFA726), Color(0xFFFF7043)]),
-              borderRadius: BorderRadius.circular(16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [kVividGold, kVividCoral]),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
-            child: const Center(child: Text('🔔', style: TextStyle(fontSize: 14))),
+            child: const Center(child: Icon(Icons.notifications_active_outlined, size: 16, color: Colors.white)),
           ),
           const SizedBox(width: 8),
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: kGlassFill,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFFFA726).withAlpha(100)),
+                border: Border.all(color: kVividGold.withAlpha(100)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1697,7 +1695,7 @@ class _ChatBubble extends StatelessWidget {
                     Text(
                       message.triggerTitle!,
                       style: const TextStyle(
-                        color: Color(0xFFFFA726),
+                        color: kVividCoral,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1706,8 +1704,8 @@ class _ChatBubble extends StatelessWidget {
                   ],
                   Text(
                     message.content,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
+                    style: const TextStyle(
+                      color: kFg1,
                       fontSize: 15,
                       height: 1.4,
                     ),
@@ -1715,8 +1713,8 @@ class _ChatBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     timeFormat.format(message.timestamp),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
+                    style: const TextStyle(
+                      color: kFg4,
                       fontSize: 10,
                     ),
                   ),
@@ -1730,8 +1728,80 @@ class _ChatBubble extends StatelessWidget {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 💭 Thinking Section — collapsible reasoning block (Gemma 4)
+// ══════════════════════════════════════════════════════════════
+
+class _ThinkingSection extends StatefulWidget {
+  final String thinking;
+  const _ThinkingSection({required this.thinking});
+
+  @override
+  State<_ThinkingSection> createState() => _ThinkingSectionState();
+}
+
+class _ThinkingSectionState extends State<_ThinkingSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 14,
+                  color: kFg3,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '💭 reasoning',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: kFg3,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F2F7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kFg4.withAlpha(60)),
+              ),
+              child: Text(
+                widget.thinking,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: kFg2,
+                  height: 1.5,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class QuickQuestion {
-  final String icon;
+  final IconData icon;
   final String text;
   final String query;
   final bool isCustom;

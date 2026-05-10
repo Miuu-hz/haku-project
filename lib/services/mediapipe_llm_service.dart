@@ -94,7 +94,7 @@ class MediaPipeLLMService {
   /// Note: temperature ไม่รองรับใน MediaPipe GenAI API
   Future<bool> initialize({
     String? modelFileName,
-    int maxTokens = 1024,
+    int? maxTokens,
   }) async {
     if (_isInitialized) return true;
     if (_isLoading) return false;

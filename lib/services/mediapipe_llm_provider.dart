@@ -1,3 +1,4 @@
+import '../models/llm_model_config.dart';
 import 'mediapipe_llm_service.dart';
 import 'llm_provider.dart';
 
@@ -19,7 +20,10 @@ class MediaPipeLLMProvider implements LLMProvider {
   bool get isLoading => _service.isLoading;
 
   @override
-  Future<bool> initialize({int maxTokens = 1024}) =>
+  LLMModelConfig get modelConfig => LLMModelConfig.gemma3_1b;
+
+  @override
+  Future<bool> initialize({int? maxTokens}) =>
       _service.initialize(maxTokens: maxTokens);
 
   @override

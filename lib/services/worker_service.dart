@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dart:convert';
+
 import '../models/entry.dart';
 import 'battery_aware_service.dart';
 import 'database_helper.dart';
@@ -10,7 +12,9 @@ import 'chat_history_service.dart';
 import 'deferred_task_service.dart';
 import 'llm_service.dart';
 import 'rag_service.dart';
+import 'secret_chat_service.dart';
 import 'topic_service.dart';
+import 'unified_vector_service.dart';
 import 'user_profile_service.dart';
 import 'vector_service.dart';
 import 'workers/translator_worker.dart';
@@ -102,10 +106,45 @@ class WorkerService {
   /// 💊 Handle health analysis task
   Future<void> _handleHealthAnalysis(Map<String, dynamic> payload) async {
     debugPrint('💊 Running health analysis...');
-    // TODO: Implement health analysis logic
-    // - Analyze health patterns from entries
-    // - Check for period tracking
-    // - Generate health insights
+
+    final recentLogs = SecretChatService().getRecentLog(limit: 30);
+    if (recentLogs.isEmpty) return;
+
+    final vectorService = UnifiedVectorService();
+    final now = DateTime.now();
+
+    // pattern → category / label
+    const patterns = <String, ({String category, String label})>{
+      'period':   (category: 'health_log', label: 'period'),
+      'menstr':   (category: 'health_log', label: 'period'),
+      'cramp':    (category: 'health_log', label: 'cramp'),
+      'headache': (category: 'health_log', label: 'headache'),
+      'pain':     (category: 'health_log', label: 'pain'),
+      'tired':    (category: 'health_log', label: 'fatigue'),
+      'exhaust':  (category: 'health_log', label: 'fatigue'),
+      'sick':     (category: 'health_log', label: 'sick'),
+      'fever':    (category: 'health_log', label: 'fever'),
+      'nausea':   (category: 'health_log', label: 'nausea'),
+    };
+
+    for (final entry in recentLogs) {
+      final lower = entry.summaryEn.toLowerCase();
+      for (final kv in patterns.entries) {
+        if (lower.contains(kv.key)) {
+          await vectorService.addFact(
+            category: kv.value.category,
+            content: entry.summaryEn,
+            metadata: {
+              'condition': kv.value.label,
+              'date': entry.timestamp.toIso8601String(),
+              'daysAgo': now.difference(entry.timestamp).inDays,
+            },
+          );
+          debugPrint('💊 Health fact stored: ${kv.value.label} — ${entry.summaryEn}');
+          break; // one fact per log entry
+        }
+      }
+    }
   }
 
   /// 🌐 Handle translate entries task
@@ -244,7 +283,8 @@ $joined
 English summary:''';
 
     try {
-      final result = await _llmService.generate(prompt, maxTokens: 100);
+      final maxTokens = _llmService.modelConfig.summaryMaxTokens;
+      final result = await _llmService.generate(prompt, maxTokens: maxTokens);
       return result.trim();
     } catch (e) {
       debugPrint('⚠️ Summarize error: $e');
@@ -263,7 +303,8 @@ $summary
 Topic name:''';
 
     try {
-      final result = await _llmService.generate(prompt, maxTokens: 20);
+      final maxTokens = _llmService.modelConfig.workerMaxTokens.clamp(20, 100);
+      final result = await _llmService.generate(prompt, maxTokens: maxTokens);
       return result.trim().replaceAll(RegExp(r'[^\w\s]'), '');
     } catch (e) {
       debugPrint('⚠️ Topic name error: $e');
@@ -334,13 +375,26 @@ Format: {"likes":[],"dislikes":[],"goals":[],"name":"","role":""}
 JSON:''';
 
     try {
-      final result = await _llmService.generate(prompt, maxTokens: 100);
+      final maxTokens = _llmService.modelConfig.workerMaxTokens;
+      final result = await _llmService.generate(prompt, maxTokens: maxTokens);
 
       // Try to parse JSON
       final jsonStr = result.trim();
       if (jsonStr.startsWith('{')) {
-        // TODO: Parse and queue facts
-        debugPrint('📝 Extracted facts: $jsonStr');
+        final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+
+        void queue(FactType type, dynamic value) {
+          final v = value?.toString().trim() ?? '';
+          if (v.isNotEmpty) _profileService.queueFact(PendingFact(type: type, value: v, source: text));
+        }
+
+        for (final v in (data['likes']    as List<dynamic>? ?? [])) { queue(FactType.like,    v); }
+        for (final v in (data['dislikes'] as List<dynamic>? ?? [])) { queue(FactType.dislike, v); }
+        for (final v in (data['goals']    as List<dynamic>? ?? [])) { queue(FactType.goal,    v); }
+        queue(FactType.name, data['name']);
+        queue(FactType.role, data['role']);
+
+        debugPrint('📝 Queued facts from LLM extraction');
       }
     } catch (e) {
       debugPrint('⚠️ LLM fact extraction error: $e');

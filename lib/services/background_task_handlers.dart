@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'database_helper.dart';
 import 'deferred_task_service.dart';
-import 'lean_context_service.dart';
 import 'rag_service.dart';
 import 'unified_vector_service.dart';
 import 'user_profile_service.dart';
@@ -33,7 +32,6 @@ class BackgroundTaskHandlers {
     debugPrint('📊 Running ManagerSummaryStrategy...');
 
     final strategy = ManagerSummaryStrategy(
-      leanContext: LeanContextService(),
       vectorService: UnifiedVectorService(),
       userProfile: UserProfileService(),
     );

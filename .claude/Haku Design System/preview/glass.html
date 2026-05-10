@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Glass primitives</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1);overflow:hidden}
+  html,body{scrollbar-width:none;-ms-overflow-style:none}
+  html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}
+  .wrap{padding:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .card{height:140px;padding:16px 18px;border-radius:var(--r-4);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+  .card .name{font:var(--t-h4);color:var(--fg-1);margin:0}
+  .card .desc{font:var(--t-caption);color:var(--fg-3);margin-top:4px}
+  /* Default — soft frosted, no shimmer */
+  .glass{
+    background:rgba(28,42,82,0.42);
+    -webkit-backdrop-filter:blur(22px) saturate(130%);
+    backdrop-filter:blur(22px) saturate(130%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 0 0 1px rgba(255,255,255,.06),0 14px 30px -14px rgba(0,0,0,.5);
+  }
+  /* Strong — for nav / sheets, slightly more opaque */
+  .glass-strong{
+    background:rgba(28,42,82,0.62);
+    -webkit-backdrop-filter:blur(28px) saturate(140%);
+    backdrop-filter:blur(28px) saturate(140%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 1px rgba(255,255,255,.07),0 22px 50px -18px rgba(0,0,0,.6);
+  }
+  /* Crystal core — soft diffuse glow, cool but warm-edged */
+  .crystal{
+    background:
+      radial-gradient(120% 120% at 30% 0%, rgba(255,255,255,.55) 0%, rgba(160,222,238,.55) 22%, rgba(70,150,180,.45) 60%, rgba(20,40,80,.55) 100%),
+      rgba(28,42,82,0.55);
+    -webkit-backdrop-filter:blur(22px) saturate(130%);
+    backdrop-filter:blur(22px) saturate(130%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 1px rgba(255,255,255,.08),0 18px 40px -16px rgba(0,0,0,.55);
+    color:#0d2a3a;
+  }
+  .crystal .name{color:#082233}
+  .crystal .desc{color:rgba(8,34,51,.65)}
+  /* Tiny soft caustic — slow, low contrast, no cyber stripe */
+  .card::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(140% 100% at 20% 0%, rgba(255,255,255,.10), transparent 55%);
+  }
+</style></head><body><div class="wrap">
+  <div class="card glass"><p class="name">Glass</p><p class="desc">surface for cards · soft frost</p></div>
+  <div class="card glass-strong"><p class="name">Glass · strong</p><p class="desc">nav · sheets · menus</p></div>
+  <div class="card crystal"><p class="name">Crystal core</p><p class="desc">AI affordance · diffuse light</p></div>
+</div></body></html>

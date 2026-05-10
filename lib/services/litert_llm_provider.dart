@@ -1,3 +1,4 @@
+import '../models/llm_model_config.dart';
 import 'llm_provider.dart';
 import 'llm_service.dart';
 
@@ -23,7 +24,10 @@ class LiteRTLLMProvider implements LLMProvider {
   bool get isLoading => _service.isLoading;
 
   @override
-  Future<bool> initialize({int maxTokens = 1024}) =>
+  LLMModelConfig get modelConfig => _service.modelConfig;
+
+  @override
+  Future<bool> initialize({int? maxTokens}) =>
       _service.initialize(maxTokens: maxTokens);
 
   @override
@@ -55,6 +59,15 @@ class LiteRTLLMProvider implements LLMProvider {
   void cancelAutoUnload() => _service.cancelAutoUnload();
 
   /// ตั้งค่า system instruction (Gemma 4 ready)
+  /// รีเซ็ต conversation อัตโนมัติ (Native side จัดการ)
   Future<void> setSystemInstruction(String instruction) =>
       _service.setSystemInstruction(instruction);
+
+  /// Generate แบบ stateful — ใช้ KV cache ต่อ session
+  /// ส่งแค่ user message (ไม่มี history ใน string)
+  Future<String> generateTurn(String userMessage, {double? temperature}) =>
+      _service.generateTurn(userMessage, temperature: temperature);
+
+  /// รีเซ็ต Conversation — เรียกเมื่อเริ่ม chat session ใหม่
+  Future<void> resetConversation() => _service.resetConversation();
 }

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Iconography</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1)}
+  .wrap{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+  .ttl{font:var(--t-eyebrow);letter-spacing:var(--letter-eyebrow);text-transform:uppercase;color:var(--fg-3);margin:0}
+  .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  .ic{aspect-ratio:1;border-radius:var(--r-3);background:var(--glass-fill);box-shadow:var(--shadow-glass-1);display:grid;place-items:center;color:var(--fg-2);position:relative}
+  .ic.active{color:var(--crystal-300);box-shadow:var(--shadow-glass-1),0 0 18px rgba(60,223,255,.35)}
+  .ic .label{position:absolute;bottom:4px;left:0;right:0;text-align:center;font:10px/1 var(--font-mono);color:var(--fg-4)}
+  .ic .msr{font-size:24px}
+  .note{font:var(--t-caption);color:var(--fg-3);margin:0}
+</style></head><body><div class="wrap">
+  <p class="ttl">Material Symbols Rounded · weight 400 · grade 0</p>
+  <div class="grid">
+    <div class="ic"><span class="msr">grid_view</span></div>
+    <div class="ic active"><span class="msr msr--filled">forum</span></div>
+    <div class="ic"><span class="msr">tune</span></div>
+    <div class="ic"><span class="msr">auto_awesome</span></div>
+    <div class="ic"><span class="msr">mic</span></div>
+    <div class="ic"><span class="msr">favorite</span></div>
+    <div class="ic"><span class="msr">place</span></div>
+    <div class="ic"><span class="msr">event</span></div>
+    <div class="ic"><span class="msr">wb_sunny</span></div>
+    <div class="ic"><span class="msr">notifications</span></div>
+    <div class="ic"><span class="msr">lock</span></div>
+    <div class="ic"><span class="msr">shield_lock</span></div>
+    <div class="ic"><span class="msr">cloud_off</span></div>
+    <div class="ic"><span class="msr">memory</span></div>
+    <div class="ic"><span class="msr">graphic_eq</span></div>
+    <div class="ic"><span class="msr">brightness_4</span></div>
+  </div>
+  <p class="note">Mirrors the Flutter Material Icons used in <code>main_navigation_screen.dart</code>. Filled variant highlights the active item.</p>
+</div></body></html>

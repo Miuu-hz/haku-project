@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'automation_screen.dart';
+import '../models/llm_model_config.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
 import '../services/database_helper.dart';
@@ -12,11 +14,26 @@ import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
 import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
+import '../services/llm_settings_service.dart';
 import '../services/model_manager_service.dart';
 import '../widgets/profile_editor_widget.dart';
 
+// ══════════════════════════════════════════════════════════════
+// 🎨 Haku Crystal — Settings palette
+// ══════════════════════════════════════════════════════════════
+
+const _kSField      = Color(0xFFF3FAFF);   // aurora field — pearl top
+const _kSTextMain   = Color(0xFF050A1E);   // fg-1 dark navy
+const _kSTextSub    = Color(0xFF44528A);   // fg-3 slate blue
+const _kSTextHint   = Color(0xFF8A93B5);   // fg-4 muted
+const _kSCrystal    = Color(0xFF3CDFFF);   // crystal-400 primary action
+const _kSLavender   = Color(0xFF9B7CB6);   // lavender-500 secondary/heritage
+const _kSOk         = Color(0xFF1A8A5A);   // dark green readable on light bg
+const _kSWarn       = Color(0xFFA0600A);   // dark amber readable on light bg
+const _kSGlassStroke = Color(0x14505A8C); // rgba(80,90,140,0.08)
+
 /// ⚙️ หน้าตั้งค่า
-/// 
+///
 /// รวมการตั้งค่าทั้งหมด:
 /// - ความปลอดภัย (Biometric, Auto-lock)
 /// - การส่งออกข้อมูล
@@ -45,10 +62,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyController = TextEditingController();
   ConnectionMode _connectionMode = ConnectionMode.direct;
 
+  // LLM Settings (user overrides)
+  LLMModelConfig _modelConfig = LLMModelConfig.unknown;
+  bool _hasLlmOverride = false;
+  int _userMaxTokens = 1024;
+  double _userTemperature = 0.8;
+  int _userTopK = 40;
+  double _userTopP = 0.95;
+
   // Google Places API
   final _googlePlacesKeyController = TextEditingController();
   bool _isTestingConnection = false;
   bool? _connectionTestResult;
+
+  // Model Gallery
+  final _hfTokenController = TextEditingController();
+  bool _hfTokenVisible = false;
+  final Map<String, double> _downloadProgress = {};
+  final Set<String> _activeDownloads = {};
+  Set<String> _localFilenames = {};
+
+  // Benchmark
+  bool _isBenchmarking = false;
+  String? _benchmarkResult;
 
   // Google Calendar
   final _googleAuth = GoogleAuthService();
@@ -69,6 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiEndpointController.dispose();
     _apiKeyController.dispose();
     _googlePlacesKeyController.dispose();
+    _hfTokenController.dispose();
     super.dispose();
   }
 
@@ -98,7 +135,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_googleAuth.isSignedIn) {
       await _loadCalendarEvents();
     }
+
+    // Load LLM model config + user overrides
+    _modelConfig = _providerManager.modelConfig;
+    _hasLlmOverride = await LlmSettingsService().hasOverride(_modelConfig.modelId);
+    if (_hasLlmOverride) {
+      final effective = await LlmSettingsService().loadEffectiveConfig(_modelConfig);
+      _userMaxTokens = effective.maxNumTokens;
+      _userTemperature = effective.defaultTemperature;
+      _userTopK = effective.defaultTopK;
+      _userTopP = effective.defaultTopP;
+    } else {
+      _userMaxTokens = _modelConfig.maxNumTokens;
+      _userTemperature = _modelConfig.defaultTemperature;
+      _userTopK = _modelConfig.defaultTopK;
+      _userTopP = _modelConfig.defaultTopP;
+    }
     
+    await _scanLocalModels();
+
     setState(() {
       _customLlmPath = savedPath;
       _modelValidation = validation;
@@ -125,6 +180,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final stat = await file.stat();
     final mb = stat.size / 1024 / 1024;
     return {'valid': true, 'message': 'ไฟล์พร้อมใช้งาน', 'sizeMB': mb};
+  }
+
+  Future<void> _scanLocalModels() async {
+    final results = <String>{};
+    for (final m in _kRemoteModels) {
+      if (await ModelManagerService().hasFile(m.filename)) {
+        results.add(m.filename);
+      }
+    }
+    if (mounted) setState(() => _localFilenames = results);
   }
 
   Future<void> _refreshModelValidation() async {
@@ -154,11 +219,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_kSField, Color(0xFFE6EFFF), Color(0xFFF3E6FF)],
+          stops: [0.0, 0.45, 1.0],
+        ),
+      ),
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('ตั้งค่า'),
+        backgroundColor: const Color(0xB8FFFFFF),
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'ตั้งค่า',
+          style: TextStyle(color: _kSTextMain, fontWeight: FontWeight.w600),
+        ),
+        iconTheme: const IconThemeData(color: _kSTextMain),
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: const SizedBox.expand(),
+          ),
+        ),
       ),
       body: ListView(
         children: [
@@ -173,7 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               return SwitchListTile(
                 title: const Text(
                   'ล็อกด้วยลายนิ้วมือ / ใบหน้า',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: _kSTextMain),
                 ),
                 subtitle: Text(
                   canUseBiometric
@@ -181,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : 'อุปกรณ์นี้ไม่รองรับ Biometric',
                   style: TextStyle(
                     color: canUseBiometric
-                        ? Colors.white.withAlpha(150)
+                        ? _kSTextSub
                         : Colors.red.withAlpha(150),
                   ),
                 ),
@@ -189,7 +276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: canUseBiometric
                     ? (value) => _toggleBiometric(value)
                     : null,
-                activeThumbColor: const Color(0xFF9B7CB6),
+                activeThumbColor: _kSCrystal,
               );
             },
           ),
@@ -197,17 +284,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             title: const Text(
               'ล็อกอัตโนมัติ',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
             subtitle: Text(
               'ล็อกหลังไม่ใช้งาน $_autoLockMinutes นาที',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: const TextStyle(color: _kSTextSub),
             ),
             value: _autoLockEnabled,
             onChanged: (value) {
               setState(() => _autoLockEnabled = value);
             },
-            activeThumbColor: const Color(0xFF9B7CB6),
+            activeThumbColor: _kSCrystal,
           ),
           
           if (_autoLockEnabled)
@@ -216,10 +303,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'เวลาล็อกอัตโนมัติ',
                     style: TextStyle(
-                      color: Colors.white.withAlpha(150),
+                      color: _kSTextSub,
                       fontSize: 12,
                     ),
                   ),
@@ -229,7 +316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     max: 10,
                     divisions: 9,
                     label: '$_autoLockMinutes นาที',
-                    activeColor: const Color(0xFF9B7CB6),
+                    activeColor: _kSCrystal,
                     onChanged: (value) {
                       setState(() => _autoLockMinutes = value.round());
                     },
@@ -244,10 +331,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('🤖 โมเดล AI'),
 
           ListTile(
-            leading: const Icon(Icons.folder_open, color: Color(0xFF9B7CB6)),
+            leading: const Icon(Icons.folder_open, color: _kSLavender),
             title: const Text(
               'ตำแหน่งไฟล์โมเดล LLM',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,8 +343,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _customLlmPath ?? 'ยังไม่ได้ระบุ (ใช้ค่าเริ่มต้น)',
                   style: TextStyle(
                     color: _modelValidation?['valid'] == true
-                        ? Colors.greenAccent.withAlpha(180)
-                        : (_customLlmPath != null ? Colors.orangeAccent.withAlpha(180) : Colors.white.withAlpha(150)),
+                        ? _kSOk
+                        : (_customLlmPath != null ? _kSWarn : _kSTextSub),
                     fontSize: 12,
                   ),
                   maxLines: 2,
@@ -284,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(width: 8),
                         Text(
                           '(${'${_modelValidation!['size']}'})',
-                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                          style: const TextStyle(fontSize: 11, color: _kSTextSub),
                         ),
                       ],
                     ],
@@ -297,11 +384,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 if (_customLlmPath != null)
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
+                    icon: const Icon(Icons.refresh, color: _kSTextHint, size: 20),
                     onPressed: _refreshModelValidation,
                     tooltip: 'ตรวจสอบไฟล์',
                   ),
-                const Icon(Icons.chevron_right, color: Colors.white54),
+                const Icon(Icons.chevron_right, color: _kSTextHint),
               ],
             ),
             onTap: () => _showLlmPathOptions(),
@@ -309,9 +396,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(),
 
+          // 📦 Model Gallery
+          _buildSectionHeader('📦 ดาวน์โหลดโมเดล'),
+          buildModelGallerySection(),
+
+          const Divider(),
+
+          // ⚡ Benchmark
+          _buildSectionHeader('⚡ ทดสอบประสิทธิภาพโมเดล'),
+          _buildBenchmarkSection(),
+
+          const Divider(),
+
           // 🌐 ส่วน LLM Provider
           _buildSectionHeader('🌐 LLM Provider'),
           _buildProviderSelection(),
+
+          const Divider(),
+
+          // 🎛️ ส่วน LLM Settings (เหมือน Google Gallery)
+          _buildSectionHeader('🎛️ LLM Settings'),
+          _buildLlmSettingsSection(),
 
           const Divider(),
 
@@ -322,31 +427,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Google Places API Key (สำหรับ "ใกล้ฉัน")',
-                  style: TextStyle(color: Colors.white.withAlpha(180), fontSize: 13),
+                  style: TextStyle(color: _kSTextSub, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _googlePlacesKeyController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: _kSTextMain, fontSize: 13),
                   obscureText: true,
                   decoration: InputDecoration(
                     hintText: 'AIza... (ไม่ใส่ = ใช้ SearXNG ทั่วไป)',
-                    hintStyle: TextStyle(color: Colors.white.withAlpha(80), fontSize: 12),
+                    hintStyle: const TextStyle(color: _kSTextHint, fontSize: 12),
                     filled: true,
-                    fillColor: Colors.white.withAlpha(15),
+                    fillColor: const Color(0x0F000000),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                      borderSide: const BorderSide(color: _kSGlassStroke),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                      borderSide: const BorderSide(color: _kSGlassStroke),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.save, color: Color(0xFF9B7CB6), size: 20),
+                      icon: const Icon(Icons.save, color: _kSLavender, size: 20),
                       tooltip: 'บันทึก',
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.of(context);
@@ -364,9 +469,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'รับ key ฟรีได้ที่ console.cloud.google.com → Places API',
-                  style: TextStyle(color: Colors.white.withAlpha(80), fontSize: 11),
+                  style: TextStyle(color: _kSTextHint, fontSize: 11),
                 ),
               ],
             ),
@@ -381,13 +486,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             title: const Text(
               'Demo Mode',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
             subtitle: Text(
               _isMockMode 
                   ? 'ใช้ข้อมูลจำลอง (ไม่ต้อง Login)'
                   : 'ใช้งานจริง (ต้องตั้งค่า Google Cloud)',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: const TextStyle(color: _kSTextSub),
             ),
             value: _isMockMode,
             onChanged: (value) async {
@@ -410,7 +515,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               );
             },
-            activeThumbColor: const Color(0xFF9B7CB6),
+            activeThumbColor: _kSCrystal,
             secondary: Icon(
               _isMockMode ? Icons.theater_comedy : Icons.cloud_off,
               color: _isMockMode ? Colors.orange : Colors.grey,
@@ -440,21 +545,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               title: const Text(
                 'Sign in with Google',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: _kSTextMain),
               ),
               subtitle: Text(
                 _isMockMode 
                     ? 'ทดลองใช้งานด้วย Demo Account'
                     : 'Sync กับ Google Calendar',
-                style: TextStyle(color: Colors.white.withAlpha(150)),
+                style: const TextStyle(color: _kSTextSub),
               ),
               trailing: _isGoogleLoading
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: _kSLavender),
                     )
-                  : const Icon(Icons.login, color: Color(0xFF9B7CB6)),
+                  : const Icon(Icons.login, color: _kSLavender),
               onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
             ),
           ] else ...[
@@ -469,7 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF9B7CB6),
+                        color: _kSLavender,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Center(
@@ -485,11 +590,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
               title: Text(
                 _googleAuth.userName ?? 'User',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: _kSTextMain),
               ),
               subtitle: Text(
                 '${_googleAuth.userEmail ?? ''} ${_isMockMode ? "(Demo)" : ""}',
-                style: TextStyle(color: Colors.white.withAlpha(150)),
+                style: const TextStyle(color: _kSTextSub),
               ),
               trailing: TextButton(
                 onPressed: _isGoogleLoading ? null : _handleGoogleSignOut,
@@ -497,7 +602,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: _kSTextSub),
                       )
                     : const Text('Sign Out'),
               ),
@@ -507,11 +612,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               title: const Text(
                 'Auto-sync Objectives',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: _kSTextMain),
               ),
-              subtitle: Text(
+              subtitle: const Text(
                 'Sync objectives ไป Calendar อัตโนมัติ',
-                style: TextStyle(color: Colors.white.withAlpha(150)),
+                style: TextStyle(color: _kSTextSub),
               ),
               value: _autoSyncEnabled,
               onChanged: (value) async {
@@ -519,7 +624,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await prefs.setBool('google_auto_sync', value);
                 setState(() => _autoSyncEnabled = value);
               },
-              activeThumbColor: const Color(0xFF9B7CB6),
+              activeThumbColor: _kSCrystal,
             ),
             
             // Upcoming events
@@ -530,7 +635,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _kSLavender),
                   ),
                 ),
               )
@@ -542,8 +647,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       'นัดหมายที่กำลังจะมาถึง (${_upcomingEvents.length})',
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(180),
+                      style: const TextStyle(
+                        color: _kSTextSub,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -553,7 +658,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: const Icon(Icons.refresh, size: 16),
                       label: const Text('รีเฟรช'),
                       style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF9B7CB6),
+                        foregroundColor: _kSLavender,
                         padding: EdgeInsets.zero,
                         minimumSize: const Size(60, 30),
                       ),
@@ -567,19 +672,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Text(
                     '+ ${_upcomingEvents.length - 3} รายการอื่น',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(100),
+                    style: const TextStyle(
+                      color: _kSTextHint,
                       fontSize: 12,
                     ),
                   ),
                 ),
             ] else
-              Padding(
-                padding: const EdgeInsets.all(16),
+              const Padding(
+                padding: EdgeInsets.all(16),
                 child: Text(
                   'ไม่มีนัดหมายใน 7 วันนี้',
                   style: TextStyle(
-                    color: Colors.white.withAlpha(100),
+                    color: _kSTextHint,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -591,16 +696,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('⚡ Automation'),
 
           ListTile(
-            leading: const Icon(Icons.bolt, color: Color(0xFF9B7CB6)),
+            leading: const Icon(Icons.bolt, color: _kSLavender),
             title: const Text(
               'Automation',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
-            subtitle: Text(
+            subtitle: const Text(
               'ตั้งค่า Trigger → Action อัตโนมัติ',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: TextStyle(color: _kSTextSub),
             ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
             onTap: () {
               Navigator.push(
                 context,
@@ -617,16 +722,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
 
           ListTile(
-            leading: const Icon(Icons.person_outline, color: Color(0xFF9B7CB6)),
+            leading: const Icon(Icons.person_outline, color: _kSLavender),
             title: const Text(
               'แก้ไขข้อมูลส่วนตัว',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
-            subtitle: Text(
+            subtitle: const Text(
               'ชื่อ, นิสัย, ความชอบ - AI จะจำและเรียนรู้',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: TextStyle(color: _kSTextSub),
             ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
             onTap: () {
               Navigator.push(
                 context,
@@ -643,16 +748,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('📤 ข้อมูลของคุณ'),
           
           ListTile(
-            leading: const Icon(Icons.download, color: Color(0xFF9B7CB6)),
+            leading: const Icon(Icons.download, color: _kSLavender),
             title: const Text(
               'ส่งออกข้อมูล',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
-            subtitle: Text(
+            subtitle: const Text(
               'JSON, Markdown, CSV',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: TextStyle(color: _kSTextSub),
             ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
             onTap: () => _showExportOptions(),
           ),
           
@@ -674,39 +779,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // ℹ️ เกี่ยวกับ
           _buildSectionHeader('ℹ️ เกี่ยวกับ'),
           
-          ListTile(
-            leading: const Icon(Icons.info_outline, color: Color(0xFF9B7CB6)),
-            title: const Text(
+          const ListTile(
+            leading: Icon(Icons.info_outline, color: _kSLavender),
+            title: Text(
               'Haku - AI Life Logger',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
             subtitle: Text(
               'เวอร์ชัน 0.1.0 (Phase 1)',
-              style: TextStyle(color: Colors.white.withAlpha(150)),
+              style: TextStyle(color: _kSTextSub),
             ),
           ),
           
           ListTile(
-            leading: Icon(Icons.privacy_tip_outlined, color: Colors.white.withAlpha(150)),
+            leading: const Icon(Icons.privacy_tip_outlined, color: _kSTextSub),
             title: const Text(
               'นโยบายความเป็นส่วนตัว',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: _kSTextMain),
             ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
             onTap: () => _showPrivacyInfo(),
           ),
           
           // ข้อความด้านล่าง
-          Padding(
-            padding: const EdgeInsets.all(32),
+          const Padding(
+            padding: EdgeInsets.all(32),
             child: Column(
               children: [
                 Icon(
                   Icons.shield_outlined,
                   size: 48,
-                  color: Colors.white.withAlpha(50),
+                  color: _kSTextHint,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(
                   '🔒 ข้อมูลของคุณถูกเข้ารหัสด้วย SQLCipher\n'
                   '📱 เก็บบนเครื่องนี้เท่านั้น\n'
@@ -714,7 +819,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withAlpha(100),
+                    color: _kSTextHint,
                     height: 1.8,
                   ),
                 ),
@@ -723,7 +828,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildSectionHeader(String title) => Padding(
@@ -733,7 +838,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF9B7CB6),
+          color: _kSLavender,
         ),
       ),
     );
@@ -753,7 +858,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showLlmPathOptions() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1E1E2E),
+      backgroundColor: _kSField,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -765,7 +870,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: _kSTextMain,
                 ),
               ),
             ),
@@ -776,13 +881,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(15),
+                    color: const Color(0x0F000000),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     _customLlmPath!,
-                    style: TextStyle(
-                      color: Colors.greenAccent.withAlpha(180),
+                    style: const TextStyle(
+                      color: _kSOk,
                       fontSize: 12,
                       fontFamily: 'monospace',
                     ),
@@ -795,13 +900,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ? const SizedBox(
                     width: 20, 
                     height: 20, 
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _kSLavender),
                   )
-                : const Icon(Icons.file_open, color: Color(0xFF9B7CB6)),
-              title: const Text('เลือกไฟล์โมเดล', style: TextStyle(color: Colors.white)),
+                : const Icon(Icons.file_open, color: _kSLavender),
+              title: const Text('เลือกไฟล์โมเดล', style: TextStyle(color: _kSTextMain)),
               subtitle: Text(
                 _isPickingModel ? 'กำลังเปิดตัวเลือกไฟล์...' : 'เลือกไฟล์โมเดลจากเครื่อง',
-                style: TextStyle(color: Colors.white.withAlpha(150)),
+                style: const TextStyle(color: _kSTextSub),
               ),
               onTap: _isPickingModel 
                 ? null 
@@ -916,7 +1021,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showExportOptions() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF1E1E2E),
+      backgroundColor: _kSField,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -928,14 +1033,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: _kSTextMain,
                 ),
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.code, color: Color(0xFF9B7CB6)),
-              title: const Text('JSON', style: TextStyle(color: Colors.white)),
-              subtitle: Text('สำหรับโปรแกรมอื่น', style: TextStyle(color: Colors.white.withAlpha(150))),
+              leading: const Icon(Icons.code, color: _kSLavender),
+              title: const Text('JSON', style: TextStyle(color: _kSTextMain)),
+              subtitle: const Text('สำหรับโปรแกรมอื่น', style: TextStyle(color: _kSTextSub)),
               onTap: () async {
                 Navigator.pop(context);
                 final path = await ExportService.exportToJson();
@@ -943,9 +1048,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.description, color: Color(0xFF9B7CB6)),
-              title: const Text('Markdown', style: TextStyle(color: Colors.white)),
-              subtitle: Text('อ่านง่าย แชร์ได้', style: TextStyle(color: Colors.white.withAlpha(150))),
+              leading: const Icon(Icons.description, color: _kSLavender),
+              title: const Text('Markdown', style: TextStyle(color: _kSTextMain)),
+              subtitle: const Text('อ่านง่าย แชร์ได้', style: TextStyle(color: _kSTextSub)),
               onTap: () async {
                 Navigator.pop(context);
                 final path = await ExportService.exportToMarkdown();
@@ -953,9 +1058,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.table_chart, color: Color(0xFF9B7CB6)),
-              title: const Text('CSV', style: TextStyle(color: Colors.white)),
-              subtitle: Text('สำหรับ Excel/Sheets', style: TextStyle(color: Colors.white.withAlpha(150))),
+              leading: const Icon(Icons.table_chart, color: _kSLavender),
+              title: const Text('CSV', style: TextStyle(color: _kSTextMain)),
+              subtitle: const Text('สำหรับ Excel/Sheets', style: TextStyle(color: _kSTextSub)),
               onTap: () async {
                 Navigator.pop(context);
                 final path = await ExportService.exportToCsv();
@@ -963,9 +1068,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.backup, color: Color(0xFF9B7CB6)),
-              title: const Text('Backup ไฟล์ดิบ', style: TextStyle(color: Colors.white)),
-              subtitle: Text('ไฟล์ .db (เข้ารหัสแล้ว)', style: TextStyle(color: Colors.white.withAlpha(150))),
+              leading: const Icon(Icons.backup, color: _kSLavender),
+              title: const Text('Backup ไฟล์ดิบ', style: TextStyle(color: _kSTextMain)),
+              subtitle: const Text('ไฟล์ .db (เข้ารหัสแล้ว)', style: TextStyle(color: _kSTextSub)),
               onTap: () async {
                 Navigator.pop(context);
                 final path = await ExportService.createRawBackup();
@@ -982,15 +1087,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2E),
+        backgroundColor: _kSField,
         title: const Text(
           'ลบข้อมูลทั้งหมด?',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: _kSTextMain),
         ),
         content: const Text(
           'การกระทำนี้ไม่สามารถย้อนกลับได้\n'
           'ข้อมูลทั้งหมดจะถูกลบถาวร',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: _kSTextSub),
         ),
         actions: [
           TextButton(
@@ -1018,10 +1123,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2E),
+        backgroundColor: _kSField,
         title: const Text(
           'นโยบายความเป็นส่วนตัว',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: _kSTextMain),
         ),
         content: const SingleChildScrollView(
           child: Text(
@@ -1032,7 +1137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             '4. ไม่มีการเก็บบัญชีผู้ใช้หรือ analytics\n'
             '5. คุณเป็นเจ้าของข้อมูลแบบสมบูรณ์\n\n'
             'หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้',
-            style: TextStyle(color: Colors.white70, height: 1.6),
+            style: TextStyle(color: _kSTextSub, height: 1.6),
           ),
         ),
         actions: [
@@ -1042,6 +1147,258 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎛️ LLM Settings Methods
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildLlmSettingsSection() {
+    final config = _modelConfig;
+    final isUnknown = config.modelId == 'unknown';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Model info card
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0x0A000000),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kSGlassStroke),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.memory, color: _kSLavender, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      config.displayName,
+                      style: const TextStyle(
+                        color: _kSTextMain,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (_hasLlmOverride) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withAlpha(80),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'CUSTOM',
+                          style: TextStyle(color: Colors.orangeAccent, fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Context: ${config.maxNumTokens} tokens • '
+                  'System Prompt: ${config.supportsSystemInstruction ? "✅" : "❌"}',
+                  style: const TextStyle(color: _kSTextHint, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        if (isUnknown)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'โหลดโมเดลก่อนจึงจะปรับค่าได้',
+              style: TextStyle(color: Colors.orange.withAlpha(180), fontSize: 12),
+            ),
+          )
+        else ...[
+          // Max Tokens slider
+          _buildSliderTile(
+            icon: Icons.expand,
+            label: 'Max Context Tokens',
+            subtitle: 'ขนาด context window ทั้งหมด',
+            value: _userMaxTokens.toDouble(),
+            min: 512,
+            max: config.maxNumTokens.toDouble(),
+            divisions: ((config.maxNumTokens - 512) / 512).round(),
+            displayValue: _userMaxTokens.toString(),
+            onChanged: (v) => setState(() => _userMaxTokens = v.round()),
+          ),
+
+          // Temperature slider
+          _buildSliderTile(
+            icon: Icons.thermostat,
+            label: 'Temperature',
+            subtitle: 'ความสร้างสรรค์ (ต่ำ = ตรงประเด็น, สูง = สร้างสรรค์)',
+            value: _userTemperature,
+            min: 0.0,
+            max: 2.0,
+            divisions: 20,
+            displayValue: _userTemperature.toStringAsFixed(2),
+            onChanged: (v) => setState(() => _userTemperature = v),
+          ),
+
+          // Top-K slider
+          _buildSliderTile(
+            icon: Icons.filter_list,
+            label: 'Top-K',
+            subtitle: 'จำนวน token ที่พิจารณาต่อ step',
+            value: _userTopK.toDouble(),
+            min: 1,
+            max: 100,
+            divisions: 99,
+            displayValue: _userTopK.toString(),
+            onChanged: (v) => setState(() => _userTopK = v.round()),
+          ),
+
+          // Top-P slider
+          _buildSliderTile(
+            icon: Icons.pie_chart_outline,
+            label: 'Top-P',
+            subtitle: 'Nucleus sampling (ความน่าจะอนุมาน)',
+            value: _userTopP,
+            min: 0.0,
+            max: 1.0,
+            divisions: 20,
+            displayValue: _userTopP.toStringAsFixed(2),
+            onChanged: (v) => setState(() => _userTopP = v),
+          ),
+
+          // Action buttons
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _resetLlmSettings,
+                    icon: const Icon(Icons.restore, size: 16),
+                    label: const Text('Reset Default', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kSTextSub,
+                      side: const BorderSide(color: _kSGlassStroke),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _saveLlmSettings,
+                    icon: const Icon(Icons.save, size: 16),
+                    label: const Text('Apply', style: TextStyle(fontSize: 12)),
+                    style: FilledButton.styleFrom(backgroundColor: _kSCrystal),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSliderTile({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required String displayValue,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: _kSLavender),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: _kSTextMain, fontSize: 13)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _kSLavender.withAlpha(40),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  displayValue,
+                  style: const TextStyle(color: _kSLavender, fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(subtitle, style: const TextStyle(color: _kSTextHint, fontSize: 11)),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            activeColor: _kSCrystal,
+            inactiveColor: _kSGlassStroke,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveLlmSettings() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    await LlmSettingsService().saveOverride(
+      _modelConfig.modelId,
+      maxTokens: _userMaxTokens,
+      temperature: _userTemperature,
+      topK: _userTopK,
+      topP: _userTopP,
+    );
+    setState(() => _hasLlmOverride = true);
+
+    // Reload provider ด้วยค่าใหม่ (ถ้าเป็น on-device)
+    if (_providerManager.activeType == ProviderType.onDevice) {
+      await _providerManager.provider.dispose();
+      await _providerManager.provider.initialize(maxTokens: _userMaxTokens);
+    }
+
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('✅ บันทึกการตั้งค่า LLM แล้ว'), backgroundColor: Colors.green),
+    );
+  }
+
+  Future<void> _resetLlmSettings() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    await LlmSettingsService().clearOverride(_modelConfig.modelId);
+    setState(() {
+      _hasLlmOverride = false;
+      _userMaxTokens = _modelConfig.maxNumTokens;
+      _userTemperature = _modelConfig.defaultTemperature;
+      _userTopK = _modelConfig.defaultTopK;
+      _userTopP = _modelConfig.defaultTopP;
+    });
+
+    // Reload provider ด้วยค่า default
+    if (_providerManager.activeType == ProviderType.onDevice) {
+      await _providerManager.provider.dispose();
+      await _providerManager.provider.initialize();
+    }
+
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('🔄 รีเซ็ตเป็น default แล้ว'), backgroundColor: Colors.green),
     );
   }
 
@@ -1061,15 +1418,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(10),
+              color: const Color(0x0A000000),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withAlpha(30)),
+              border: Border.all(color: _kSGlassStroke),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<ProviderType>(
                 value: _selectedProvider,
                 isExpanded: true,
-                dropdownColor: const Color(0xFF1E1E2E),
+                dropdownColor: _kSField,
                 items: providers.map((p) => DropdownMenuItem(
                   value: p.type,
                   child: Row(
@@ -1081,8 +1438,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(p.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                            Text(p.description, style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 11)),
+                            Text(p.name, style: const TextStyle(color: _kSTextMain, fontSize: 14)),
+                            Text(p.description, style: const TextStyle(color: _kSTextHint, fontSize: 11)),
                           ],
                         ),
                       ),
@@ -1114,7 +1471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 8),
               Text(
                 'Active: ${_providerManager.providerName}',
-                style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 12),
+                style: const TextStyle(color: _kSTextSub, fontSize: 12),
               ),
             ],
           ),
@@ -1127,30 +1484,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                Text('Mode:', style: TextStyle(color: Colors.white.withAlpha(150), fontSize: 13)),
+                const Text('Mode:', style: TextStyle(color: _kSTextSub, fontSize: 13)),
                 const SizedBox(width: 12),
                 ChoiceChip(
                   label: const Text('Direct API'),
                   selected: _connectionMode == ConnectionMode.direct,
                   onSelected: (_) => setState(() => _connectionMode = ConnectionMode.direct),
-                  selectedColor: const Color(0xFF9B7CB6),
+                  selectedColor: _kSCrystal,
                   labelStyle: TextStyle(
-                    color: _connectionMode == ConnectionMode.direct ? Colors.white : Colors.white70,
+                    color: _connectionMode == ConnectionMode.direct ? _kSTextMain : _kSTextSub,
                     fontSize: 12,
                   ),
-                  backgroundColor: Colors.white.withAlpha(15),
+                  backgroundColor: const Color(0x0F000000),
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text('Tunnel'),
                   selected: _connectionMode == ConnectionMode.tunnel,
                   onSelected: (_) => setState(() => _connectionMode = ConnectionMode.tunnel),
-                  selectedColor: const Color(0xFF9B7CB6),
+                  selectedColor: _kSCrystal,
                   labelStyle: TextStyle(
-                    color: _connectionMode == ConnectionMode.tunnel ? Colors.white : Colors.white70,
+                    color: _connectionMode == ConnectionMode.tunnel ? _kSTextMain : _kSTextSub,
                     fontSize: 12,
                   ),
-                  backgroundColor: Colors.white.withAlpha(15),
+                  backgroundColor: const Color(0x0F000000),
                 ),
               ],
             ),
@@ -1162,19 +1519,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 controller: _apiEndpointController,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: const TextStyle(color: _kSTextMain, fontSize: 14),
                 decoration: InputDecoration(
                   labelText: 'API Endpoint (Tunnel URL)',
-                  labelStyle: TextStyle(color: Colors.white.withAlpha(100)),
+                  labelStyle: const TextStyle(color: _kSTextHint),
                   hintText: 'https://your-tunnel.example.com',
-                  hintStyle: TextStyle(color: Colors.white.withAlpha(50)),
+                  hintStyle: const TextStyle(color: _kSTextHint),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                    borderSide: const BorderSide(color: _kSGlassStroke),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF9B7CB6)),
+                    borderSide: const BorderSide(color: _kSLavender),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
@@ -1187,19 +1544,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: TextField(
               controller: _apiKeyController,
               obscureText: true,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: _kSTextMain, fontSize: 14),
               decoration: InputDecoration(
                 labelText: 'API Key',
-                labelStyle: TextStyle(color: Colors.white.withAlpha(100)),
+                labelStyle: const TextStyle(color: _kSTextHint),
                 hintText: 'sk-... / AIza...',
-                hintStyle: TextStyle(color: Colors.white.withAlpha(50)),
+                hintStyle: const TextStyle(color: _kSTextHint),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withAlpha(30)),
+                  borderSide: const BorderSide(color: _kSGlassStroke),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFF9B7CB6)),
+                  borderSide: const BorderSide(color: _kSLavender),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
@@ -1220,7 +1577,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: _isTestingConnection
                         ? const SizedBox(
                             width: 16, height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF9B7CB6)),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: _kSLavender),
                           )
                         : Icon(
                             _connectionTestResult == true
@@ -1243,13 +1600,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? Colors.green
                           : _connectionTestResult == false
                               ? Colors.red
-                              : const Color(0xFF9B7CB6),
+                              : _kSLavender,
                       side: BorderSide(
                         color: _connectionTestResult == true
                             ? Colors.green
                             : _connectionTestResult == false
                                 ? Colors.red
-                                : const Color(0xFF9B7CB6),
+                                : _kSLavender,
                       ),
                     ),
                   ),
@@ -1262,7 +1619,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: const Icon(Icons.save, size: 18),
                   label: const Text('Apply', style: TextStyle(fontSize: 13)),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF9B7CB6),
+                    backgroundColor: _kSCrystal,
                   ),
                 ),
               ),
@@ -1336,6 +1693,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // โหลดโมเดลทันทีหลัง switch (on-device)
       if (_selectedProvider == ProviderType.onDevice) {
         await _providerManager.provider.initialize();
+      }
+
+      // Reload LLM settings for new provider
+      _modelConfig = _providerManager.modelConfig;
+      _hasLlmOverride = await LlmSettingsService().hasOverride(_modelConfig.modelId);
+      if (_hasLlmOverride) {
+        final effective = await LlmSettingsService().loadEffectiveConfig(_modelConfig);
+        _userMaxTokens = effective.maxNumTokens;
+        _userTemperature = effective.defaultTemperature;
+        _userTopK = effective.defaultTopK;
+        _userTopP = effective.defaultTopP;
+      } else {
+        _userMaxTokens = _modelConfig.maxNumTokens;
+        _userTemperature = _modelConfig.defaultTemperature;
+        _userTopK = _modelConfig.defaultTopK;
+        _userTopP = _modelConfig.defaultTopP;
       }
 
       if (!mounted) return;
@@ -1422,10 +1795,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withAlpha(10),
+          color: const Color(0x0A000000),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: Colors.white.withAlpha(20),
+            color: _kSGlassStroke,
             width: 1,
           ),
         ),
@@ -1467,7 +1840,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text(
                     event.title,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: _kSTextMain,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1477,8 +1850,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '🕐 ${event.displayTime}${event.location != null ? ' • 📍 ${event.location}' : ''}',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(150),
+                    style: const TextStyle(
+                      color: _kSTextSub,
                       fontSize: 12,
                     ),
                     maxLines: 1,
@@ -1492,4 +1865,413 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════
+  // ⚡ Benchmark
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildBenchmarkSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'วัดความเร็ว inference ของโมเดลปัจจุบัน\n(รัน 3 ครั้ง, prompt 10 words)',
+            style: TextStyle(fontSize: 13, color: _kSTextSub, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: _isBenchmarking ? null : _runBenchmark,
+                icon: _isBenchmarking
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.speed_rounded, size: 18),
+                label: Text(_isBenchmarking ? 'กำลังทดสอบ...' : 'เริ่มทดสอบ'),
+                style: FilledButton.styleFrom(backgroundColor: _kSCrystal),
+              ),
+              if (_benchmarkResult != null) ...[
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    _benchmarkResult!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kSTextMain,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runBenchmark() async {
+    final provider = _providerManager.provider;
+    if (!provider.isInitialized) {
+      setState(() => _benchmarkResult = 'โหลดโมเดลก่อนแล้วค่อยทดสอบ');
+      return;
+    }
+
+    setState(() { _isBenchmarking = true; _benchmarkResult = null; });
+
+    const prompt = 'Hello! Please count from one to five briefly.';
+    const runs = 3;
+    var totalMs = 0;
+
+    try {
+      for (var i = 0; i < runs; i++) {
+        final sw = Stopwatch()..start();
+        await provider.generate(prompt);
+        sw.stop();
+        totalMs += sw.elapsedMilliseconds;
+      }
+
+      final avgMs = totalMs ~/ runs;
+      // rough tokens/sec: assume ~20 output tokens per run
+      const estimatedOutputTokens = 20;
+      final tokensPerSec = (estimatedOutputTokens * 1000 / avgMs).toStringAsFixed(1);
+
+      setState(() => _benchmarkResult = 'เฉลี่ย ${avgMs}ms · ~$tokensPerSec tok/s');
+    } catch (e) {
+      setState(() => _benchmarkResult = 'Error: $e');
+    } finally {
+      setState(() => _isBenchmarking = false);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 📦 Model Gallery
+  // ═══════════════════════════════════════════════════════════
+
+  Widget buildModelGallerySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // HF Token field
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: TextField(
+            controller: _hfTokenController,
+            obscureText: !_hfTokenVisible,
+            style: const TextStyle(color: _kSTextMain, fontSize: 13),
+            decoration: InputDecoration(
+              labelText: 'Hugging Face Token (สำหรับโมเดล gated)',
+              labelStyle: const TextStyle(color: _kSTextHint, fontSize: 12),
+              hintText: 'hf_...',
+              hintStyle: const TextStyle(color: _kSTextHint, fontSize: 12),
+              filled: true,
+              fillColor: const Color(0x0A000000),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _kSGlassStroke),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              suffixIcon: IconButton(
+                icon: Icon(_hfTokenVisible ? Icons.visibility_off : Icons.visibility,
+                    size: 18, color: _kSTextHint),
+                onPressed: () => setState(() => _hfTokenVisible = !_hfTokenVisible),
+              ),
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'รับ token ฟรีได้ที่ huggingface.co/settings/tokens',
+            style: TextStyle(color: _kSTextHint, fontSize: 11),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Model cards
+        ..._kRemoteModels.map((m) => _buildModelCard(m)),
+      ],
+    );
+  }
+
+  Widget _buildModelCard(_RemoteModel m) {
+    final isDownloading = _activeDownloads.contains(m.filename);
+    final isLocal = _localFilenames.contains(m.filename);
+    final progress = _downloadProgress[m.filename] ?? 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isLocal ? const Color(0x12000000) : const Color(0x0A000000),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isLocal
+                ? _kSLavender.withAlpha(100)
+                : _kSGlassStroke,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title row
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      m.name,
+                      style: const TextStyle(
+                        color: _kSTextMain,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: m.badgeColor.withAlpha(50),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: m.badgeColor.withAlpha(120)),
+                    ),
+                    child: Text(
+                      m.badge,
+                      style: TextStyle(color: m.badgeColor, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Specs row
+              Text(
+                '${m.sizeLabel} • ${m.contextLabel} tokens • ${m.quantLabel}',
+                style: const TextStyle(color: _kSTextHint, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                m.description,
+                style: const TextStyle(color: _kSTextSub, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+
+              // Action row
+              if (isDownloading) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: _kSGlassStroke,
+                              valueColor: AlwaysStoppedAnimation<Color>(m.badgeColor),
+                              minHeight: 6,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${(progress * 100).toInt()}%  •  ${(progress * m.sizeGB).toStringAsFixed(1)} / ${m.sizeGB} GB',
+                            style: const TextStyle(color: _kSTextHint, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: () {
+                        ModelManagerService().cancelDownload(m.filename);
+                        setState(() => _activeDownloads.remove(m.filename));
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(60, 32),
+                      ),
+                      child: const Text('ยกเลิก', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ] else if (isLocal) ...[
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: _kSLavender, size: 16),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'ดาวน์โหลดแล้ว',
+                      style: TextStyle(color: _kSTextSub, fontSize: 13),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () => _activateModel(m),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kSCrystal,
+                        foregroundColor: _kSTextMain,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        minimumSize: const Size(0, 32),
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                      child: const Text('ใช้งาน'),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: () => _startModelDownload(m),
+                    icon: const Icon(Icons.download, size: 16),
+                    label: Text('ดาวน์โหลด ${m.sizeLabel}', style: const TextStyle(fontSize: 12)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kSGlassStroke,
+                      foregroundColor: _kSTextMain,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: const Size(0, 32),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startModelDownload(_RemoteModel m) async {
+    final token = _hfTokenController.text.trim();
+    setState(() {
+      _activeDownloads.add(m.filename);
+      _downloadProgress[m.filename] = 0.0;
+    });
+
+    final url = 'https://huggingface.co/${m.hfRepo}/resolve/main/${m.filename}';
+    final ok = await ModelManagerService().downloadModel(
+      url,
+      m.filename,
+      onProgress: (p) {
+        if (mounted) setState(() => _downloadProgress[m.filename] = p);
+      },
+      hfToken: token.isNotEmpty ? token : null,
+    );
+
+    if (!mounted) return;
+    setState(() => _activeDownloads.remove(m.filename));
+
+    if (ok) {
+      await _scanLocalModels();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('✅ ดาวน์โหลด ${m.name} สำเร็จ'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: 'ใช้งาน',
+          textColor: Colors.white,
+          onPressed: () => _activateModel(m),
+        ),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('❌ ดาวน์โหลดล้มเหลว — ตรวจสอบ HF Token หรือพื้นที่เก็บข้อมูล'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ));
+    }
+  }
+
+  Future<void> _activateModel(_RemoteModel m) async {
+    final path = await ModelManagerService().modelPath(m.filename);
+    await ModelManagerService().setActiveModelPath(path);
+    if (LLMProviderManager().activeType == ProviderType.onDevice) {
+      final p = LLMProviderManager().provider;
+      if (p is LiteRTLLMProvider) await p.setCustomModelPath(path);
+    }
+    final validation = await _validateModelFile(path);
+    if (!mounted) return;
+    setState(() {
+      _customLlmPath = path;
+      _modelValidation = validation;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('✅ ใช้งาน ${m.name} แล้ว'),
+      backgroundColor: Colors.green,
+    ));
+  }
 }
+
+// ═══════════════════════════════════════════════════════════
+// 📦 Remote Model Catalog
+// ═══════════════════════════════════════════════════════════
+
+class _RemoteModel {
+  final String name;
+  final String badge;
+  final Color badgeColor;
+  final double sizeGB;
+  final String contextLabel;
+  final String quantLabel;
+  final String description;
+  final String filename;
+  final String hfRepo;
+
+  const _RemoteModel({
+    required this.name,
+    required this.badge,
+    required this.badgeColor,
+    required this.sizeGB,
+    required this.contextLabel,
+    required this.quantLabel,
+    required this.description,
+    required this.filename,
+    required this.hfRepo,
+  });
+
+  String get sizeLabel {
+    if (sizeGB >= 1.0) return '${sizeGB.toStringAsFixed(1)} GB';
+    return '${(sizeGB * 1024).round()} MB';
+  }
+}
+
+const _kRemoteModels = <_RemoteModel>[
+  _RemoteModel(
+    name: 'Gemma 3 1B',
+    badge: '⚡ เร็วสุด',
+    badgeColor: Color(0xFF4FC3F7),
+    sizeGB: 0.62,
+    contextLabel: '1K',
+    quantLabel: 'INT8',
+    description: 'เบาที่สุด ใช้แบตน้อย เหมาะกับมือถือทุกรุ่น',
+    filename: 'gemma3-1b-it-int8.litertlm',
+    hfRepo: 'google/gemma-3-1b-it-litert-lm',
+  ),
+  _RemoteModel(
+    name: 'Gemma 4 E2B',
+    badge: '⭐ แนะนำ',
+    badgeColor: Color(0xFFFFB74D),
+    sizeGB: 2.2,
+    contextLabel: '4K',
+    quantLabel: 'INT4',
+    description: 'สมดุลระหว่างความเร็วและคุณภาพ รองรับบทสนทนายาว',
+    filename: 'gemma4-e2b-it-int4.litertlm',
+    hfRepo: 'google/gemma-4-e2b-it-litert-lm',
+  ),
+  _RemoteModel(
+    name: 'Gemma 4 E4B',
+    badge: '🏆 ดีสุด',
+    badgeColor: Color(0xFFCE93D8),
+    sizeGB: 4.5,
+    contextLabel: '8K',
+    quantLabel: 'INT4',
+    description: 'คุณภาพสูงสุด เข้าใจภาษาไทยได้ดี เหมาะกับเครื่องแรง',
+    filename: 'gemma4-e4b-it-int4.litertlm',
+    hfRepo: 'google/gemma-4-e4b-it-litert-lm',
+  ),
+];

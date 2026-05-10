@@ -131,6 +131,13 @@ class PresetService {
     }
   }
 
+  /// 🗑️ ลบ saved location
+  Future<void> removeLocation(String type) async {
+    _savedLocations.remove(type);
+    await _saveSavedLocations();
+    debugPrint('🗑️ Removed location: $type');
+  }
+
   /// 🏠 บันทึกตำแหน่ง (home, office, etc.)
   Future<void> saveLocation(String type, SavedLocation location) async {
     _savedLocations[type] = location;

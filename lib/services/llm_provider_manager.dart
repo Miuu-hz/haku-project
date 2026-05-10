@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/llm_model_config.dart';
 import 'cloud_llm_provider.dart';
 import 'llm_provider.dart';
 import 'litert_llm_provider.dart';
@@ -61,6 +62,9 @@ class LLMProviderManager {
 
   /// Provider name สำหรับ UI
   String get providerName => provider.providerName;
+
+  /// Model config ปัจจุบัน
+  LLMModelConfig get modelConfig => provider.modelConfig;
 
   /// Whether manager has been initialized
   bool get isManagerInitialized => _isInitialized;

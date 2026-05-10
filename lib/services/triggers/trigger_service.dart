@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../battery_aware_service.dart';
-import '../lean_context_service.dart';
 import '../user_profile_service.dart';
 import '../unified_vector_service.dart';
 import 'timer_trigger.dart';
@@ -19,7 +18,6 @@ import 'manager_summary_strategy.dart';
 ///
 /// Integration:
 /// - BatteryAwareService: ตรวจสอบสถานะแบต
-/// - LeanContextService: บันทึก/อ่าน context
 /// - UnifiedVectorService: เก็บข้อมูล RAG
 
 class TriggerService {
@@ -28,7 +26,6 @@ class TriggerService {
   TriggerService._internal();
 
   final BatteryAwareService _battery = BatteryAwareService();
-  final LeanContextService _leanContext = LeanContextService();
   final UserProfileService _userProfile = UserProfileService();
   final UnifiedVectorService _vectorService = UnifiedVectorService();
 
@@ -48,7 +45,6 @@ class TriggerService {
 
     // Initialize dependencies
     await _battery.initialize();
-    await _leanContext.initialize();
     await _vectorService.initialize();
 
     // Create sub-services
@@ -59,14 +55,12 @@ class TriggerService {
 
     _chargingTrigger = ChargingTrigger(
       batteryService: _battery,
-      leanContext: _leanContext,
       vectorService: _vectorService,
       userProfile: _userProfile,
       onTrigger: _handleChargingTrigger,
     );
 
     _managerSummary = ManagerSummaryStrategy(
-      leanContext: _leanContext,
       vectorService: _vectorService,
       userProfile: _userProfile,
     );

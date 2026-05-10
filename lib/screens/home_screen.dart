@@ -13,23 +13,11 @@ import '../services/scheduler_service.dart';
 import '../services/social_battery_service.dart';
 import '../services/streak_service.dart';
 import '../services/weather_service.dart';
+import '../utils/haku_design_tokens.dart';
+import '../widgets/caustic_shimmer.dart';
 import 'chat_screen.dart';
 import 'settings_screen.dart';
 import 'view_entry_screen.dart';
-
-// ══════════════════════════════════════════════════════════════
-// 🎨 Color Palette — matched to HTML CSS vars exactly
-// ══════════════════════════════════════════════════════════════
-
-const _kBg          = Color(0xFFF8F9FA);
-const _kTextMain    = Color(0xFF1C1C1E);
-const _kTextSub     = Color(0xFF6E6E73);
-const _kAccentBlue  = Color(0xFF007AFF);
-const _kAccentOrange = Color(0xFFFF9500);
-const _kAccentGreen = Color(0xFF34C759);
-const _kAccentVivid = Color(0xFFFF2D55);
-const _kGlassBg     = Color(0xA6FFFFFF); // rgba(255,255,255,0.65)
-const _kGlassBorder = Color(0xCCFFFFFF); // rgba(255,255,255,0.8)
 
 // ══════════════════════════════════════════════════════════════
 // Provider
@@ -43,22 +31,11 @@ final entriesProvider = FutureProvider<List<Entry>>(
 // ⏰ Time Period
 // ══════════════════════════════════════════════════════════════
 
-enum _Period { morning, midday, evening, night }
-
-_Period _periodOf(int hour) {
-  if (hour >= 5 && hour < 12) return _Period.morning;
-  if (hour >= 12 && hour < 17) return _Period.midday;
-  if (hour >= 17 && hour < 22) return _Period.evening;
-  return _Period.night;
-}
-
-String _periodGreeting(_Period p) {
-  switch (p) {
-    case _Period.morning: return 'อรุณสวัสดิ์ค่ะ! ☀️';
-    case _Period.midday:  return 'สวัสดีตอนเที่ยงค่ะ 🌤️';
-    case _Period.evening: return 'สวัสดีตอนเย็นค่ะ 🌇';
-    case _Period.night:   return 'ราตรีสวัสดิ์ค่ะ 🌙';
-  }
+String _greetingFor(int hour) {
+  if (hour >= 5 && hour < 12) return 'อรุณสวัสดิ์ค่ะ';
+  if (hour >= 12 && hour < 17) return 'สวัสดีตอนเที่ยงค่ะ';
+  if (hour >= 17 && hour < 22) return 'สวัสดีตอนเย็นค่ะ';
+  return 'ราตรีสวัสดิ์ค่ะ';
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -75,13 +52,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with TickerProviderStateMixin {
 
-  // 🌊 Blob animation (CSS: 10s alternate ease-in-out, translate+scale)
+  // 🌊 Blob animation
   late final AnimationController _blobCtrl;
   late final Animation<double> _blob1X, _blob1Y, _blob1S;
   late final Animation<double> _blob2X, _blob2Y, _blob2S;
   late final Animation<double> _blob3X, _blob3Y, _blob3S;
 
-  // ✨ Card intro (CSS: slideUpFade 0.6s + staggered delays)
+  // ✨ Card intro
   late final AnimationController _introCtrl;
   late final Animation<double> _headerAnim;
   late final Animation<double> _card1Anim;
@@ -96,19 +73,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   int _streak = 0;
   CorrelationInsight? _topInsight;
   SocialBatteryResult? _socialBattery;
+  // mood: list of (dayLabel, avgMood) sorted oldest→newest, only days with entries
+  List<({String label, double mood})> _moodHistory = [];
 
   @override
   void initState() {
     super.initState();
 
-    // CSS: float 10s infinite alternate ease-in-out
-    // translate(30px, 50px) scale(1.1)
     _blobCtrl = AnimationController(
       duration: const Duration(seconds: 10),
       vsync: this,
     )..repeat(reverse: true);
 
-    // Blob 1 (no delay)
     _blob1X = Tween<double>(begin: 0, end: 30).animate(
         CurvedAnimation(parent: _blobCtrl, curve: Curves.easeInOut));
     _blob1Y = Tween<double>(begin: 0, end: 50).animate(
@@ -116,7 +92,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _blob1S = Tween<double>(begin: 1.0, end: 1.1).animate(
         CurvedAnimation(parent: _blobCtrl, curve: Curves.easeInOut));
 
-    // Blob 2 (animation-delay: -2s → starts at 20% offset)
     _blob2X = Tween<double>(begin: 0, end: 30).animate(
         CurvedAnimation(parent: _blobCtrl,
             curve: const Interval(0.2, 1.0, curve: Curves.easeInOut)));
@@ -127,7 +102,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         CurvedAnimation(parent: _blobCtrl,
             curve: const Interval(0.2, 1.0, curve: Curves.easeInOut)));
 
-    // Blob 3 (animation-delay: -4s → starts at 40% offset)
     _blob3X = Tween<double>(begin: 0, end: 30).animate(
         CurvedAnimation(parent: _blobCtrl,
             curve: const Interval(0.4, 1.0, curve: Curves.easeInOut)));
@@ -138,7 +112,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         CurvedAnimation(parent: _blobCtrl,
             curve: const Interval(0.4, 1.0, curve: Curves.easeInOut)));
 
-    // Intro staggered
     _introCtrl = AnimationController(
       duration: const Duration(milliseconds: 700),
       vsync: this,
@@ -175,7 +148,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _loadStreak(),
       _loadInsights(),
       _loadSocialBattery(),
+      _loadMoodHistory(),
     ]);
+  }
+
+  Future<void> _loadMoodHistory() async {
+    try {
+      final all = await DatabaseHelper.instance.getAllEntries();
+      final now = DateTime.now();
+      final days = <String, List<int>>{};
+
+      for (var i = 6; i >= 0; i--) {
+        final d = now.subtract(Duration(days: i));
+        final key = '${d.month}/${d.day}';
+        days[key] = [];
+      }
+
+      for (final e in all) {
+        if (e.mood == null) continue;
+        final age = now.difference(e.createdAt).inDays;
+        if (age > 6) continue;
+        final key = '${e.createdAt.month}/${e.createdAt.day}';
+        days[key]?.add(e.mood!);
+      }
+
+      final history = days.entries
+          .where((kv) => kv.value.isNotEmpty)
+          .map((kv) => (
+                label: kv.key,
+                mood: kv.value.reduce((a, b) => a + b) / kv.value.length,
+              ))
+          .toList();
+
+      if (mounted) setState(() => _moodHistory = history);
+    } catch (_) {}
   }
 
   Future<void> _loadWeather() async {
@@ -243,13 +249,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final entriesAsync = ref.watch(entriesProvider);
-    final now    = DateTime.now();
-    final period = _periodOf(now.hour);
+    final now     = DateTime.now();
     final dateStr = DateFormat('EEEEที่ d MMM', 'th').format(now);
 
     return Stack(
       children: [
-        // ① Blob background (fills entire screen behind everything)
+        // ① Blob background
         Positioned.fill(
           child: _BlobBackground(
             ctrl: _blobCtrl,
@@ -259,41 +264,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
 
-        // ② Main scaffold — transparent so blobs show through glass cards
+        // ② Main scaffold
         Scaffold(
           backgroundColor: Colors.transparent,
           extendBodyBehindAppBar: true,
           appBar: _buildGlassAppBar(dateStr),
           body: RefreshIndicator(
             onRefresh: _refreshData,
-            color: _kAccentBlue,
+            color: kCrystal400,
             backgroundColor: Colors.white,
             child: CustomScrollView(
               slivers: [
-                // Safe area gap below AppBar
                 const SliverToBoxAdapter(
                   child: SizedBox(height: kToolbarHeight + 20),
                 ),
 
-                // ─── Dashboard cards ───
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header
                         _Intro(
                           anim: _headerAnim,
                           child: _HeaderSection(
-                            period: period,
+                            greeting: _greetingFor(now.hour),
                             dateStr: dateStr,
                             eventCount: _todayEvents.length,
                           ),
                         ),
                         const SizedBox(height: 24),
 
-                        // Card 1: Weather
                         if (_weather != null) ...[
                           _Intro(
                             anim: _card1Anim,
@@ -302,7 +303,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Card 2: Calendar
                         if (_todayEvents.isNotEmpty) ...[
                           _Intro(
                             anim: _card2Anim,
@@ -311,7 +311,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Card 3: Goals
                         if (_activeObjectives.isNotEmpty) ...[
                           _Intro(
                             anim: _card3Anim,
@@ -320,7 +319,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Streak badge (small pill below goals)
                         if (_streak > 0) ...[
                           _Intro(
                             anim: _card3Anim,
@@ -329,7 +327,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Card 4: Social Battery
                         if (_socialBattery != null) ...[
                           _Intro(
                             anim: _card3Anim,
@@ -338,7 +335,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Card 5: Hidden Correlation insight
                         if (_topInsight != null) ...[
                           _Intro(
                             anim: _card3Anim,
@@ -347,7 +343,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // Journal section divider
+                        if (_moodHistory.length >= 2) ...[
+                          _Intro(
+                            anim: _card3Anim,
+                            child: _MoodTrendCard(history: _moodHistory),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
                         _buildDivider(),
                         const SizedBox(height: 8),
                       ],
@@ -355,14 +358,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                 ),
 
-                // ─── Journal entries ───
                 entriesAsync.when(
                   data: (entries) {
                     if (entries.isEmpty) {
                       return SliverToBoxAdapter(child: _buildEmptyState());
                     }
                     return SliverPadding(
-                      // 120px bottom padding: clears the floating pill
                       padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
@@ -380,7 +381,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: Padding(
                       padding: EdgeInsets.all(40),
                       child: Center(
-                        child: CircularProgressIndicator(color: _kAccentBlue),
+                        child: CircularProgressIndicator(color: kCrystal400),
                       ),
                     ),
                   ),
@@ -389,7 +390,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text('เกิดข้อผิดพลาด: $e',
-                            style: const TextStyle(color: _kTextSub)),
+                            style: const TextStyle(color: kFg3)),
                       ),
                     ),
                   ),
@@ -399,7 +400,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
 
-        // ③ Floating bottom action pill (on top, z-order above Scaffold)
+        // ③ Floating bottom action pill
         Positioned(
           bottom: 30,
           left: 24,
@@ -424,23 +425,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: AppBar(
-              backgroundColor: Colors.white.withValues(alpha:0.5),
+              backgroundColor: kGlassFill,
               elevation: 0,
               shadowColor: Colors.transparent,
               surfaceTintColor: Colors.transparent,
               title: Text(
                 dateStr,
                 style: const TextStyle(
-                  color: _kTextMain,
+                  color: kFg1,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.settings_outlined, color: _kTextMain),
+                  icon: const Icon(Icons.settings_outlined, color: kFg1),
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute<bool>(
@@ -457,21 +458,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildDivider() => Row(
         children: [
-          const Text('📖', style: TextStyle(fontSize: 13)),
+          const Icon(Icons.book_outlined, size: 16, color: kFg3),
           const SizedBox(width: 8),
           const Text(
             'บันทึก',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: _kTextSub,
+              color: kFg3,
               letterSpacing: 1.2,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Divider(
-              color: Colors.black.withValues(alpha:0.1),
+              color: kFg1.withAlpha(15),
               thickness: 1,
             ),
           ),
@@ -483,16 +484,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: Column(
           children: [
             Icon(Icons.inbox_outlined,
-                size: 56, color: _kTextSub.withValues(alpha:0.4)),
+                size: 56, color: kFg3.withAlpha(100)),
             const SizedBox(height: 12),
             const Text('ยังไม่มีบันทึก',
                 style: TextStyle(
                     fontSize: 17,
-                    color: _kTextSub,
+                    color: kFg3,
                     fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             const Text('แตะ "เริ่มบันทึก" เพื่อบันทึกชีวิตของคุณ',
-                style: TextStyle(fontSize: 13, color: _kTextSub),
+                style: TextStyle(fontSize: 13, color: kFg3),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -520,7 +521,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: kErr),
             child: const Text('ลบ'),
           ),
         ],
@@ -557,36 +558,40 @@ class _BlobBackground extends StatelessWidget {
           final h = constraints.maxHeight;
           return AnimatedBuilder(
             animation: ctrl,
-            builder: (_, __) => ColoredBox(
-              color: _kBg,
+            builder: (_, __) => Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [kFieldTop, kFieldMid, kFieldBot],
+                  stops: [0.0, 0.45, 1.0],
+                ),
+              ),
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: [
-                  // Blob 1: soft pink — top:-10% left:-10% w:300 h:300
                   Positioned(
                     top: -h * 0.10 + b1y.value,
                     left: -w * 0.10 + b1x.value,
                     child: Transform.scale(
                       scale: b1s.value,
-                      child: const _Blob(color: Color(0x99FFB6C1), size: 300),
+                      child: const _Blob(color: kOrbCyan, size: 360),
                     ),
                   ),
-                  // Blob 2: vivid sky blue — top:20% right:-20% w:400 h:400
                   Positioned(
                     top: h * 0.20 + b2y.value,
                     right: -w * 0.20 + b2x.value,
                     child: Transform.scale(
                       scale: b2s.value,
-                      child: const _Blob(color: Color(0x9987CEFA), size: 400),
+                      child: const _Blob(color: kOrbLavender, size: 380),
                     ),
                   ),
-                  // Blob 3: light cyan — bottom:-10% left:20% w:350 h:350
                   Positioned(
                     bottom: -h * 0.10 + b3y.value,
                     left: w * 0.20 + b3x.value,
                     child: Transform.scale(
                       scale: b3s.value,
-                      child: const _Blob(color: Color(0x99E0FFFF), size: 350),
+                      child: const _Blob(color: kOrbMagenta, size: 280),
                     ),
                   ),
                 ],
@@ -597,7 +602,6 @@ class _BlobBackground extends StatelessWidget {
       );
 }
 
-/// Blurred circle — CSS: border-radius:50%; filter:blur(60px); opacity:0.6
 class _Blob extends StatelessWidget {
   final Color color;
   final double size;
@@ -605,7 +609,7 @@ class _Blob extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+        imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
         child: Container(
           width: size,
           height: size,
@@ -641,7 +645,7 @@ class _Intro extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🪟 Glass Card — backdrop blur + semi-transparent white
+// 🪟 Glass Card — with Caustic Shimmer
 // ══════════════════════════════════════════════════════════════
 
 class _GlassCard extends StatelessWidget {
@@ -649,35 +653,39 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({required this.child});
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha:0.04),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: Colors.white.withValues(alpha:0.8),
-              blurRadius: 0,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: _kGlassBg,
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: _kGlassBorder),
+  Widget build(BuildContext context) => CausticShimmer(
+        borderRadius: BorderRadius.circular(kR4),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(kR4),
+            boxShadow: const [
+              BoxShadow(color: kGlassStroke, blurRadius: 0, spreadRadius: 1),
+              BoxShadow(
+                color: Color(0x40283C82),
+                blurRadius: 28,
+                offset: Offset(0, 10),
               ),
-              child: child,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(kR4),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: kGlassFill,
+                  borderRadius: BorderRadius.all(Radius.circular(kR4)),
+                  border: Border(
+                    top:    BorderSide(color: kGlassEdge, width: 1),
+                    left:   BorderSide(color: kGlassStroke, width: 0.5),
+                    right:  BorderSide(color: kGlassStroke, width: 0.5),
+                    bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                  ),
+                ),
+                child: child,
+              ),
             ),
           ),
         ),
@@ -689,12 +697,12 @@ class _GlassCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 
 class _HeaderSection extends StatelessWidget {
-  final _Period period;
+  final String greeting;
   final String dateStr;
   final int eventCount;
 
   const _HeaderSection({
-    required this.period,
+    required this.greeting,
     required this.dateStr,
     required this.eventCount,
   });
@@ -703,7 +711,6 @@ class _HeaderSection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Date chip — glass pill with blur
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: BackdropFilter(
@@ -712,16 +719,16 @@ class _HeaderSection extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha:0.5),
+                  color: Colors.white.withAlpha(130),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _kGlassBorder),
+                  border: Border.all(color: kGlassEdge),
                 ),
                 child: Text(
                   dateStr,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: _kAccentBlue,
+                    color: kCrystal500,
                   ),
                 ),
               ),
@@ -729,25 +736,23 @@ class _HeaderSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Greeting (34px bold — matches HTML .greeting)
           Text(
-            _periodGreeting(period),
+            greeting,
             style: const TextStyle(
               fontSize: 34,
               fontWeight: FontWeight.w700,
-              color: _kTextMain,
+              color: kFg1,
               height: 1.1,
               letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
 
-          // Insight with gradient highlight text
           RichText(
             text: TextSpan(
               style: const TextStyle(
                 fontSize: 16,
-                color: _kTextSub,
+                color: kFg3,
                 height: 1.4,
               ),
               children: [
@@ -756,7 +761,7 @@ class _HeaderSection extends StatelessWidget {
                   alignment: PlaceholderAlignment.middle,
                   child: ShaderMask(
                     shaderCallback: (bounds) => const LinearGradient(
-                      colors: [_kAccentVivid, _kAccentOrange],
+                      colors: [kVividMagenta, kVividGold],
                     ).createShader(bounds),
                     child: const Text(
                       'ข้อมูลบนเครื่อง',
@@ -791,7 +796,6 @@ class _WeatherCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Big temp row (matches HTML .weather-row)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -799,7 +803,6 @@ class _WeatherCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Temperature with small "C" suffix
                       RichText(
                         text: TextSpan(
                           children: [
@@ -808,7 +811,7 @@ class _WeatherCard extends StatelessWidget {
                               style: const TextStyle(
                                 fontSize: 48,
                                 fontWeight: FontWeight.w300,
-                                color: _kTextMain,
+                                color: kFg1,
                                 letterSpacing: -2,
                                 height: 1,
                               ),
@@ -817,7 +820,7 @@ class _WeatherCard extends StatelessWidget {
                               text: 'C',
                               style: TextStyle(
                                 fontSize: 24,
-                                color: Color(0xFF8E8E93),
+                                color: kFg4,
                                 fontWeight: FontWeight.w400,
                               ),
                             ),
@@ -830,13 +833,12 @@ class _WeatherCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: _kTextSub,
+                          color: kFg3,
                         ),
                       ),
                     ],
                   ),
                 ),
-                // Weather icon (56px, matches HTML .weather-icon)
                 Text(
                   weather.emoji,
                   style: const TextStyle(fontSize: 56),
@@ -845,24 +847,23 @@ class _WeatherCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
 
-            // Nudge pill — matches HTML .weather-desc
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.5),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withAlpha(130),
+                borderRadius: BorderRadius.circular(kR3),
               ),
               child: Row(
                 children: [
-                  const Text('💡', style: TextStyle(fontSize: 15)),
+                  const Icon(Icons.lightbulb_outline, size: 18, color: kFg3),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _nudge(weather.maxTemp, weather.description),
                       style: const TextStyle(
                         fontSize: 15,
-                        color: _kTextMain,
+                        color: kFg1,
                         fontWeight: FontWeight.w500,
                         height: 1.4,
                       ),
@@ -881,23 +882,23 @@ class _WeatherCard extends StatelessWidget {
         d.contains('rain') ||
         d.contains('shower') ||
         d.contains('thunder')) {
-      return 'พกร่มไปด้วยนะคะ วันนี้มีฝนตก ☔';
+      return 'พกร่มไปด้วยนะคะ วันนี้มีฝนตก';
     }
-    if (temp > 35) return 'อากาศร้อนมาก ควรพกน้ำและทาครีมกันแดดค่ะ 🧴';
-    if (temp < 22) return 'อากาศเย็นสบาย ใส่เสื้อกันหนาวด้วยก็ดีค่ะ 🧥';
-    return 'พกเสื้อคลุมไปด้วยนะคะ ช่วงบ่ายอาจมีฝนตก 🌂';
+    if (temp > 35) return 'อากาศร้อนมาก ควรพกน้ำและทาครีมกันแดดค่ะ';
+    if (temp < 22) return 'อากาศเย็นสบาย ใส่เสื้อกันหนาวด้วยก็ดีค่ะ';
+    return 'พกเสื้อคลุมไปด้วยนะคะ ช่วงบ่ายอาจมีฝนตก';
   }
 }
 
 // ══════════════════════════════════════════════════════════════
-// 📅 Calendar Card — Agenda style with time column
+// 📅 Calendar Card
 // ══════════════════════════════════════════════════════════════
 
 class _CalendarCard extends StatelessWidget {
   final List<Map<String, dynamic>> events;
   const _CalendarCard({required this.events});
 
-  static const _colors = [_kAccentBlue, _kAccentOrange, _kAccentGreen];
+  static const _colors = [kCrystal400, kVividGold, kVividMint];
 
   @override
   Widget build(BuildContext context) {
@@ -908,24 +909,22 @@ class _CalendarCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Card title
           Row(
             children: [
-              const Text('📅', style: TextStyle(fontSize: 18)),
+              const Icon(Icons.calendar_today_outlined, size: 18, color: kFg1),
               const SizedBox(width: 8),
               Text(
                 'ตารางวันนี้ (${events.length})',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: _kTextMain,
+                  color: kFg1,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
 
-          // Agenda items
           ...shown.asMap().entries.map((e) {
             final i      = e.key;
             final ev     = e.value;
@@ -944,7 +943,6 @@ class _CalendarCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Time column — 50px (matches HTML .time-col)
                   SizedBox(
                     width: 50,
                     child: Padding(
@@ -954,23 +952,21 @@ class _CalendarCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: _kTextSub,
+                          color: kFg3,
                         ),
                       ),
                     ),
                   ),
 
-                  // Event card with left color bar
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha:0.8),
+                        color: Colors.white.withAlpha(200),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha:0.9)),
+                        border: Border.all(color: kGlassStroke),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha:0.02),
+                            color: Colors.black.withAlpha(5),
                             blurRadius: 15,
                             offset: const Offset(0, 4),
                           ),
@@ -982,9 +978,7 @@ class _CalendarCard extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Left color bar (::before pseudo-element)
                               Container(width: 4, color: color),
-                              // Content
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
@@ -998,7 +992,7 @@ class _CalendarCard extends StatelessWidget {
                                         style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
-                                          color: _kTextMain,
+                                          color: kFg1,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -1007,16 +1001,14 @@ class _CalendarCard extends StatelessWidget {
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
-                                            const Text('📍',
-                                                style:
-                                                    TextStyle(fontSize: 12)),
+                                            const Icon(Icons.location_on_outlined, size: 12, color: kFg3),
                                             const SizedBox(width: 4),
                                             Expanded(
                                               child: Text(
                                                 loc,
                                                 style: const TextStyle(
                                                   fontSize: 13,
-                                                  color: _kTextSub,
+                                                  color: kFg3,
                                                 ),
                                                 maxLines: 1,
                                                 overflow:
@@ -1044,7 +1036,7 @@ class _CalendarCard extends StatelessWidget {
           if (more > 0) ...[
             const SizedBox(height: 12),
             Text('+$more นัดอื่น',
-                style: const TextStyle(fontSize: 13, color: _kTextSub)),
+                style: const TextStyle(fontSize: 13, color: kFg3)),
           ],
         ],
       ),
@@ -1053,12 +1045,21 @@ class _CalendarCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🎯 Goals Card with circular progress
+// 🎯 Goals Card
 // ══════════════════════════════════════════════════════════════
+
+typedef _GoalStyle = ({double progress, Color color, IconData? icon, String label});
 
 class _GoalsCard extends StatelessWidget {
   final List<Objective> objectives;
   const _GoalsCard({required this.objectives});
+
+  static const _GoalStyle _kDone = (progress: 1.0, color: kVividMint, icon: Icons.check_circle_outline, label: 'เสร็จแล้ว');
+  static final Map<ObjectiveStatus, _GoalStyle> _kStyle = {
+    ObjectiveStatus.inProgress: (progress: 0.5, color: kCrystal400,  icon: Icons.adjust, label: 'กำลังดำเนินการ'),
+    ObjectiveStatus.overdue:    (progress: 0.3, color: kVividMagenta, icon: Icons.warning_amber_rounded, label: 'เกินกำหนดแล้ว'),
+    ObjectiveStatus.pending:    (progress: 0.0, color: kVividMint, icon: Icons.radio_button_unchecked, label: 'ยังไม่ได้เริ่มเลย'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1068,38 +1069,33 @@ class _GoalsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Card title
           const Row(
             children: [
-              Text('🎯', style: TextStyle(fontSize: 18)),
+              Icon(Icons.track_changes_outlined, size: 18, color: kFg1),
               SizedBox(width: 8),
               Text(
                 'เป้าหมายประจำวัน',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: _kTextMain,
+                  color: kFg1,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
 
-          // Goal items
           ...shown.asMap().entries.map((e) {
             final i    = e.key;
             final o    = e.value;
             final isLast = i == shown.length - 1;
-            final progress = _progressOf(o.status);
-            final color    = _colorOf(o.status);
-            final icon     = _iconOf(o.status);
-            final subLabel = o.dueTime ?? _statusLabel(o.status);
+            final style    = _kStyle[o.status] ?? _kDone;
+            final subLabel = o.dueTime ?? style.label;
 
             return Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
               child: Row(
                 children: [
-                  // Icon box — matches HTML .goal-icon (40×40, rounded 14px)
                   Container(
                     width: 40,
                     height: 40,
@@ -1108,18 +1104,17 @@ class _GoalsCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha:0.05),
+                          color: Colors.black.withAlpha(12),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: Text(icon, style: const TextStyle(fontSize: 20)),
+                    child: Icon(style.icon, size: 20, color: style.color),
                   ),
                   const SizedBox(width: 12),
 
-                  // Goal text
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1129,7 +1124,7 @@ class _GoalsCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: _kTextMain,
+                            color: kFg1,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1137,14 +1132,13 @@ class _GoalsCard extends StatelessWidget {
                         Text(
                           subLabel,
                           style: const TextStyle(
-                              fontSize: 13, color: _kTextSub),
+                              fontSize: 13, color: kFg3),
                         ),
                       ],
                     ),
                   ),
 
-                  // Circular progress (CSS: conic-gradient + inner white circle)
-                  _ProgressCircle(value: progress, color: color),
+                  _ProgressCircle(value: style.progress, color: style.color),
                 ],
               ),
             );
@@ -1153,50 +1147,15 @@ class _GoalsCard extends StatelessWidget {
           if (objectives.length > 3) ...[
             const SizedBox(height: 12),
             Text('+${objectives.length - 3} อื่นๆ',
-                style: const TextStyle(fontSize: 13, color: _kTextSub)),
+                style: const TextStyle(fontSize: 13, color: kFg3)),
           ],
         ],
       ),
     );
   }
-
-  static double _progressOf(ObjectiveStatus s) {
-    switch (s) {
-      case ObjectiveStatus.inProgress: return 0.5;
-      case ObjectiveStatus.overdue:    return 0.3;
-      case ObjectiveStatus.pending:    return 0.0;
-      default:                          return 1.0;
-    }
-  }
-
-  static Color _colorOf(ObjectiveStatus s) {
-    switch (s) {
-      case ObjectiveStatus.inProgress: return _kAccentBlue;
-      case ObjectiveStatus.overdue:    return _kAccentVivid;
-      default:                          return _kAccentGreen;
-    }
-  }
-
-  static String _iconOf(ObjectiveStatus s) {
-    switch (s) {
-      case ObjectiveStatus.inProgress: return '🔵';
-      case ObjectiveStatus.overdue:    return '⚠️';
-      case ObjectiveStatus.pending:    return '⚪';
-      default:                          return '✅';
-    }
-  }
-
-  static String _statusLabel(ObjectiveStatus s) {
-    switch (s) {
-      case ObjectiveStatus.inProgress: return 'กำลังดำเนินการ';
-      case ObjectiveStatus.overdue:    return 'เกินกำหนดแล้ว';
-      case ObjectiveStatus.pending:    return 'ยังไม่ได้เริ่มเลย';
-      default:                          return 'เสร็จแล้ว';
-    }
-  }
 }
 
-// ── Circular progress — CSS conic-gradient equivalent ─────────
+// ── Circular progress ─────────
 
 class _ProgressCircle extends StatelessWidget {
   final double value; // 0.0 – 1.0
@@ -1216,7 +1175,6 @@ class _ProgressCircle extends StatelessWidget {
               backgroundColor: const Color(0xFFE5E5EA),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
-            // White inner circle (like CSS .progress-inner)
             Container(
               width: 36,
               height: 36,
@@ -1238,7 +1196,7 @@ class _ProgressCircle extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🍅 Focus Streak badge (small pill below goals)
+// 🍅 Focus Streak badge
 // ══════════════════════════════════════════════════════════════
 
 class _StreakBadge extends StatelessWidget {
@@ -1250,31 +1208,34 @@ class _StreakBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha:0.65),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _kGlassBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🍅', style: TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-                const Text('Focus Streak',
-                    style: TextStyle(fontSize: 13, color: _kTextSub)),
-                const SizedBox(width: 8),
-                Text(
-                  '$streak วัน 🔥',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _kAccentOrange,
+          child: CausticShimmer(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(165),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: kGlassEdge),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.local_fire_department_outlined, size: 18, color: kVividGold),
+                  const SizedBox(width: 8),
+                  const Text('Focus Streak',
+                      style: TextStyle(fontSize: 13, color: kFg3)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$streak วัน',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: kVividGold,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1282,7 +1243,7 @@ class _StreakBadge extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ⬇️ Floating Bottom Action Pill — matches HTML .bottom-action
+// ⬇️ Floating Bottom Action Pill
 // ══════════════════════════════════════════════════════════════
 
 class _BottomActionPill extends StatelessWidget {
@@ -1297,7 +1258,7 @@ class _BottomActionPill extends StatelessWidget {
             borderRadius: BorderRadius.circular(100),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha:0.2),
+                color: Colors.black.withAlpha(50),
                 blurRadius: 40,
                 offset: const Offset(0, 20),
               ),
@@ -1310,14 +1271,12 @@ class _BottomActionPill extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha:0.85),
+                  color: kField0.withAlpha(215),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Row(
                   children: [
-                    const Text('✨',
-                        style: TextStyle(
-                            fontSize: 18, color: Color(0xFFFFD60A))),
+                    const Icon(Icons.auto_awesome, size: 18, color: kVividGold),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
@@ -1329,18 +1288,27 @@ class _BottomActionPill extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // White "เริ่มบันทึก" button
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFF7BEBFF), kCrystal400],
+                        ),
                         borderRadius: BorderRadius.circular(100),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x723CDFFF),
+                            blurRadius: 24,
+                          ),
+                        ],
                       ),
                       child: const Text(
                         'เริ่มบันทึก',
                         style: TextStyle(
-                          color: Colors.black,
+                          color: kFgOnCyan,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1356,7 +1324,7 @@ class _BottomActionPill extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🗒️ Journal Entry Card (light theme)
+// 🗒️ Journal Entry Card (glass + shimmer)
 // ══════════════════════════════════════════════════════════════
 
 class _EntryCard extends StatelessWidget {
@@ -1375,109 +1343,129 @@ class _EntryCard extends StatelessWidget {
     final moodInfo   = Entry.getMoodInfo(entry.mood);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: CausticShimmer(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+            boxShadow: [
+              BoxShadow(color: kGlassStroke, blurRadius: 0, spreadRadius: 1),
+              BoxShadow(
+                color: Color(0x30283C82),
+                blurRadius: 20,
+                offset: Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Date + mood row
-              Row(
-                children: [
-                  Text(
-                    dateFormat.format(entry.createdAt),
-                    style: const TextStyle(fontSize: 12, color: _kTextSub),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: kGlassFill,
+                  borderRadius: BorderRadius.all(Radius.circular(18)),
+                  border: Border(
+                    top:    BorderSide(color: kGlassEdge, width: 1),
+                    left:   BorderSide(color: kGlassStroke, width: 0.5),
+                    right:  BorderSide(color: kGlassStroke, width: 0.5),
+                    bottom: BorderSide(color: kGlassStroke, width: 0.5),
                   ),
-                  const Spacer(),
-                  if (entry.mediaType != MediaType.none) ...[
-                    Icon(
-                      entry.mediaType == MediaType.image
-                          ? Icons.image_outlined
-                          : Icons.mic_outlined,
-                      size: 15,
-                      color: _kTextSub,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(moodInfo['emoji'] as String,
-                      style: const TextStyle(fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // Content
-              Text(
-                entry.content,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: _kTextMain,
                 ),
-              ),
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(18),
+                  splashColor: const Color(0x0A3CDFFF),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              dateFormat.format(entry.createdAt),
+                              style: const TextStyle(fontSize: 12, color: kFg3),
+                            ),
+                            const Spacer(),
+                            if (entry.mediaType != MediaType.none) ...[
+                              Icon(
+                                entry.mediaType == MediaType.image
+                                    ? Icons.image_outlined
+                                    : Icons.mic_outlined,
+                                size: 15,
+                                color: kFg3,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(moodInfo['emoji'] as String,
+                                style: const TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
 
-              // Location
-              if (entry.locationName != null) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 13, color: _kTextSub),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        entry.locationName!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            const TextStyle(fontSize: 12, color: _kTextSub),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              // Tags
-              if (entry.tags.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: entry.tags
-                      .map(
-                        (tag) => Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _kAccentBlue.withValues(alpha:0.08),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '#$tag',
-                            style: const TextStyle(
-                                fontSize: 12, color: _kAccentBlue),
+                        Text(
+                          entry.content,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.5,
+                            color: kFg1,
                           ),
                         ),
-                      )
-                      .toList(),
+
+                        if (entry.locationName != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined,
+                                  size: 13, color: kFg3),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  entry.locationName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style:
+                                      const TextStyle(fontSize: 12, color: kFg3),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+
+                        if (entry.tags.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: entry.tags
+                                .map(
+                                  (tag) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: kCrystal400.withAlpha(20),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '#$tag',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: kCrystal600),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1486,7 +1474,7 @@ class _EntryCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ⚡ Social Battery Card (3.2)
+// ⚡ Social Battery Card
 // ══════════════════════════════════════════════════════════════
 
 class _SocialBatteryCard extends StatelessWidget {
@@ -1494,25 +1482,25 @@ class _SocialBatteryCard extends StatelessWidget {
   const _SocialBatteryCard({required this.result});
 
   static const _trendIcon = {
-    BatteryTrend.draining:   '↓',
-    BatteryTrend.stable:     '→',
-    BatteryTrend.recharging: '↑',
+    BatteryTrend.draining:   Icons.trending_down,
+    BatteryTrend.stable:     Icons.trending_flat,
+    BatteryTrend.recharging: Icons.trending_up,
   };
 
   static const _trendColor = {
-    BatteryTrend.draining:   _kAccentVivid,
-    BatteryTrend.stable:     _kAccentOrange,
-    BatteryTrend.recharging: _kAccentGreen,
+    BatteryTrend.draining:   kVividMagenta,
+    BatteryTrend.stable:     kVividGold,
+    BatteryTrend.recharging: kVividMint,
   };
 
   @override
   Widget build(BuildContext context) {
     final pct   = result.level / 100.0;
     final color = pct >= 0.6
-        ? _kAccentGreen
+        ? kVividMint
         : pct >= 0.35
-            ? _kAccentOrange
-            : _kAccentVivid;
+            ? kVividGold
+            : kVividMagenta;
     final trendColor = _trendColor[result.trend]!;
     final trendIcon  = _trendIcon[result.trend]!;
 
@@ -1520,10 +1508,9 @@ class _SocialBatteryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             children: [
-              const Text('⚡', style: TextStyle(fontSize: 18)),
+              const Icon(Icons.bolt_outlined, size: 18, color: kFg1),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -1531,31 +1518,36 @@ class _SocialBatteryCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: _kTextMain,
+                    color: kFg1,
                   ),
                 ),
               ),
-              // Trend badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: trendColor.withValues(alpha: 0.12),
+                  color: trendColor.withAlpha(30),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  '$trendIcon ${result.level}%',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: trendColor,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(trendIcon, size: 12, color: trendColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${result.level}%',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: trendColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
 
-          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
@@ -1567,23 +1559,22 @@ class _SocialBatteryCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Message
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.5),
+              color: Colors.white.withAlpha(130),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
-                const Text('💡', style: TextStyle(fontSize: 14)),
+                const Icon(Icons.lightbulb_outline, size: 16, color: kFg3),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     result.message,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: _kTextMain,
+                      color: kFg1,
                       height: 1.4,
                     ),
                   ),
@@ -1598,7 +1589,7 @@ class _SocialBatteryCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🔍 Hidden Correlation Insight Card (3.1)
+// 🔍 Hidden Correlation Insight Card
 // ══════════════════════════════════════════════════════════════
 
 class _InsightCard extends StatelessWidget {
@@ -1607,32 +1598,30 @@ class _InsightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = insight.isPositive ? _kAccentGreen : _kAccentOrange;
+    final accent = insight.isPositive ? kVividMint : kVividGold;
     final pct    = (insight.confidence * 100).round();
 
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             children: [
-              const Text('🔍', style: TextStyle(fontSize: 18)),
+              const Icon(Icons.insights_outlined, size: 18, color: kFg1),
               const SizedBox(width: 8),
               const Text(
                 'ค้นพบ Pattern',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: _kTextMain,
+                  color: kFg1,
                 ),
               ),
               const Spacer(),
-              // Confidence chip
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
+                  color: accent.withAlpha(30),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -1648,20 +1637,19 @@ class _InsightCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Insight message
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.07),
+              color: accent.withAlpha(18),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: accent.withValues(alpha: 0.2)),
+              border: Border.all(color: accent.withAlpha(50)),
             ),
             child: Text(
               insight.message,
               style: const TextStyle(
                 fontSize: 15,
-                color: _kTextMain,
+                color: kFg1,
                 height: 1.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -1669,13 +1657,137 @@ class _InsightCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
-          // Sample size note
           Text(
             'จาก ${insight.sampleSize} บันทึก · ${insight.hitCount} ครั้งที่ตรงกัน',
-            style: const TextStyle(fontSize: 12, color: _kTextSub),
+            style: const TextStyle(fontSize: 12, color: kFg3),
           ),
         ],
       ),
     );
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 📈 Mood Trend Card (7-day sparkline)
+// ══════════════════════════════════════════════════════════════
+
+class _MoodTrendCard extends StatelessWidget {
+  final List<({String label, double mood})> history;
+  const _MoodTrendCard({required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final avg = history.map((h) => h.mood).reduce((a, b) => a + b) / history.length;
+    final trend = history.length >= 2
+        ? history.last.mood - history.first.mood
+        : 0.0;
+    final trendIcon = trend > 0.3 ? '↑' : trend < -0.3 ? '↓' : '→';
+    final trendColor = trend > 0.3
+        ? const Color(0xFF34C759)
+        : trend < -0.3
+            ? const Color(0xFFFF3B30)
+            : kFg2;
+
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('📈', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              const Text(
+                'อารมณ์ 7 วัน',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kFg1),
+              ),
+              const Spacer(),
+              Text(
+                '${avg.toStringAsFixed(1)}/5 $trendIcon',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: trendColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 72,
+            child: CustomPaint(
+              painter: _MoodSparklinePainter(history),
+              size: Size.infinite,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: history
+                .map((h) => Text(h.label, style: const TextStyle(fontSize: 10, color: kFg3)))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoodSparklinePainter extends CustomPainter {
+  final List<({String label, double mood})> history;
+  _MoodSparklinePainter(this.history);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (history.length < 2) return;
+
+    const minMood = 1.0;
+    const maxMood = 5.0;
+    final n = history.length;
+    final stepX = size.width / (n - 1);
+
+    double moodToY(double m) =>
+        size.height - ((m - minMood) / (maxMood - minMood)) * size.height;
+
+    // Gradient fill under line
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [kCrystal400.withAlpha(80), kCrystal400.withAlpha(0)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final fillPath = Path();
+    fillPath.moveTo(0, size.height);
+    for (var i = 0; i < n; i++) {
+      fillPath.lineTo(i * stepX, moodToY(history[i].mood));
+    }
+    fillPath.lineTo((n - 1) * stepX, size.height);
+    fillPath.close();
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Line
+    final linePaint = Paint()
+      ..color = kCrystal400
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final linePath = Path();
+    for (var i = 0; i < n; i++) {
+      final x = i * stepX;
+      final y = moodToY(history[i].mood);
+      i == 0 ? linePath.moveTo(x, y) : linePath.lineTo(x, y);
+    }
+    canvas.drawPath(linePath, linePaint);
+
+    // Dots
+    final dotPaint = Paint()..color = kCrystal500;
+    final dotBg = Paint()..color = Colors.white;
+    for (var i = 0; i < n; i++) {
+      final x = i * stepX;
+      final y = moodToY(history[i].mood);
+      canvas.drawCircle(Offset(x, y), 5, dotBg);
+      canvas.drawCircle(Offset(x, y), 3.5, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MoodSparklinePainter old) => old.history != history;
 }

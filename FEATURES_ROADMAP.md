@@ -1,209 +1,198 @@
-# Haku Features Roadmap - Proactive AI Assistant
+# Haku — Private Life OS: Features Roadmap
 
-> วางแผนฟีเจอร์ AI ตาม Phase พร้อมโมเดลที่ใช้
-> อัปเดตล่าสุด: 2026-04-11
+> อัปเดตล่าสุด: 2026-05-11
+> เรียงตามวัตถุประสงค์และที่มาของโปรเจกต์
 
 ---
 
-## 🔄 Infrastructure: LiteRT-LM Migration (main branch) — กำลังทำ
+## 🎯 วัตถุประสงค์และที่มา
 
-> เปลี่ยน on-device runtime จาก MediaPipe (deprecated) → **LiteRT-LM v0.10.0**
-> เหตุผล: MediaPipe LLM Inference API ถูก Google deprecate แล้ว, LiteRT-LM คือ successor ที่มี true streaming + function calling built-in + รองรับ Gemma 4
+### ปัญหา 3 ข้อที่ Haku แก้
 
-### สิ่งที่ทำ
+| # | ปัญหา | ที่มา |
+|---|-------|-------|
+| 1 | **Privacy Leaks from Cloud AI** | ChatGPT / Gemini ส่งข้อมูลส่วนตัวออก server — ผู้ใช้ไม่รู้ว่าข้อมูลไปไหน |
+| 2 | **Passive AI (Prompt Burden)** | AI รอรับ prompt — ผู้ใช้ต้องรู้จักถามเองตลอด แทนที่จะให้ AI ช่วยก่อน |
+| 3 | **Data Sovereignty** | Big Tech ผูกขาดข้อมูลชีวิตผู้ใช้ ไม่มีทางเลือกที่ privacy-first จริงๆ |
+
+### เป้าหมาย 3 ข้อ
+
+| # | เป้าหมาย | ผลลัพธ์ |
+|---|---------|---------|
+| 1 | **Deep Tech** — Hybrid SLM on NPU | On-device AI ที่เร็ว / แม่น / ทำงาน offline ได้ 100% |
+| 2 | **B2B Application** — Team Delegation Protocol | Haku ต่อ Haku โดยไม่ผ่าน central server |
+| 3 | **Data Sovereignty** — Haku OS | ผู้ใช้เป็นเจ้าของข้อมูลตัวเองอย่างแท้จริง |
+
+### Business Model (Razor & Blades)
+
+```
+Freemium (Core ฟรี — ขยายฐาน user)
+  ↓
+B2C: AI Personas + Skill Modules (In-App Purchase)
+  ↓
+B2B: Team Delegation Protocol (Subscription)
+  ↓
+Vision: Haku OS / Launcher (National Infrastructure)
+```
+
+---
+
+## 🗺️ Phase Map — เรียงตามวัตถุประสงค์
+
+| Phase | ชื่อ | แก้ปัญหา / Goal | สถานะ |
+|-------|------|----------------|--------|
+| **1** | Privacy Core (MVP) | ปัญหา 1 — Privacy Leaks | ✅ Done |
+| **2** | Proactive Intelligence | ปัญหา 2 — Passive AI | 🟡 ~85% Done |
+| **3** | B2C Monetization | Goal 1+2 — Revenue + Stickiness | 🔴 Planned |
+| **4** | Analytics & Deep Personalization | Goal 1 — AI รู้จักคุณในระดับลึก | 🟡 ~30% Done |
+| **5** | B2B — Agent Protocol | Goal 2+3 — B2B + Data Sovereignty | 🔴 Planned |
+| **6** | Haku OS Vision | Goal 3 — National Impact | 💡 Concept |
+
+---
+
+---
+
+## 🏗️ Infrastructure: On-Device AI Stack
+
+> รองรับทุก Phase — ฐานที่ทุก feature ต้องพึ่ง
+
+### ✅ LiteRT-LM Migration (เสร็จแล้ว)
+
+> เปลี่ยน runtime จาก MediaPipe (deprecated) → **LiteRT-LM v0.10.0**
+
 - [x] ลบ `MediaPipeLLMBridge.kt` (deprecated, reflection-based)
-- [x] สร้าง `LiteRTLMBridge.kt` — clean API ไม่มี reflection
+- [x] สร้าง `LiteRTLMBridge.kt` — clean API, stateful Conversation + KV cache
 - [x] อัพเดท `build.gradle` — swap `mediapipe:tasks-genai` → `litertlm-android:0.10.0`
-- [x] อัพเดท `MainActivity.kt` — ใช้ `LiteRTLMBridge` + เพิ่ม `setSystemInstruction` channel
+- [x] อัพเดท `MainActivity.kt` — ใช้ `LiteRTLMBridge` + `generateTurn` + `resetConversation`
+- [x] `LiteRTLLMProvider.generateTurn()` — stateful KV cache per chat session
+- [x] `PromptBuilder.buildSystemInstruction()` + `buildUserTurn()` — แยก system vs user turn
 - [ ] ทดสอบ build + รันบน device จริง
 - [ ] Download `.litertlm` model format จาก HuggingFace (Gemma 3 1B)
 
-### Key Files
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `android/app/src/main/kotlin/.../LiteRTLMBridge.kt` | Engine + Conversation + true streaming |
-| `android/app/build.gradle` | LiteRT-LM + TFLite GPU dependencies |
-
-### Architecture
+**MethodChannel ที่รองรับ:**
 ```
-Flutter Dart
-  └── MediaPipeLLMService (mediapipe_llm_service.dart)  ← ไม่เปลี่ยน
-        └── MethodChannel (com.example.haku/llm)
-              └── LiteRTLMBridge.kt  ← ใหม่
-                    └── LiteRT-LM Engine (Google)
-                          └── GPU/CPU Backend (auto-fallback)
+loadModel(modelPath, maxTokens, systemInstruction?) → bool
+generate(prompt)                                    → String  [stateless, one-shot]
+generateTurn(prompt)                                → String  [stateful, KV cache]
+resetConversation()                                 → null
+setSystemInstruction(instruction?)                  → null
+unloadModel()                                       → null
+isModelLoaded()                                     → bool
+getModelInfo()                                      → Map { hasActiveSession }
 ```
 
-### Model Support
+**Model Support:**
 ```yaml
 current:
-  model: Gemma 3 1B (.task legacy format ยังใช้ได้)
-  format: .task (MediaPipe legacy) หรือ .litertlm (native)
-  context: 4096 tokens (เพิ่มขึ้นจาก 2048)
+  model: Gemma 3 1B (.litertlm)
+  size: ~600 MB
+  context: ~4096 tokens (เพิ่มจาก 2048)
 
-future_gemma4:
+roadmap:
   model: Gemma 4 E2B (2-bit ~1.5GB) หรือ E4B (4-bit ~4GB)
   context: 128K tokens
-  new_features: Thinking Mode, multimodal (image+audio), function calling native
-  migration_path: เพิ่ม systemInstruction ผ่าน setSystemInstruction() — API พร้อมแล้ว
+  new_features: Thinking Mode, Function Calling native
 ```
 
 ---
 
-## 🧠 Future: FunctionGemma 270M as PreClassify Dispatcher (roadmap)
+### 🗓️ FunctionGemma 270M — Intent Dispatcher (Planned)
 
-> แทนที่ PreClassify LLM (Gemma 3 1B) ด้วย FunctionGemma 270M ที่เล็กกว่าและ specialized กว่า
-> **สถานะ:** วางแผนไว้ — ต้องทำ LiteRT-LM migration เสร็จก่อน
+> แทน PreClassify LLM (Gemma 3 1B) ด้วย 270M ที่ specialized กว่า
 
-### แนวคิด
 ```
 User Message
-  ↓
-SmartPreprocessor (rule-based, 0 LLM) — เหมือนเดิม
+  ↓ SmartPreprocessor (rule-based, 0 LLM)
   ↓ (intent=general)
-FunctionGemma 270M (~288 MB)  ← แทน PreClassify ปัจจุบัน
+FunctionGemma 270M (~288 MB) — โหลดค้างไว้ใน RAM ตลอด
   → function call: log_mood / create_event / search / ...
-  → เร็วกว่า (270M vs 1B) + แม่นยำกว่า (specialized for function calling)
-  → โหลดค้างไว้ใน RAM ได้ตลอด (เล็กมาก)
   ↓
-Gemma 3 1B (Face) — ตอบภาษาไทยธรรมชาติ เหมือนเดิม
+Gemma 3 1B (Face) — ตอบภาษาธรรมชาติ
 ```
 
-### ข้อดี
-- FunctionGemma 270M = 288 MB เท่านั้น โหลดค้างได้ตลอด ไม่ต้อง unload
-- Specialized สำหรับ function calling → แม่นยำกว่า Gemma 3 1B ทำ JSON parsing
-- ลด latency: 270M inference เร็วกว่า 1B มาก
-- เปิดประตูสู่ Skill System แบบ Gallery (loadSkill/runJs/runIntent)
-
-### งานที่ต้องทำ (อนาคต)
 - [ ] Download FunctionGemma 270M `.litertlm` จาก HuggingFace
 - [ ] สร้าง `FunctionLLMBridge.kt` — Engine แยกสำหรับ FunctionGemma
-- [ ] ย้าย `preClassify()` ใน `secret_chat_service.dart` ไปใช้ FunctionGemma แทน
-- [ ] ออกแบบ ToolSet สำหรับ Haku (log_entry, create_event, set_reminder, search_rag, ...)
-- [ ] Skill system: SKILL.md format + JavaScript execution
+- [ ] ออกแบบ ToolSet สำหรับ Haku (log_entry, create_event, set_reminder, search_rag)
+- **Dependency:** LiteRT-LM migration เสร็จก่อน
 
 ---
 
-## 🦙 Infrastructure: llama.cpp + OpenCL (branch: feat/llama-cpp-opencl)
+## 🎨 Infrastructure: Haku Crystal Design System
 
-> เปลี่ยน on-device runtime จาก MediaPipe → llama.cpp + OpenCL (Adreno GPU)
-> เหตุผล: รองรับ GGUF โดยตรง, context window ใหญ่กว่า (4096+ vs 2048), GPU เร็วกว่าบน Snapdragon 8 Gen 2
+> UI/UX ทั้งแอปเป็น glass-morphic "aurora crystal" design
 
-### สิ่งที่ทำ
-- [x] สร้าง branch `feat/llama-cpp-opencl`
-- [x] ดาวน์โหลด prebuilt `.so` จาก llama.rn v0.11.3 (OpenCL + Adreno + Hexagon NPU)
-  - `librnllama_v8_2_dotprod_i8mm_hexagon_opencl.so` — llama.cpp core
-  - `libOpenCL.so` — OpenCL ICD loader
-  - `libggml-htp-v73.so` — Hexagon HTP (SM8550 = Z Fold 5)
-- [x] เขียน `android/app/src/main/cpp/llama_flutter.cpp` — JNI glue layer (C++)
-- [x] เขียน `android/app/src/main/cpp/CMakeLists.txt` — native build config
-- [x] อัพเดท `android/app/build.gradle` — เพิ่ม externalNativeBuild
-- [x] เขียน `LlamaChannel.kt` — Kotlin Platform Channel (loadModel / completion streaming / freeModel)
-- [x] เขียน `lib/services/llama_service.dart` — Dart layer แทน MediaPipe service
-- [ ] ทดสอบ build + รันบน Z Fold 5
+**Design Tokens:**
+- Primary Cyan: `#3CDFFF` · Deep Navy: `#0A1F4D` · Lavender: `#9B7CB6`
+- Glass Card: `BackdropFilter.blur(20)` + translucent white + inner highlight
+- Caustic Shimmer: 105° diagonal gradient sweep, 4s loop
 
-### Key Files
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `android/app/src/main/cpp/llama_flutter.cpp` | JNI wrapper → เรียก llama.cpp C API |
-| `android/app/src/main/cpp/CMakeLists.txt` | build config, link กับ prebuilt .so |
-| `android/app/src/main/kotlin/.../LlamaChannel.kt` | Flutter ↔ native bridge |
-| `lib/services/llama_service.dart` | Dart API (loadModel, completionStream, generate) |
+| Screen | สถานะ |
+|--------|--------|
+| `main.dart` — App theme | ✅ |
+| `main_navigation_screen.dart` — Curved nav | ✅ |
+| `chat_screen.dart` — Dark scaffold + crystal accent | ✅ |
+| `home_screen.dart` — Aurora blob + glass cards | ✅ |
+| `onboarding_screen.dart` | ✅ |
+| `quick_actions_fab.dart` | ✅ |
+| `settings_screen.dart` | ❌ ยังไม่ migrate |
 
-### Architecture
-```
-Flutter Dart
-  └── LlamaService (llama_service.dart)
-        └── Platform Channel (com.example.haku/llama)
-              └── LlamaChannel.kt (Kotlin)
-                    └── llama_flutter.cpp (JNI C++)
-                          └── librnllama_*_opencl.so (llama.cpp + OpenCL + Hexagon)
-```
+**Widgets:**
+- [x] `CausticShimmer` — Reusable glass shimmer `CustomPainter`
+- [x] `FlutterMap` mini map ใน `view_entry_screen.dart` (OpenStreetMap, 200px)
+
+**Rules:** ไม่ใช้ emoji ใน user-facing string ยกเว้น source comments
 
 ---
 
-
-
-[Project Context: Haku - Private Life OS]
-
-You are now acting as a strategic consultant and creative director for a deep-tech startup project named "Haku". Here is the comprehensive project DNA you need to understand:
-
-1. THE CORE IDENTITY:
-"Haku" is a "Private Life OS"—a proactive AI assistant that runs 100% on-device (offline). unlike ChatGPT or Gemini, Haku does NOT send user data to the cloud. It is designed for the "Post-Cloud Era" where privacy and data sovereignty are the ultimate luxuries.
-
-2. THE KEY PROBLEM IT SOLVES:
-Users want an AI that truly knows them (memories, secrets, habits) but are terrified of data leaks and corporate surveillance. Haku solves this by processing everything locally on the phone's NPU. "What happens on your phone, stays on your phone."
-
-3. KILLER FEATURES (USPs):
-- 100% On-Device Processing: Zero latency, works offline, absolute privacy.
-- Hybrid Context Technology: A proprietary method that mixes raw local data (Thai/English) with compressed vector memories, allowing the AI to recall complex past events accurately without consuming massive storage.
-- Proactive Intelligence: Instead of waiting for prompts, Haku nudges the user (e.g., "You seem stressed, here's a summary of your day," or "Leave now to beat traffic").
-- Secure Team Delegation (B2B): A protocol allowing one user's Haku to talk to another user's Haku to schedule meetings or assign tasks without exposing sensitive calendar details to a central server.
-
-4. BUSINESS MODEL (Razor & Blades):
-- Freemium Entry: The core app is free to acquire a massive user base (The Razor).
-- B2C Monetization: Users buy "AI Personas" (e.g., Strict Coach, Empathetic Friend) and Skill Modules via In-App Purchase (The Blades).
-- B2B Monetization: Enterprises pay a subscription for the "Team Delegation Protocol" to boost productivity. Use Agent to Agent protocal.
-
-5. FUTURE ROADMAP:
-- Phase 1 (Now): A mobile app (iOS/Android) acting as a smart journal and assistant.
-- Phase 2: An Ecosystem with B2B integration.
-- Phase 3 (Vision): A full "Haku OS" or Launcher that replaces the standard Android interface, becoming the primary layer between the human and the digital world.
-
-Please use this context for all further tasks, ensuring the tone is innovative, trustworthy, and user-centric.
 ---
 
-## Phase 1: MVP ✅
+## Phase 1: Privacy Core — MVP ✅
 
-พื้นฐานที่ต้องมีก่อน AI จะทำงานได้
+> **แก้ปัญหา 1:** Privacy Leaks from Cloud AI
+> ทุก feature ในเฟสนี้ทำงาน on-device ล้วน ไม่มี network call สำหรับข้อมูล user
 
-- [x] SQLite + SQLCipher Encryption
+- [x] SQLite + SQLCipher Encryption (ข้อมูลทุกอย่างเข้ารหัส at rest)
 - [x] Biometric Lock (Auto-lock 1-10 min)
-- [x] Basic Chat UI
-- [x] Android Widgets
+- [x] Basic Chat UI — Haku Crystal glass-morphic design
+- [x] Android Widgets (Home screen 4×2 / 4×3)
 - [x] Data Export (JSON, Markdown, CSV, Backup)
 - [x] Profile Editor
 
 ---
 
-## Phase 2: AI & Intelligence (Proactive Features)
+---
 
-**เป้าหมาย:** เปลี่ยนจาก "App" เป็น "Assistant" ที่ช่วยจัดการชีวิต
+## Phase 2: Proactive Intelligence
 
-### 2.1 On-Device LLM ✅
-**สถานะ:** เสร็จแล้ว
-
-- [x] Gemma 3 1B ผ่าน MediaPipe GenAI (LiteRT `.task` format)
-- [x] Auto-unload หลัง 5 นาทีไม่ใช้งาน (ประหยัดแบต)
-- [x] Lazy loading — โหลดเมื่อเรียก generate() ครั้งแรก
-- [x] Custom model path support
-- [x] Two-Stage Architecture:
-  - Stage 1 (The Face): ตอบสนทนาไทยธรรมชาติ
-  - Stage 2 (Big Manager): classify intent + dispatch งาน
-
-**Model:**
-```yaml
-primary_slm:
-  model: Gemma 3 1B (LiteRT .task format)
-  size: ~600 MB
-  runtime: MediaPipe GenAI
-  context: ~2048 tokens
-  note: เล็กกว่า Qwen 2.5 3B (1.8GB) มาก ลื่นบนมือถือ
-```
+> **แก้ปัญหา 2:** Passive AI — AI ทำงานก่อน user ถาม
 
 ---
 
-### 2.2 Cloud LLM Fallback (MCP Provider) ✅
-**สถานะ:** เสร็จแล้ว + ThaiLLM (2026-03-06)
+### 2.1 On-Device LLM ✅
+
+**สถานะ:** เสร็จแล้ว (LiteRT-LM migration ✅)
+
+- [x] Gemma 3 1B ผ่าน LiteRT-LM (`.litertlm` format)
+- [x] Stateful Conversation — KV cache ข้าม request (ไม่ re-encode history ทุกครั้ง)
+- [x] Auto-unload หลัง 5 นาทีไม่ใช้งาน (ประหยัดแบต)
+- [x] Lazy loading — โหลดเมื่อ generate() ครั้งแรก
+- [x] Two-Stage Architecture:
+  - Stage 1 (Face): ตอบสนทนาธรรมชาติ ทุกภาษา
+  - Stage 2 (Secret Chat): classify intent + dispatch งาน async
+
+---
+
+### 2.2 Cloud LLM — Dev/Fallback Mode ✅
+
+> **หมายเหตุ:** Cloud provider ขัดกับ Objective 1 (Privacy-first)
+> ใช้เฉพาะ development mode / ผู้ใช้ที่ต้องการ fallback อย่างชัดเจน — ไม่ใช่ default
+
+**สถานะ:** เสร็จแล้ว
 
 - [x] Gemini Flash (Google) — free tier
 - [x] Claude Haiku (Anthropic)
 - [x] GPT-4o-mini (OpenAI)
-- [x] **OpenRouter** 🆕 — key เดียวเข้าถึงทุก model (Gemini, Claude, Llama ฯลฯ), default model: `google/gemini-2.0-flash-001`
-- [x] **ThaiLLM (THaLLE-0.2-8B)** 🆕 — LLM ภาษาไทยโดย KBTG, 200 req/min ฟรี
-  - Endpoint: `http://thaillm.or.th/api/kbtg/v1/chat/completions`
-  - Auth: `apikey:` header (ไม่ใช่ `Authorization: Bearer`)
-  - OpenAI-compatible chat completions format
+- [x] **OpenRouter** — key เดียวเข้าถึงทุก model, default: `google/gemini-2.0-flash-001`
 - [x] MCP Client (Model Context Protocol) สำหรับ tunnel mode
 - [x] Direct API mode สำหรับ dev
 - [x] Settings UI: เลือก provider + กรอก API Key + Test Connection
@@ -214,6 +203,7 @@ primary_slm:
 ---
 
 ### 2.3 Smart Search / RAG ✅
+
 **สถานะ:** เสร็จแล้ว
 
 - [x] Hybrid Vector Search (TF-IDF embedding + Cosine Similarity ใน Dart)
@@ -221,126 +211,67 @@ primary_slm:
 - [x] Context Retriever — ดึง context ที่เกี่ยวข้องให้ LLM
 - [x] Index entries จาก database
 
-**Technical:**
 ```yaml
 vector_search:
   method: TF-IDF like embedding + Cosine Similarity
-  storage: SQLite BLOB (ไม่ใช้ sqlite-vec เพราะ Flutter ไม่รองรับ)
+  storage: SQLite BLOB (sqflite)
   fallback: Keyword search
   note: ไม่ต้องโหลด embedding model แยก
 ```
 
-**ตัวอย่าง:**
-- "วันไหนที่ฉันมีความสุขที่สุด?" → ค้นจาก mood + context
-- "ฉันไปเที่ยวทะเลเมื่อไหร่?" → ค้นจาก location + content
-
 ---
 
 ### 2.4 SmartPreprocessor + Workers ✅
-**สถานะ:** เสร็จแล้ว (6 workers) + Bug fixes + Conditional RAG (2026-03-05)
 
-ใช้ rule-based (0 LLM tokens) ก่อนส่งเข้า LLM:
+**สถานะ:** เสร็จแล้ว (7 workers + Brain-Dump Auto-Sorter)
+
+> ใช้ rule-based (0 LLM tokens) ก่อนส่งเข้า LLM — Proactive Detection
 
 - [x] **FactWorker** — จดจำชื่อ, ชอบ/ไม่ชอบ, อาชีพ, เป้าหมาย, สถานที่
-  - [x] Fixed: require subject pronoun in `_likePatterns`/`_rolePatterns` (ลด false positive)
-  - [x] Fixed: `_cleanValue` ใช้ whole-word replacement (ไม่ตัด "ร" ออกจาก "อะไร")
-  - [x] Fixed: `_isValidPreference` + `_isValidGoal` มี question-word exclusion
-- [x] **CalendarWorker** — ตรวจจับนัดหมายจากข้อความไทย (regex) + SharedPreferences
-  - [x] Fixed: เพิ่ม day-first patterns → `"พรุ้งนี้มีนัดที่ศาลากลาง 9โมงเช้า"` ✓
-  - [x] Fixed: เพิ่ม `มีนัด-first` patterns → `"มีนัดที่โรงพยาบาล พรุ่งนี้ 10 โมง"` ✓
-  - [x] Fixed: เพิ่ม `"พรุ้งนี้"` (typo ของ "พรุ่งนี้") ใน `_dayOffsets`
-  - [x] Fixed: เพิ่ม `(?:เช้า|เย็น|กลางคืน)?` suffix สำหรับ "9โมงเช้า" / "6โมงเย็น"
+- [x] **CalendarWorker** — ตรวจจับนัดหมายจากข้อความไทย+English (regex allMatches → หลาย events)
+  - day-first, มีนัด-first, พรุ้งนี้ typo, เช้า/เย็น/กลางคืน suffix
 - [x] **ReminderWorker** — ตรวจจับการเตือน + frequency (once/daily/weekly/monthly)
-- [x] **GoalWorker** — ตรวจจับเป้าหมาย + ติดตาม progress → lean format `[Goal:ออกกำลัง,0/3d/w]`
+- [x] **GoalWorker** — ตรวจจับเป้าหมาย + ติดตาม progress
 - [x] **HealthDoctor** — ตรวจจับ period, อาการปวด, แพ้, ยา
 - [x] **TranslatorWorker** — batch Thai→English แบบ background (ตอนชาร์จ) สำหรับ RAG
-- [x] Search intent detection (keyword-based) — fixed weather pattern (no capture groups)
-- [x] Quick action detection (ทักทาย, ถามชื่อ) — fixed: wired into sendToAI() before LLM
-- [x] `updateLeanContextWithEnglish()` — expose Secret Chat English result to lean context
-- [x] **WeatherWorker** 🆕 — detect weather keywords → fetch Open-Meteo API → inject `[Weather]` context → `DetectedIntent.weather` (bypass web search + PreClassify)
-  - patterns: อากาศ, ฝนตก, ฟ้า, ร้อน/หนาว วันนี้, พยากรณ์, forecast, พายุ, ลมแรง ฯลฯ
-- [x] **English Past-Data Patterns** 🆕 — `_extractPastDataKeyword()` รองรับ English:
-  - `did/have i ever ...`, `when/where/what did i ...`, `last time i ...`
-  - `do you remember when/what i ...`, `have i been to/visited ...`
-- [x] **Conditional RAG Fallback** 🆕 — Fast Path SQL (section 2.5) → RAG ถ้า SQL miss
-  - SQL miss → `RAGService().search()` (semantic, language-agnostic)
-  - `_extractPastFilters()` — detect date range + mood filters จากข้อความ
-    - Thai: ปีที่แล้ว/เดือนที่แล้ว/ปีนี้/เดือนนี้/ช่วงนี้, ความสุข(minMood=4), เครียด(maxMood=2)
-    - English: last year/month/week, this year/month, recently, happy/stressed
-  - `_matchFilters()` + `_filterEntries()` — filter ตาม date range + mood ก่อนส่ง LLM
-  - `_buildEntrySnippets()` — สร้าง "Related entries:\n..." สำหรับ LLM context
-  - `_PastDataFilters` class — dateFrom/dateTo/minMood/maxMood
-  - **LLM usage:** 0 extra (rule-based detection, enriches Face LLM context only)
+- [x] **WeatherWorker** — detect weather keywords → fetch Open-Meteo API → inject context
+- [x] Search intent detection + Quick action (ทักทาย, ถามชื่อ)
+- [x] English Past-Data Patterns (`did/have i ever`, `last time i ...`)
+- [x] Conditional RAG Fallback (SQL miss → RAGService semantic search)
+- [x] `_extractPastFilters()` — date range + mood filters (Thai + English)
 
-**Enhancement: Brain-Dump Auto-Sorter** 🆕 (ตู้ไปรษณีย์คัดแยกความคิดอัตโนมัติ)
+**Brain-Dump Auto-Sorter:**
+> "พรุ่งนี้บ่ายโมงประชุม อ้อ เตือนโอนค่าไฟด้วย แล้วตอนเย็นรับลูก"
+> → CalendarWorker + ReminderWorker แยก 3 items อัตโนมัติ (0 LLM)
 
-> พิมพ์ประโยคเดียวมั่วๆ เช่น "พรุ่งนี้บ่ายโมงประชุมเซลส์ อ้อ เตือนโอนค่าไฟด้วย แล้วตอนเย็นไปรับลูก"
-> → Workers แยก 3 items อัตโนมัติ: 📅 ประชุมเซลส์ + ⏰ เตือนค่าไฟ + 📅 รับลูก
-
-- [x] **CalendarWorker** — แก้ regex `allMatches` return `List<Event>` (หลาย events/message) + English patterns
-- [x] **ReminderWorker** — แก้ regex `allMatches` return `List<Reminder>` (หลาย reminders/message) + English patterns
-- [x] **SmartPreprocessor** — `buildBrainDumpSummary()` รวม results จากทุก worker เป็น summary string
-- [x] **Brain-Dump Summary Card** — UI card ใน Chat แสดงรายการที่จับได้ เช่น "✅ จดได้ 3 รายการ: 📅 ประชุมเซลส์ 13:00 | ⏰ โอนค่าไฟ | 📅 รับลูกเย็นนี้"
-- **LLM usage:** 0 (rule-based ล้วน — ใช้ regex เดิมที่มีอยู่ ไม่ต้องเปลือง token)
+- [x] `buildBrainDumpSummary()` — summary card "✅ จดได้ 3 รายการ: 📅 ประชุม | ⏰ ค่าไฟ | 📅 รับลูก"
 
 ---
 
-### 2.5 Lean Context Service ✅
-**สถานะ:** เสร็จแล้ว + English compression upgrade + Token overflow fix (2026-03-05)
+### 2.5 Secret Chat + Context Architecture ✅
 
-บีบ chat history ให้พอดี context window ของ Gemma 3 1B (~2048 tokens):
+**สถานะ:** เสร็จแล้ว
 
-- [x] Chat 1-3: Full Thai (ไม่บีบ)
-- [x] Chat 4+: Lean Syntax (ตัดคำลงท้าย, ย่อคำ, max 50 chars)
-- [x] Session summaries (English, 1-line)
-- [x] ผลลัพธ์: 25 คู่แชทใน ~330 tokens (เดิม 5 คู่ใน ~750 tokens)
-- [x] **`updateLastPairWithEnglish()`** 🆕 — หลัง Secret Chat แปลเสร็จ → แทน Thai leanContent ด้วย English summary
-  - English ประหยัด ~3-5x tokens เทียบกับ Thai ในทุก tokenizer
-  - เรียกจาก SmartPreprocessor.updateLeanContextWithEnglish() หลัง Secret Chat dispatch
-- [x] **Session summary 120-char cap** 🆕 — ป้องกัน token overflow จาก summaries สะสม
-  - summaryEn > 120 chars → truncate + "..."
-  - แก้ปัญหา: session summaries หลายรอบสะสมกันจน context เกิน 2048 tokens
-
----
-
-### 2.5b PreClassify + Secret Chat First Architecture ✅ 🆕
-**สถานะ:** เสร็จแล้ว (2026-02-27)
-
-**ปัญหาเดิม:** Face LLM ตอบก่อน แล้ว Secret Chat แปลทีหลัง → Big Manager dispatch ช้า, Face ไม่รู้ intent
-
-**แก้ไข:** PreClassify LLM ทำงาน**ก่อน** Face เพื่อให้ Face รู้ intent ล่วงหน้า + รองรับทุกภาษา
-
+**Flow:**
 ```
-New flow:
 User msg
-  → SmartPreprocessor (Thai fast-path, 0 LLM tokens)
-     ├─ rule-based จับได้ (schedule/remind/etc.) → skip preClassify
-     └─ intent = general → 🔬 preClassify LLM (language-agnostic)
+  → SmartPreprocessor (0 LLM) — rule-based fast path
+     ├─ จับได้ (schedule/remind/etc.) → skip preClassify
+     └─ intent=general → preClassify LLM (language-agnostic)
          → inject [INTENT:SCHEDULE:ศาลากลาง,2026-02-28,09:00] ใน context
   → Face LLM (รู้ intent → ตอบถูกต้อง)
-  → [async] logExchange(preClassifyResult: ✓) → 0 extra LLM call
+  → [async] logExchange() → EnglishLogEntry → SharedPreferences
+  → ManagerDispatchService → execute urgent actions
 ```
 
-- [x] **`PromptBuilder.buildPreClassifyPrompt()`** — lean JSON prompt, classify ทุกภาษา
-- [x] **`SecretChatService.preClassify()`** → `PreClassifyResult {intent, summaryEn, title, date, time}`
-- [x] **`PreClassifyResult.contextHint`** — สร้าง `[INTENT:SCHEDULE:...]` hint สำหรับ Face
-- [x] **`logExchange(preClassifyResult:)`** — ถ้ามี preClassify → ข้าม LLM extraction (0 extra call)
-- [x] **chat_screen.dart wired** — preClassify → inject context → Face → async log
-
-**ผลลัพธ์ Token Budget (per exchange):**
-
-| Scenario | LLM calls |
-|---|---|
-| Rule-based จับ intent ได้ | 1 (Face only) + async log ด้วย preClassify |
-| Rule-based ไม่จับ → preClassify | 2 (PreClassify + Face) + 0 async log |
-| เดิม (ไม่มี preClassify) | 1 (Face) + 1 async (SecretChat) = 2 |
-
-**Language support:** PreClassify LLM เข้าใจทุกภาษา — ไม่ต้องเพิ่ม Thai regex สำหรับ global launch
+- [x] `SecretChatService.preClassify()` → `PreClassifyResult {intent, summaryEn, title, date, time}`
+- [x] `logExchange(preClassifyResult:)` — reuse PreClassify → 0 extra LLM call
+- [x] `TagContextService` — keyword search past entries → inject context ก่อน Face LLM
+- [x] LeanContextService (legacy) — ยังคงไว้สำหรับ Gemma 3 1B context window เล็ก
 
 ---
 
 ### 2.6 Entry Summarization ✅
-**สถานะ:** เสร็จแล้ว
 
 - [x] สรุป Entry เดี่ยว (บันทึกยาว → สั้น)
 - [x] สรุปหลาย Entries (สรุปวัน/สัปดาห์)
@@ -351,1018 +282,621 @@ User msg
 ---
 
 ### 2.7 AI Auto-Scheduling ✅
-**สถานะ:** เสร็จแล้ว (basic)
 
-- [x] SchedulerService — ดึง event จากข้อความธรรมชาติ
-- [x] CalendarWorker — regex detection สำหรับวัน/เวลาไทย
-- [x] PromptBuilder.buildSchedulerPrompt — LLM extraction
-- [x] Native Calendar API (MethodChannel → `SchedulerBridge.kt` → `CalendarContract`)
-- [x] **Fixed:** MethodChannel parameter mismatch (ส่ง `startTime`/`endTime` เป็น Long milliseconds แทน ISO string)
-- [x] Auto reminder 15 นาทีก่อนนัด (`addReminder`)
-- [x] Fallback regex เมื่อไม่มี LLM
-- [ ] Google Calendar sync (มี Mock Mode, real API พร้อมแต่ยังไม่เปิดใช้จริง)
+- [x] SchedulerService — ดึง event จากข้อความธรรมชาติ (LLM extraction)
+- [x] CalendarWorker — regex detection วัน/เวลาไทย
+- [x] Native Calendar API (MethodChannel → `SchedulerBridge.kt` → CalendarContract)
+- [x] Auto reminder 15 นาทีก่อนนัด
+- [x] `getCalendarEvents()` — อ่าน events จาก Android Calendar
+- [x] `checkConflicts()` — ตรวจ overlap ก่อน create → `ConflictResult`
+- [x] `createCalendarEventWithCheck()` — warn ถ้าชนนัด → `ScheduleResult`
+- [ ] Google Calendar sync (Mock Mode พร้อม, real API ยังไม่เปิด)
+- [ ] Time block อัตโนมัติ — จัด slot ว่างให้พอดีวัน (future)
 
 ---
 
 ### 2.8 Proactive Triggers ✅
-**สถานะ:** เสร็จแล้ว
 
-- [x] Time-based triggers (09:00 เช้า, 12:00 เที่ยง, 17:00 เย็น, 22:00 ก่อนนอน)
-- [x] Location-based triggers (revisit 200m, 2+ hr gap)
+- [x] Time-based (09:00 เช้า, 12:00 เที่ยง, 17:00 เย็น, 22:00 ก่อนนอน)
+- [x] Location-based (revisit 200m, 2+ hr gap)
 - [x] No-entry reminder
-- [x] Battery-optimized: เช็คทุก 5 นาที, toggle location tracking
+- [x] Battery-optimized: เช็คทุก 5 นาที
 - [x] Notification Service + Quick Reply จาก notification
 - [x] Deep link เข้าแอปพร้อม context
 - [ ] Proactive Voice Alert (TTS) — ยังไม่ implement
 
 ---
 
-### 2.9 Background Processing (Deferred to Charging) ✅
-**สถานะ:** เสร็จแล้ว
+### 2.9 Background Processing (Charging-Deferred) ✅
 
-- [x] ChatSummaryService — เก็บแชท 24 ชม. แล้วสรุปตอนชาร์จ
-- [x] BatteryAwareService — ตรวจจับ charging/discharging
-- [x] DeferredTaskService — priority queue (high/normal/low) + auto-process ตอนชาร์จ
-- [x] ManagerSummaryStrategy — วิเคราะห์ health, behavior, preferences patterns
-- [x] BackgroundTaskHandlers — wire ManagerSummary + reindex vectors เข้ากับ DeferredTask
-- [x] Energy Profile (ultraSaver/batterySaver/balanced/performance)
+- [x] `BatteryAwareService` — ตรวจจับ charging/discharging
+- [x] `DeferredTaskService` — priority queue + auto-process ตอนชาร์จ
+- [x] `ManagerSummaryStrategy` — วิเคราะห์ health, behavior, preferences
+- [x] `BackgroundTaskHandlers` — wire ManagerSummary + reindex vectors
+- [x] Energy Profile (ultraSaver / batterySaver / balanced / performance)
 
 ---
 
 ### 2.10 Web Search Integration ✅
-**สถานะ:** เสร็จแล้ว + ปรับปรุง engine + English patterns + no-results fix + Location-aware search (2026-03-06)
 
-- [x] WebSearchService
-- [x] SmartPreprocessor ตรวจจับ search intent อัตโนมัติ
-- [x] LLM สรุปผลค้นหาเป็นคำตอบ
-- [x] Intermediate "กำลังค้นหา..." message ใน UI
-- [x] **SearXNG JSON API** 🆕 — แทน DuckDuckGo HTML scraping (โดนบล็อก), ไม่ต้อง API key
-  - 4 public instances fallback: `search.bus-hit.me` → `searx.be` → `paulgo.io` → `searxng.org`
-  - ส่ง `?format=json` → structured results ตรงๆ ไม่ต้อง parse HTML
-- [x] **Jina AI Reader** 🆕 — แทน manual HTML parser สำหรับ `fetchPageContent()`
-  - `GET https://r.jina.ai/{url}` → clean markdown text โดยตรง
-  - Google scraping (`_searchGoogle`) ยังเก็บไว้เป็น last resort fallback
-- [x] **English search patterns** 🆕 — `_searchPatterns` รองรับ English queries:
-  - `search/find/look up/look for ...`, `what is ...`, `how to/do ...`
-  - `where is/are/can i find ...`, `... nearby/near me`
-  - keywords: `news`, `price`, `stock`, `nearby`, `near me`
-- [x] **No-results fix** 🆕 — `searchForAI()` return `''` แทน Thai string เมื่อไม่พบผล
-  - แก้ bug: string ไม่ว่างทำให้ follow-up LLM hallucinate จาก "no results" text
-  - แสดง `"ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ..."` แทนแบบ static (ไม่ผ่าน LLM)
-- [x] **Location-aware Search (Google Places API)** 🆕 — ค้นหาสถานที่ใกล้เคียง (BYOK)
-  - `_searchGooglePlaces()` — Google Places Text Search API พร้อม lat/lng radius 3km
-  - แสดงชื่อร้าน + ⭐rating + ระยะห่าง (ม./กม.) จาก Haversine formula
-  - `searchForAI()` รับ optional `lat`, `lng`, `googlePlacesKey`
-  - **Fallback chain:** Google Places → SearXNG (ถ้าไม่มี key หรือ Places ไม่มีผล)
-  - **Nearby keywords:** `ใกล้ฉัน`, `ใกล้ที่นี่`, `ใกล้บ้าน`, `แถวนี้`, `ในละแวก`, `nearby`, `near me`
-  - chat_screen.dart: detect nearby → `LocationService.getCurrentPosition()` + key จาก SharedPreferences → pass ไป `searchForAI()`
-  - Settings > Web Search: ช่องใส่ Google Places API Key (obscure, save button)
-  - **Cost model:** BYOK — user ใส่ key เอง, ฟรี 10K req/เดือน ($200 credit)
+- [x] SearXNG JSON API — 4 public instances fallback (ไม่ต้อง API key)
+- [x] Jina AI Reader — `GET https://r.jina.ai/{url}` → clean markdown
+- [x] English + Thai search patterns
+- [x] Location-aware Search (Google Places API, BYOK)
+- [x] No-results fix — return `''` แทน Thai string (ป้องกัน hallucinate)
+- [x] 6h cache + 2s rate limit
 
 ---
 
----
+### 2.11 Work Day Planner ✅
 
-## Phase 2 (ต่อ): New Features ที่วางแผน
+- [x] Morning check-in (09:00) — agenda วันนี้ใน notification
+- [x] Evening summary (20:00) — สรุปนัดวันนี้
+- [x] WorkManager time triggers — ยิงแม้แอพปิด
+- [x] Goal priority (`GoalWorker`)
 
-### 2.11 ผู้ช่วยจัดตารางอัจฉริยะ ✅
-**สถานะ:** เสร็จแล้ว
-
-> พิมพ์ภาษาธรรมชาติ → Haku จัด task + สร้าง event ให้ทันที
-
-- [x] Natural language → `intent=schedule` (Secret Chat)
-- [x] สร้าง event ใน Android Calendar (SchedulerService fixed)
-- [x] Reminder 15 นาทีก่อน
-- [x] `getCalendarEvents()` — อ่าน events จาก Android Calendar (`SchedulerBridge.getEvents()`)
-- [x] `checkConflicts()` — ตรวจ overlap ก่อน create → `ConflictResult`
-- [x] `createCalendarEventWithCheck()` — สร้าง + warn ถ้าชนนัด → `ScheduleResult`
-- [ ] Time block อัตโนมัติ — จัด slot ว่างให้พอดีวัน (future)
-
----
-
-### 2.12 ผู้ช่วยวางแผนวันทำงาน ✅
-**สถานะ:** ~80% done
-
-> เช็กอินตอนเช้า ดู agenda วันนี้ + สรุปตอนเย็น
-
-- [x] สร้างนัดหมาย + เตือนงานสำคัญ (ผ่าน 2.11)
-- [x] จัดลำดับ priority (`GoalWorker`)
-- [x] **Morning check-in (09:00)** — แสดง agenda วันนี้จาก `CalendarWorker` ใน notification
-- [x] **Evening summary (20:00)** — `TriggerType.eveningSummary` สรุปนัดวันนี้
-- [x] **WorkManager time triggers** — `BackgroundTaskService` ยิง 09:00 + 20:00 แม้แอพปิด (dynamic content จาก SharedPreferences)
-
-**Enhancement: Smart Sleep-Prep & Auto-Alarm** 🆕 (จัดตารางนอนและตั้งปลุกอัตโนมัติ)
-
-> แค่เสียบชาร์จตอนดึก → Haku เช็คนัดพรุ่งนี้ → คำนวณเวลานอน → ตั้งปลุกให้เอง!
-> เช่น "พรุ่งนี้มีประชุม 8 โมง ฉันตั้งปลุก 6:30 ไว้ให้แล้วนะ รีบนอนล่ะ!"
-
+**Smart Sleep & Auto-Alarm:**
 ```
 เสียบชาร์จหลัง 22:00
-  → ChargingTrigger (มีแล้ว)
-  → getCalendarEvents(tomorrow) (มีแล้ว)
-  → earliestEvent = 08:00
-  → alarmTime = eventTime - prepTime(1.5hr) = 06:30
-  → SchedulerBridge.setAlarm(6, 30) ← ใหม่
-  → NotificationService: "พรุ่งนี้ประชุม 8 โมง
-     ตั้งปลุก 6:30 ไว้ให้แล้ว รีบนอนนะ!" (มีแล้ว)
+  → ChargingTrigger → getCalendarEvents(tomorrow)
+  → คำนวณ alarmTime = earliestEvent - 1.5hr
+  → SchedulerBridge.setAlarm() → Android AlarmClock
+  → Notification: "พรุ่งนี้ประชุม 8 โมง ตั้งปลุก 6:30 ไว้ให้แล้ว"
 ```
 
-- [x] **`SchedulerBridge.setAlarm()`** — MethodChannel → Android `AlarmClock.ACTION_SET_ALARM` (EXTRA_SKIP_UI=true) ✅
-- [x] **Sleep calculation** — `calculateAlarmFromTomorrow(prepMinutes)` + safety guard (ไม่ปลุกก่อนตี 4 / หลัง 4 ทุ่ม) ✅
-- [x] **ChargingTrigger integration** — wired ใน `MVPTriggerService.bedtime` (22:00): ถ้ามี event พรุ่งนี้ → auto-alarm ✅
-- [x] **Evening notification** — แจ้งเตือนพร้อมบอกเวลาปลุกที่ตั้งไว้ (ใน bedtime trigger message) ✅
-- [ ] **Settings: prep time** — ให้ user ตั้งค่าเวลาเตรียมตัว (default 1.5 ชม.)
-- **LLM usage:** 0 (rule-based ล้วน — คำนวณเวลาจาก CalendarWorker)
+- [x] `SchedulerBridge.setAlarm()` — Android `AlarmClock.ACTION_SET_ALARM`
+- [x] `calculateAlarmFromTomorrow()` — safety guard (ไม่ปลุกก่อนตี 4)
+- [x] ChargingTrigger integration — bedtime 22:00
+- [ ] Settings: prep time (default 1.5 ชม.)
 
 ---
 
-### 2.13 บอทช่วยเลิกผัดวันประกันพรุ่ง 🟡
-**สถานะ:** ~70% done — MVP พร้อมใช้
+### 2.12 Samsung Now Brief Dashboard ✅
 
-> Focus timer + Streak + Goal-Linked (Haku-specific)
+> HomeScreen time-adaptive cards แบบ Samsung Now Brief
 
-- [x] **FocusTimerService** — Pomodoro state machine (25/5/15 min)
-- [x] **StreakService** — นับวันต่อเนื่อง, milestone (7/30/100 วัน), persist
-- [x] **Goal-linked** — เลือก Goal ก่อน focus → `GoalWorker.logProgress()` อัตโนมัติเมื่อเสร็จ
-- [x] **FocusTimerScreen** — UI: timer ring, pomodoro dots, goal picker, streak badge
-- [x] **FAB shortcut** — เข้าถึงได้จาก Home Screen expandable FAB
-- [ ] Deep Work session — lock notifications ระหว่าง focus
-- [ ] Break reminder notification — push notification เมื่อ pomodoro เสร็จ
+- [x] `_HeroBriefCard` — time-adaptive accent (amber/blue/pink/purple)
+- [x] `_CalendarCard` — events วันนี้
+- [x] `_GoalsCard` — active goals + circular progress
+- [x] `_StreakCard` — focus streak
+- [x] `WeatherService` (Open-Meteo, ฟรี) — 3-day forecast, daily cache
 
 ---
 
-## Phase 2 (ต่อ): User-Proposed Features
+### 2.13 Anti-Procrastination Bot 🟡
 
-> เรียงตามความยากจากน้อยไปมาก — ทำทีละอัน
+**สถานะ:** ~70% done
 
----
-
-### 2.14 Chat Persistence — ไม่ Reset ประวัติแชท ✅
-**สถานะ:** เสร็จแล้ว + Clear History Set Zero (2026-03-05)
-**ความยาก:** ⭐ (ง่าย)
-
-> เก็บประวัติ 50 ข้อความล่าสุดไว้ข้าม session — ไม่ต้อง scroll ขึ้นไปหาอีก
-
-- [x] `ChatMessage.toJson()` / `fromJson()` / `isPersistable` — serialize เฉพาะ user/assistant/proactive
-- [x] `ChatNotifier._loadHistory()` — โหลดตอนเปิดแอป (async, ไม่บล็อก UI)
-- [x] `ChatNotifier._saveHistory()` — บันทึกทุกครั้งที่รับ message ที่ persist ได้
-- [x] จำกัด 50 ข้อความ (trim จากหัว)
-- [x] ปุ่ม "ล้างประวัติแชท" ใน PopupMenu พร้อม confirm dialog
-- [x] **Clear History = Set Zero** 🆕 — ล้างทุกอย่างจริง (ไม่ใช่แค่ UI):
-  - `SmartPreprocessor().clearLeanContext()` → ล้าง LeanContext ทั้งหมด
-  - `SecretChatService().clearAll()` → ล้าง Secret Chat log + SharedPreferences
-  - `SecretChatService.clearAll()` reset `_isInitialized = false` ด้วย
-- **Storage:** SharedPreferences key `chat_history_v1`
+- [x] `FocusTimerService` — Pomodoro state machine (25/5/15 min)
+- [x] `StreakService` — นับวันต่อเนื่อง, milestone (7/30/100 วัน)
+- [x] Goal-linked — `GoalWorker.logProgress()` อัตโนมัติเมื่อเสร็จ
+- [x] `FocusTimerScreen` — UI: timer ring, pomodoro dots, goal picker, streak badge
+- [x] FAB shortcut — เข้าถึงจาก Home Screen
+- [x] Break reminder notification
+- [ ] Deep Work session — mute notifications ระหว่าง focus (post-MVP)
 
 ---
 
-### 2.20 Samsung Now Brief Dashboard + WeatherService ✅ 🆕
-**สถานะ:** เสร็จแล้ว (2026-02-28)
+### 2.14 Chat Persistence ✅
 
-> HomeScreen "บันทึก" tab redesign เป็น full-width stacked time-adaptive cards แบบ Samsung Now Brief
-
-**Time Periods:**
-- Morning (05-12): weather chip + today's schedule
-- Midday (12-17): AI suggestion card
-- Evening (17-22): streak + goals summary
-- Night (22-05): tomorrow preview
-
-**Cards implemented:**
-- [x] `_HeroBriefCard` — Hero card พร้อม time-adaptive accent color (amber/blue/pink/purple)
-- [x] `_CalendarCard` — events วันนี้จาก `SchedulerService.getCalendarEvents()`
-- [x] `_GoalsCard` — active goals จาก `ObjectiveService.objectives`
-- [x] `_StreakCard` — streak วันนี้จาก `StreakService.currentStreak`
-- [x] `_AiSuggestionCard` — placeholder (midday period)
-
-**WeatherService** (`lib/services/weather_service.dart`) — singleton:
-- [x] Open-Meteo API (ฟรี ไม่ต้อง key) → 3-day daily forecast
-- [x] `WeatherForecast` + `DayForecast` — rolling window (today/tomorrow/day after)
-- [x] Daily cache in SharedPreferences key `weather_forecast_v1`
-- [x] `isFresh` = same calendar day (ไม่ใช่ 24h rolling)
-- [x] `getContextString()` → `[Weather]\nวันนี้: ☀️ สูง 32°C...` สำหรับ LLM prompt
-- [x] Shared singleton — HomeScreen display + SmartPreprocessor WeatherWorker ใช้ cache เดียวกัน (ไม่ double call)
+- [x] `ChatMessage.toJson()` / `fromJson()` — serialize 50 ข้อความล่าสุด
+- [x] `ChatNotifier._loadHistory()` / `_saveHistory()` — async, ไม่บล็อก UI
+- [x] ปุ่ม "ล้างประวัติแชท" + confirm dialog + clear everything (LeanContext + SecretChat)
 
 ---
 
-### 2.15 Meeting Pre-Flight Check — การ์ดเตรียมตัวก่อนประชุม
+### 2.15 Meeting Pre-Flight Check 🔴
+
 **สถานะ:** ยังไม่ implement
-**ความยาก:** ⭐⭐ (ง่าย-ปานกลาง — ต่อยอดจาก system ที่มีอยู่)
+**ความยาก:** ⭐⭐
 
-> 15 นาทีก่อนถึงเวลานัด → Haku ดึง RAG แล้วสรุปบริบทให้อ่านก่อนเข้าประชุม
+> 15 นาทีก่อนถึงนัด → Haku ดึง RAG → สรุปบริบทให้อ่านก่อนเข้าประชุม
 
-**Flow:**
 ```
-CalendarWorker มีนัด
-  ↓ (เวลา = now + 15 นาที)
-MVPTriggerService.schedulePreFlight(event)
-  ↓
-TimerTrigger ยิง
-  ↓
-RAG search ด้วย event.title + attendees
-  ↓
-ดึง: Diary entries ที่พูดถึงหัวข้อ/คน + Facts + Goals ที่เกี่ยวข้อง
-  ↓
-Notification popup "📋 เตรียมพร้อมก่อนนัด: [ชื่อนัด]"
-  ↓
-เปิดแอปแสดง Pre-Flight Card ใน ChatScreen
+CalendarWorker มีนัด → schedulePreFlight(event)
+  → TimerTrigger ยิง (event.time - 15 min)
+  → RAG search ด้วย event.title + attendees
+  → Notification "📋 เตรียมพร้อมก่อนนัด: [ชื่อนัด]"
+  → Pre-Flight Card ใน ChatScreen
 ```
 
-**งานที่ต้องทำ:**
-- [ ] `CalendarWorker.schedulePreFlightReminders()` — หลัง addEvent, schedule trigger 15 นาทีก่อน
-- [ ] `MVPTriggerService.TriggerType.preFlightCheck` — trigger ชนิดใหม่
-- [ ] RAG search ด้วย context ของ event (title + attendees keyword)
-- [ ] Pre-Flight Card UI — แสดง recap entries + facts ที่เกี่ยวข้อง
-- [ ] NotificationService.showPreFlightNotification()
-- **LLM usage:** 1 call (สรุป RAG results เป็นภาษาธรรมชาติ)
+- [ ] `TriggerType.preFlightCheck` + `schedulePreFlightReminders()`
+- [ ] RAG search ด้วย context ของ event
+- [ ] Pre-Flight Card UI — recap entries + facts ที่เกี่ยวข้อง
+- **LLM usage:** 1 call
 
 ---
 
-### 2.16 Dynamic Morning/Evening Briefing — แดชบอร์ดสรุปวัน
-**สถานะ:** ✅ Done (รวมกับ 2.20 Samsung Now Brief)
-**ความยาก:** ⭐⭐⭐ (ปานกลาง — มี infrastructure แต่ต้องออกแบบ card UI)
+### 2.16 Thought Catcher — Voice Input 🔴
 
-> **Implemented:** `home_screen.dart` redesign (Session 4) — Dashboard แสดง Weather Card + Calendar Card (ตารางวันนี้) + Goals Card + Streak Badge แบบ glassmorphism real-time ทุกครั้งที่เปิดแอป
-
-ส่วนที่ทำแล้ว:
-- [x] Weather Card — อุณหภูมิ, คำแนะนำ (WeatherService)
-- [x] Calendar Card — ตารางนัดวันนี้ (SchedulerService)
-- [x] Goals Card — เป้าหมาย + circular progress (ObjectiveService)
-- [x] Streak Badge — Focus streak (StreakService)
-- [x] RefreshIndicator — pull-to-refresh ทุก card
-
-ส่วนที่ยังไม่ทำ (optional enhancement):
-- [ ] Evening summary push notification ตอนชาร์จ (EveningBriefingTask)
-- [ ] Persist briefing card ข้ามวัน via SharedPreferences
-
----
-
-### 2.17 Thought Catcher — ปุ่มจับความคิดด้วยเสียง
 **สถานะ:** ยังไม่ implement (รอ STT)
-**ความยาก:** ⭐⭐⭐⭐ (ยาก — ต้องมี STT ก่อน)
+**ความยาก:** ⭐⭐⭐⭐
 
-> กด mic → พูด → บันทึกอัตโนมัติ → CalendarWorker/ReminderWorker เซฟทันที (0 LLM)
+> กด mic → พูด → บันทึกอัตโนมัติ → SmartPreprocessor เซฟทันที (0 LLM)
 
-**Flow:**
-```
-กด FAB mic button
-  ↓
-STT: speech → text (Google Speech API หรือ Whisper-Tiny)
-  ↓
-SmartPreprocessor.preprocess(text)
-  ↓ (rule-based fast path)
-CalendarWorker.detectEvents() หรือ ReminderWorker.detectReminders()
-  ↓
-Auto-save + animation feedback (ไม่ต้องรอ LLM)
-  ↓
-[async] preClassify → บันทึก English ใน lean context
-```
-
-**งานที่ต้องทำ:**
-- [ ] เลือก STT engine: Google Speech-to-Text API (cloud) หรือ Whisper-Tiny on-device
+- [ ] เลือก STT: **Whisper-Tiny on-device** (privacy-safe) หรือ Google Speech (cloud)
 - [ ] `SpeechToTextService` wrapper
-- [ ] FAB mic button → recording UI (waveform animation)
-- [ ] SmartPreprocessor fast-path: STT text → detect → save (ไม่รอ LLM)
+- [ ] FAB mic button + recording UI
 - [ ] Confirmation snackbar: "จดแล้ว: [ชื่อนัด/reminder]"
-- **LLM usage:** 0 (rule-based fast path), async preClassify สำหรับ lean context เท่านั้น
-- **ข้อกำหนด:** ต้องมี STT ก่อน (Phase 3.4 หรือ Google Speech API)
+- **Priority note:** ควรใช้ Whisper on-device เพื่อรักษา Objective 1
 
 ---
 
-### 2.18 Focus Goal HUD — วิดเจ็ตลอยตัวกันอู้งาน
+### 2.17 Focus Goal HUD — Floating Widget 🔴
+
 **สถานะ:** ยังไม่ implement
-**ความยาก:** ⭐⭐⭐⭐ (ยาก — Android Overlay permission ซับซ้อน)
+**ความยาก:** ⭐⭐⭐⭐
 
-> Pomodoro timer ลอยอยู่บนหน้าจอ อัปเดต streak + goal โดยไม่ปลุก LLM
+> Pomodoro timer ลอยบนหน้าจอ — Android Overlay (SYSTEM_ALERT_WINDOW)
 
-**Architecture:**
-```
-FocusTimerService (มีอยู่แล้ว)
-  ↓ (rule-based timer, 0 LLM)
-Android Overlay Service (SYSTEM_ALERT_WINDOW permission)
-  ↓
-Floating Widget: [timer] [streak 🔥] [goal name]
-  ↓ (เมื่อ pomodoro เสร็จ)
-GoalWorker.logProgress() → StreakService.increment()
-  ↓
-NotificationService: "🍅 Pomodoro เสร็จ!"
-```
-
-**งานที่ต้องทำ:**
-- [ ] Android `SYSTEM_ALERT_WINDOW` permission flow (ต้องให้ user เปิดใน Settings)
 - [ ] `FloatingHUDService` — Android Foreground Service + WindowManager overlay
-- [ ] MethodChannel: Flutter ↔ FloatingHUDService (start/stop/update)
-- [ ] Floating Widget layout (compact, draggable)
-- [ ] FocusTimerService → broadcast state updates ไปยัง HUD
-- **LLM usage:** 0 (rule-based ล้วน)
-- **ข้อกำหนด:** Android 8.0+ (API 26+)
+- [ ] MethodChannel: Flutter ↔ HUD (start/stop/update)
+- [ ] Floating Widget: compact, draggable
+- **LLM usage:** 0
 
 ---
 
-### 2.19 Contextual Memory Canvas — แผนผังความจำแบบภาพ
-**สถานะ:** ยังไม่ implement
-**ความยาก:** ⭐⭐⭐⭐⭐ (ยากมาก — UI intensive + heavy RAG)
+### 2.18 Contextual Memory Canvas 🔴
 
-> ดึง vectors จาก RAG มาวาด Mind Map แสดงความเชื่อมโยงระหว่าง Calendar, Facts, Diary
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐⭐
+
+> Mind Map แสดงความเชื่อมโยงระหว่าง Calendar, Facts, Diary จาก vector clustering
+
+- [ ] `VectorGraphService` — cosine similarity clustering → adjacency graph
+- [ ] `MemoryCanvasScreen` — custom `CustomPainter` Mind Map
+- [ ] Cross-worker data aggregation + filter by date / category
+- **LLM usage:** 0 (visualization only)
+
+---
+
+### 2.19 Thinking Mode ✅
+
+**สถานะ:** เสร็จแล้ว (2026-05-11)
+
+- [x] parse `<thinking>...</thinking>` จาก model response ด้วย RegExp
+- [x] `_ThinkingSection` — collapsible widget เหนือ reply จริง (default collapsed)
+- [x] แสดงเฉพาะเมื่อ model ส่ง thinking tags มา (Gemma 4 / reasoning models)
+
+---
+
+### 2.20 Mood Trend Chart ✅
+
+**สถานะ:** เสร็จแล้ว (2026-05-11)
+
+- [x] `_MoodTrendCard` ใน home_screen — แสดงถ้ามี ≥2 วันที่มี mood data
+- [x] `_MoodSparklinePainter` — gradient fill + line + dots (custom painter, ไม่ใช้ library)
+- [x] avg mood + trend icon (↑ / → / ↓)
+
+---
+
+### 2.21 Benchmark Tab ✅
+
+**สถานะ:** เสร็จแล้ว (2026-05-11)
+
+- [x] Section "ทดสอบประสิทธิภาพโมเดล" ใน Settings
+- [x] รัน `generate()` 3 ครั้ง → avg ms + token/s estimate
+- [x] Dart Stopwatch (ไม่ต้องแก้ Kotlin)
+
+---
+
+---
+
+## Phase 3: B2C Monetization
+
+> **Goal 1+2:** Revenue + User Stickiness
+> หัวใจของ Business Model — "Blades" ใน Razor & Blades
+
+---
+
+### 3.1 AI Personas 🔴 NEW
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐ (leverage system instruction ที่มีอยู่)
+**Business:** IAP gate สำหรับ premium personas
+
+> เปลี่ยน "บุคลิก" ของ Haku ผ่าน system instruction — Strict Coach, Empathetic Friend, No-Filter Advisor ฯลฯ
+
+**Personas (ตัวอย่าง):**
+| Persona | คำอธิบาย | Tier |
+|---------|----------|------|
+| **Haku (Default)** | ผู้ช่วยส่วนตัวที่สมดุล อบอุ่น | ฟรี |
+| **Coach** | กระตุ้น, ตรง, ไม่ยอมรับข้อแก้ตัว | IAP |
+| **Empath** | รับฟัง, เข้าใจ, ไม่ตัดสิน | IAP |
+| **Advisor** | วิเคราะห์ข้อมูล, ตรง, ไม่เกรงใจ | IAP |
+| **[User Custom]** | ผู้ใช้เขียน system prompt เอง | IAP Premium |
 
 **Architecture:**
 ```
-User เปิดหน้า Memory Canvas
-  ↓
-UnifiedVectorService.getClusteredVectors()
-  ↓ (cosine similarity clustering)
-CalendarWorker events + FactWorker facts + Diary entries
-  ↓
-Build graph: nodes = topics, edges = cosine similarity > 0.7
-  ↓
-Render Mind Map (flutter_graph หรือ custom Canvas painter)
-  ↓
-Tap node → ขยายดู raw content
+PersonaService (Dart singleton)
+  ├─ loadPersonas() → List<Persona> (assets/personas/*.json)
+  ├─ activePersona → Persona
+  └─ getSystemInstruction() → String (inject ใน LiteRTLMProvider)
+
+_startNewLiteRTSession() (chat_screen.dart)
+  → provider.setSystemInstruction(PersonaService().getSystemInstruction())
 ```
 
 **งานที่ต้องทำ:**
-- [ ] `VectorGraphService` — cluster vectors + build adjacency graph
-- [ ] `MemoryCanvasScreen` — Mind Map UI (custom `CustomPainter` หรือ library)
-- [ ] Cross-worker data aggregation (Calendar + Fact + Diary ใน format เดียวกัน)
-- [ ] Tap-to-expand: แสดง raw content ของ node
-- [ ] Filter by date range / category
-- [ ] Performance: lazy load ไม่ดึง vector ทั้งหมดพร้อมกัน
-- **LLM usage:** 0 (visualization only, clustering = cosine similarity)
-- **dependency candidates:** `graphview`, `flutter_force_directed_graph`, หรือ custom painter
+- [ ] `Persona` model — name, description, systemInstruction, tier (free/paid)
+- [ ] `PersonaService` singleton — load from `assets/personas/`, persist active via SharedPreferences
+- [ ] `PersonaPickerScreen` — grid UI: persona cards + lock icon สำหรับ paid
+- [ ] IAP integration (RevenueCat หรือ native Billing) — unlock paid personas
+- [ ] `buildSystemInstruction()` ใน `PromptBuilder` — inject active persona
+- [ ] Settings > AI Persona tile → PersonaPickerScreen
+- **LLM usage:** 0 extra (แค่ swap system instruction)
+
+---
+
+### 3.2 Skills System 🔴 (Feature 5 จาก Gallery)
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐
+**Business:** IAP Skill Modules
+
+> LLM เรียก "Skill" เพื่อทำ task เฉพาะทาง — Mood Tracker, Coach, Kitchen Adventure ฯลฯ
+
+**แนวคิดจาก Google AI Edge Gallery:**
+```
+LLM → loadSkill(name) → runJs(skillScript) → JS returns JSON → UI renders
+```
+
+**Haku Skill Format (SKILL.json):**
+```json
+{
+  "name": "mood-tracker",
+  "description": "Track and visualize mood patterns",
+  "trigger": ["mood", "อารมณ์", "รู้สึก"],
+  "entrypoint": "assets/skills/mood_tracker/index.html",
+  "tier": "free"
+}
+```
+
+**Skills ที่เหมาะกับ Haku:**
+| Skill | ความเกี่ยวข้อง | Tier |
+|-------|--------------|------|
+| mood-tracker | core feature | ฟรี |
+| focus-coach | productivity | IAP |
+| kitchen-adventure | food logging | IAP |
+| health-dashboard | health tracking | IAP |
+| qr-code | utility | ฟรี |
+
+**Process:**
+1. สร้าง `SkillManager` (Dart) — index skills จาก `assets/skills/`
+2. สร้าง `SkillWebViewScreen` — sandboxed WebView + MethodChannel bridge
+3. เพิ่ม tool: `loadSkill` ใน function calling chain
+4. เขียน Skill format spec + packaging guide
+5. Port skills จาก Gallery (mood-tracker ก่อน)
+
+**Privacy Note:** WebView ต้อง sandbox ไม่ให้เข้า network (ยกเว้น skill ที่ explicit opt-in)
+**Dependency:** Function Calling (3.3)
+
+---
+
+### 3.3 Native Function Calling 🔴 (Feature 6 จาก Gallery)
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐⭐
+**Dependency:** Gemma 4 E2B/E4B บนเครื่อง
+
+> LLM เรียก device functions ผ่าน structured tool calls — แทน regex intent dispatch
+
+**HakuToolSet:**
+```kotlin
+// HakuToolSet.kt
+- log_entry(content: String, mood: Int?, location: String?)
+- create_event(title: String, date: String, time: String, location: String?)
+- set_reminder(message: String, datetime: String)
+- search_rag(query: String)
+- get_weather()
+- load_skill(name: String)   // เชื่อมกับ Skills System
+```
+
+**ข้อดีเทียบ current:**
+| ปัจจุบัน | Function Calling |
+|---------|-----------------|
+| regex → intent → dispatch | LLM เรียก tool ตรง |
+| error-prone Thai parsing | structured args |
+| 2-stage (Face + SecretChat) | 1-stage |
+| ขยาย intent = แก้ regex | เพิ่ม tool definition |
+
+**Process:**
+1. เพิ่ม function calling ใน `LiteRTLMBridge.kt` (LiteRT-LM ToolProvider API)
+2. สร้าง `HakuToolSet.kt` — define + register tools
+3. สร้าง `HakuTools.dart` — Dart side receives + dispatches tool call results
+4. แทนที่ `ManagerDispatchService` ด้วย tool-based dispatch
+5. ทดสอบ: "สร้างนัดพรุ่งนี้ 9โมงเช้า" → LLM เรียก `create_event()` โดยตรง
+
+---
+
+---
+
+## Phase 4: Analytics & Deep Personalization
+
+> **Goal 1:** AI ที่รู้จักคุณในระดับลึก — pattern recognition จากชีวิตจริง
+
+---
+
+### 4.1 Hidden Correlation ✅
+
+**สถานะ:** Done — `lib/services/correlation_service.dart`
+
+> "73% ของวันอารมณ์ไม่ดี มักเกิดขึ้นในวันที่มีเครียด"
+
+- [x] Co-occurrence analysis + Lift scoring (pure Dart, 0 LLM)
+- [x] Signals: กาแฟ, นอนดึก, เครียด, ประชุม, ปวดหัว, ออกกำลังกาย
+- [x] Outcomes: lowMood (≤2), fatigue, highMood (≥4)
+- [x] `_InsightCard` ใน home_screen — confidence chip + tinted message
+
+---
+
+### 4.2 Social Battery Forecast ✅
+
+**สถานะ:** Done — `lib/services/social_battery_service.dart`
+
+- [x] Energy Cost Table: ประชุม -10, นอน +10, คนเดียว +12
+- [x] Cumulative score 14 วัน → level 0-100
+- [x] `_SocialBatteryCard` — LinearProgressIndicator + nudge message
+- [ ] Push notification เมื่อ level < 30 ติดต่อกัน 3 วัน
+
+---
+
+### 4.3 Direct Diary — Core Memory 🔴
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐
+
+> "จำไว้นะ..." → AI จัดเก็บระดับพิเศษ → ดึงมาให้กำลังใจเมื่อ mood ต่ำ
+
+- [ ] SmartPreprocessor regex: "จำไว้", "จดลงไดอารี่สำคัญ" → `DetectedIntent.directDiary`
+- [ ] `addFact(category: 'core_memory')` + weight boosting ใน RAG
+- [ ] `DirectDiaryScreen` — CRUD แยกตามหัวข้อ
+- [ ] Evening Briefing: ถ้า mood ต่ำ → ดึง positive core_memory
+- **LLM usage:** 1 call (Face only)
+
+---
+
+### 4.4 Direct Table — Auto-Tracker 🔴
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐
+
+> "ความดันเช้านี้ 120 80" → auto-log → MiniChart trend ทันที
+
+- [ ] SQLite: `tracker_tables` + `tracker_entries`
+- [ ] `TrackerWorker` (rule-based) — numeric extraction + table matching
+- [ ] `DirectTableScreen` + `MiniChartWidget`
+- [ ] Export: สรุปตารางเป็น text/image
+- **LLM usage:** 1 call (Face) + 1 call (summary query)
+
+---
+
+### 4.5 Music & News Context 🔴
+
+**สถานะ:** ยังไม่ implement
+
+- [ ] Android Notification Listener → ชื่อเพลงจาก Spotify/YT Music
+- [ ] RSS Feed สรุปข่าว
+- [ ] Morning Briefing integration
+
+---
+
+### 4.6 Proactive Voice Alert (TTS) 🔴
+
+**สถานะ:** ยังไม่ implement
+
+```yaml
+tts_engine:
+  android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB on-device)
+  ios: Siri Announce Notifications
+```
+
+- [ ] TTS wrapper service
+- [ ] Personalized alert messages ผ่าน LLM
+- **Privacy note:** Piper-TTS on-device preferred (Objective 1)
+
+---
+
+### 4.7 Shadow Mode — AI Writing Style 🔴
+
+**สถานะ:** ยังไม่ implement
+
+> AI เรียนรู้สไตล์การเขียนของคุณ → Draft คำตอบเหมือนคุณพิมพ์เอง
+
+- [ ] Few-shot prompting (ใช้ข้อความเก่าเป็น example)
+- [ ] หรือ LoRA Fine-tune on-device (Gemma base)
+
+---
+
+### 4.8 AR Memory Anchor 💡
+
+**สถานะ:** Concept — feasibility ยังไม่ชัด
+
+> ชี้กล้องไปที่สถานที่ → Haku บอกว่าเคยมีความทรงจำอะไรที่นี่
+
+---
+
+---
+
+## Phase 5: B2B — Agent Protocol + Automation
+
+> **Goal 2+3:** B2B Revenue + Data Sovereignty
+> ทุก feature ในเฟสนี้ต้องไม่มี central server ที่เห็นข้อมูล
+
+---
+
+### 5.1 Agent-to-Agent Protocol 🔴 NEW
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐⭐⭐⭐⭐
+**Business:** B2B Subscription — Team Delegation Protocol
+
+> Haku ของ User A คุยกับ Haku ของ User B โดยตรง — ไม่มี central server เห็นข้อมูล
+
+**ปัญหาที่แก้:**
+- ทีมงานต้องการ schedule meeting โดยไม่เปิดเผย calendar ส่วนตัวให้คนอื่นเห็น
+- ปัจจุบัน: ต้องส่ง calendar ให้ secretary หรือใช้ Google Calendar (data หนีออก cloud)
+- Haku A2A: แค่บอก "ขอนัดกับ Bob" → Haku ของทั้งคู่เจรจากันเอง
+
+**Architecture (Privacy-First):**
+```
+User A: "ขอนัดประชุม Bob วันพฤหัส บ่าย"
+  ↓
+Haku A (Face LLM) → function call: request_meeting(to: "bob_haku_id", ...)
+  ↓ (encrypted P2P)
+Haku B ได้รับ → ตรวจ Bob's free slots (local only)
+  → ตอบกลับ: available_slots[] (encrypted)
+  ↓
+Haku A เสนอเวลา → User A confirm → Haku A สร้าง event ทั้งสองฝ่าย
+```
+
+**Transport Options (ไม่มี central server):**
+| Option | ข้อดี | ข้อเสีย |
+|--------|-------|---------|
+| Bluetooth / WiFi Direct | offline 100% | ต้องอยู่ใกล้กัน |
+| E2E Encrypted Relay (self-hosted) | ระยะไกลได้ | ต้องการ relay server (operator ไม่เห็น content) |
+| Local Network (LAN) | ออฟฟิศ fast | จำกัด network เดียวกัน |
+
+**งานที่ต้องทำ:**
+- [ ] `HakuAgentIdentity` — keypair ที่เก็บใน device keystore (Keystore API)
+- [ ] `AgentChannel` — encrypted message format (NaCl/libsodium)
+- [ ] `MeetingNegotiationProtocol` — request / propose / confirm / decline
+- [ ] Transport layer abstraction — BT / WiFi Direct / relay
+- [ ] `A2AScreen` — UI: ค้นหา Haku user ใกล้เคียง + negotiation status
+- [ ] Settings: B2B subscription gate + Team management
+- **LLM usage:** on each device separately (ไม่มี shared LLM)
+
+---
+
+### 5.2 Privacy Data Transparency Screen 🔴 NEW
+
+**สถานะ:** ยังไม่ implement
+**ความยาก:** ⭐ (ง่าย แต่ USP ชัดมาก)
+
+> "What happens on your phone, stays on your phone" — แสดงหลักฐานให้ user เห็น
+
+**หน้า Data Transparency:**
+```
+📱 Stored on This Device
+  ├─ 🗒️ Diary entries: 234 entries (12.3 MB)
+  ├─ 🧠 AI memories: 1,247 facts
+  ├─ 📅 Calendar events: 89 events
+  └─ 🔒 Encrypted with: AES-256 (SQLCipher)
+
+☁️ Network Activity (last 30 days)
+  ├─ LLM calls: 0 (on-device only) ✅
+  ├─ Web searches: 12 queries (DuckDuckGo/SearXNG) ℹ️
+  ├─ Weather: 30 requests (Open-Meteo, no account) ℹ️
+  └─ Cloud LLM: 0 calls ✅
+
+🔍 What leaves your device
+  └─ Only: anonymous weather requests, web search queries
+     (no personal content, no account required)
+```
+
+**งานที่ต้องทำ:**
+- [ ] `NetworkAuditService` — log outbound calls (type, domain, ไม่ log content)
+- [ ] `DataInventoryService` — count entries/facts/events จาก SQLite + SharedPreferences
+- [ ] `PrivacyTransparencyScreen` — UI แสดงข้อมูลทั้งหมด
+- [ ] Settings > Privacy & Data tile → PrivacyTransparencyScreen
+- **LLM usage:** 0 (read-only audit)
+
+---
+
+### 5.3 Background Geofence via WorkManager 🔴
+
+**สถานะ:** ยังไม่ implement (Post-MVP)
+**ความยาก:** ⭐⭐⭐⭐
+
+> ทำให้ DwellTracker ทำงานได้แม้แอพปิด — WorkManager + Fused Location API
+
+```
+ปัจจุบัน: แอพเปิด → GPS poll ทุก 5 นาที ✅ / แอพปิด → ไม่มี GPS ❌
+เป้าหมาย: WorkManager ยิงทุก 15 นาที → poll GPS → DwellTracker ✅
+```
+
+**Battery Impact:**
+| Mode | Battery/วัน |
+|------|------------|
+| Foreground only (ปัจจุบัน) | ~0 (แอพปิดไม่กิน) |
+| WorkManager (Phase 5.3) | ~1-2% (PRIORITY_LOW_POWER) |
+
+**งานที่ต้องทำ (Kotlin):**
+- [ ] `LocationWorker.kt` — WorkManager `CoroutineWorker` + FusedLocationProviderClient
+- [ ] `DwellLogic.kt` — Haversine + dwell state machine (mirror ของ Dart side)
+- [ ] `WorkManagerBridge.kt` — MethodChannel startBackgroundGeofence / stop
+- [ ] Manifest: `ACCESS_BACKGROUND_LOCATION` permission
+
+**งานที่ต้องทำ (Flutter):**
+- [ ] Settings UI: toggle "Background Location Tracking" + battery impact warning
+- [ ] Permission flow: Android 10+ dialog อธิบายเหตุผล
+
+---
+
+### 5.4 Automation Engine 🔴
+
+**สถานะ:** Planned (mockup UI มีแล้วใน `automation_screen.dart`)
+
+> No-code automation — Trigger → Condition → Action ไม่ต้อง run LLM ตลอดเวลา
+
+```
+[TRIGGER] ──→ [CONDITION] ──→ [ACTION]
+เวลา 08:00     ถ้าพรุ่งนี้มีนัด   แจ้งเตือน "เตรียมตัว"
+ชาร์จแบต       ถ้า mood < 3       ส่ง Check-in เข้าแชท
+เชื่อม WiFi บ้าน  ─              เปลี่ยน ringtone
+```
+
+**Trigger Types:**
+| Trigger | Android API | Battery |
+|---------|-------------|---------|
+| เวลาที่กำหนด | AlarmManager | ~0 |
+| ทุก N นาที (min 15) | WorkManager | ต่ำ |
+| เสียบ/ถอดชาร์จ | BroadcastReceiver | ~0 |
+| เชื่อม WiFi SSID | BroadcastReceiver | ~0 |
+| เข้า/ออกสถานที่ | Geofencing API | ต่ำ |
+
+**Action Types:** ส่งข้อความเข้าแชท / แจ้งเตือน / ค้นหาเว็บ / บันทึก entry / เปิดหน้า
+
+**งานที่ต้องทำ:**
+- [ ] `AutomationRule` model + `AutomationEngine` service
+- [ ] `TriggerRegistry` — AlarmManager / BroadcastReceiver / WorkManager bridge (Kotlin)
+- [ ] Rule Builder UI — Visual block editor
+- [ ] Condition evaluator — `mood < 3`, `hasEventToday`, `batteryLevel < 20`
+
+---
+
+---
+
+## Phase 6: Haku OS Vision 💡
+
+> **Goal 3:** National Impact — Data Sovereignty
+> ระยะยาว — ยังเป็น concept
+
+**Phase 6 Concept:**
+- Haku Launcher — แทน Android home screen เป็น "Haku OS"
+- AI Layer ระหว่าง human กับ digital world
+- Thai Data Sovereignty — ข้อมูลอยู่บน device คนไทย ไม่ออก server ต่างชาติ
+- Enterprise Haku — deploy บน device องค์กรที่ควบคุมโดย IT admin
+
+---
 
 ---
 
 ## Pre-MVP Checklist (ก่อน Public Launch)
 
-> งานที่ต้องทำก่อนปล่อยให้ผู้ใช้จริง — ข้ามข้อไหนไม่ได้
-
-### Background Processing (งานหนัก เมื่อชาร์จ)
-
-- ❌ **WorkManager batch** — defer post-MVP
-  - TFLite ไม่รองรับ background isolate → LLM tasks ทำ background ไม่ได้อยู่แล้ว
-  - `reindex_vectors` / `vectorize_topics` (non-LLM) ยังไม่ critical สำหรับ MVP
-  - `BackgroundTaskService` ที่มีอยู่ handle notification scheduling ได้พอ
-
-### Focus Timer (2.13 ที่ยังค้าง)
-
-- [x] **Break reminder notification** — ✅ Done: `BackgroundTaskService.showBreakStartNotification()` + `showFocusReminderNotification()` wire แล้วใน `FocusTimerService._advanceState()`
-- [ ] **Deep Work session** — mute notifications ระหว่าง focus session (post-MVP)
-
-### GPS / Background Location
-
-- [x] ✅ **ตัดสินใจ: Include สำหรับ MVP** — `GeofenceService` (Haversine, zone enter/exit, 5-min polling) + `MVPTriggerService` (locationRevisit trigger) implement แล้วครบ
-  - ใช้ low accuracy + 200m distance filter → battery-friendly
-  - `GeofenceService().startMonitoring()` เรียกจาก `ChatScreen._initializeServices()` (foreground เท่านั้น)
-  - *ไม่ต้อง Foreground Service สำหรับ MVP — periodic polling เพียงพอ*
-  - **ข้อจำกัด:** DwellTracker ทำงานได้เฉพาะตอนแอพเปิดอยู่ foreground — ถ้าแอพปิดจะไม่มี GPS poll
-  - **Post-MVP:** WorkManager background polling → Phase 5.1
-
----
-
-## Phase 3: Beta Testing (Insights & Analytics)
-
-**เป้าหมาย:** วิเคราะห์ pattern ชีวิตและให้ insights
-
-### 3.1 The Hidden Correlation
-**สถานะ:** ✅ Done — `lib/services/correlation_service.dart`
-
-หาความเชื่อมโยงที่ซ่อนอยู่ในชีวิต เช่น:
-> "73% ของวันอารมณ์ไม่ดี มักเกิดขึ้นในวันที่มีเครียด"
-
-- [x] Co-occurrence analysis + Lift scoring (pure Dart, 0 LLM)
-- [x] Signals: กาแฟ, นอนดึก, เครียด, ประชุม/สังคม, ปวดหัว, ออกกำลังกาย, อาหารไม่ดี
-- [x] Outcomes: lowMood (mood ≤ 2), fatigue (keyword), highMood (mood ≥ 4)
-- [x] `_InsightCard` ใน home_screen — confidence chip + tinted message box
-- [ ] (optional) LLM narrative สำหรับ insight ที่ซับซ้อน
-
----
-
-### 3.2 Social Battery Forecast
-**สถานะ:** ✅ Done — `lib/services/social_battery_service.dart`
-
-พยากรณ์ "พลังงานสังคม" และเตือนก่อน burnout
-
-- [x] Energy Cost Table: draining (ประชุม -10, งานสังคม -14, เครียด -10) / recharging (คนเดียว +12, นอน +10)
-- [x] Cumulative score จาก 14 วันล่าสุด → level 0–100
-- [x] Trend: เปรียบ 7 วันล่าสุด vs 7 วันก่อน (mood average)
-- [x] `_SocialBatteryCard` ใน home_screen — LinearProgressIndicator + trend badge + nudge message
-- [ ] (optional) Push notification เมื่อ level < 30 ติดต่อกัน 3 วัน
-
----
-
-### 3.3 Music & News Context (Mood Tracking)
-**สถานะ:** ยังไม่ implement
-
-- [ ] Android Notification Listener → ดึงชื่อเพลงจาก Spotify/YT Music
-- [ ] RSS Feed สรุปข่าว
-- [ ] Morning Briefing (TTS อ่านข่าว + สรุปตาราง)
-
----
-
-### 3.4 Proactive Voice Alert (TTS)
-**สถานะ:** ยังไม่ implement
-
-- [ ] Google TTS (pre-installed) หรือ Piper TTS (~50MB)
-- [ ] Personalized alert messages ผ่าน LLM
-- [ ] iOS: Siri Announce Notifications
-
-```yaml
-tts_engine:
-  android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB)
-  ios: Siri Announce Notifications
-```
-
----
-
-## Phase 4: Production (Advanced Personalization)
-
-**เป้าหมาย:** AI ที่เข้าใจคุณในระดับลึก
-
-### 4.1 Shadow Mode (AI Writing Style)
-**สถานะ:** ยังไม่ implement
-
-AI เรียนรู้สไตล์การเขียนของคุณ และ Draft คำตอบให้เหมือนคุณพิมพ์เอง
-
-- [ ] Few-shot prompting (ใช้ข้อความเก่าเป็น example)
-- [ ] หรือ LoRA Fine-tune บน device (Gemma 2 2B base)
-
----
-
-### 4.2 AR Memory Anchor (Future Concept)
-**สถานะ:** ยังไม่แน่ใจ technical feasibility
-
-ชี้กล้องไปที่สถานที่ → Haku บอกว่าเคยมีความทรงจำอะไรที่นี่
-
----
-
-### 4.3 Direct Diary — บันทึกความจำฝังลึก (Core Memory)
-**สถานะ:** ยังไม่ implement
-**ความยาก:** ⭐⭐ (ง่าย — ต่อยอดจาก FactWorker + UnifiedVectorService ที่มี)
-
-> บางเรื่อง diary ปกติเขียนแล้วจมหาย แต่บางอย่างอยากให้ AI "จำขึ้นใจ" เอามาเตือนสติ/ให้กำลังใจในอนาคต
-
-**UX/UI:**
-- ผู้ใช้สร้าง **หัวข้อ** (topic) เอง เช่น "ความสำเร็จ", "บทเรียนชีวิต", "กำลังใจ"
-- พิมพ์/พูดนำหน้าด้วย "จำไว้นะ...", "Haku จดลงไดอารี่สำคัญ..."
-- UI Feedback: แอนิเมชัน ⭐/🔒 ล็อกเก็บยืนยันว่าข้อมูลถูกจัดเก็บระดับพิเศษ
-- เปิดหน้า Direct Diary → ดูรายการทั้งหมดแยกตามหัวข้อ (user อ่านเองได้)
-
-**Architecture:**
-```
-User: "จำไว้นะ วันนี้พรีเซนต์งานผ่านแล้ว!"
-  → SmartPreprocessor: regex จับ "จำไว้" → intent = directDiary
-  → Face LLM ตอบ: "จดไว้แล้วนะ! เก่งมาก 🌟" (1 call)
-  → [async] addFact(category: 'core_memory', topic: 'ความสำเร็จ',
-       content: '...', metadata: {mood: 'positive', weight: 3})
-  → AI ดึงมาแสดง: เมื่อ mood ≤ 2 → searchFacts(core_memory)
-     → ดึงทีละ 1-2 ข้อ (ไม่ยัดทั้งหมด ไม่เปลือง context window)
-```
-
-**งานที่ต้องทำ:**
-- [ ] `DirectDiaryScreen` — หน้า UI แสดง entries แยกตามหัวข้อ (CRUD)
-- [ ] `SmartPreprocessor` เพิ่ม regex pattern: "จำไว้", "จดลงไดอารี่สำคัญ" → `DetectedIntent.directDiary`
-- [ ] `addFact(category: 'core_memory')` + metadata `weight` field
-- [ ] `UnifiedVectorService.search()` เพิ่ม weight boosting: `core_memory` → score × 2-3
-- [ ] Evening Briefing integration: ถ้า mood ต่ำ → ดึง positive core_memory มาแสดง
-- [ ] UI animation: ⭐ lock effect เมื่อบันทึกสำเร็จ
-- **LLM usage:** 1 call (Face only) — SmartPreprocessor จับ intent ด้วย regex (0 token)
-
-**Phase 5 Upgrade:**
-- [ ] Automation Rule: `ถ้า mood < 3 ติดต่อกัน 2 วัน → ดึง Direct Diary (positive) → push notification`
-- [ ] Automation Rule: `ทุกเช้า 8 โมง → ดึง random core_memory → แสดงใน Morning Briefing`
-
----
-
-### 4.4 Direct Table — ตารางเฉพาะกิจ (Auto-Tracker)
-**สถานะ:** ยังไม่ implement
-**ความยาก:** ⭐⭐⭐ (ปานกลาง — ต้องสร้าง dynamic table + chart UI)
-
-> หมอสั่งให้จดความดัน, เทรนเนอร์สั่งให้จดน้ำหนัก, อยากจดค่าใช้จ่าย — ต้องเปิด Excel ในมือถือน่ารำคาญจนเลิกทำ
-
-**UX/UI:**
-- ผู้ใช้สร้าง **ตาราง** เอง: ตั้งชื่อ + กำหนดคอลัมน์ + แถว
-  - เช่น ตาราง "ความดัน" → คอลัมน์: ค่าบน, ค่าล่าง, หน่วย: mmHg
-- พิมพ์/พูดสั้นๆ: "ความดันเช้านี้ 120 80" หรือ "น้ำหนัก 65"
-- UI Feedback: popup **MiniChart** แสดงข้อมูลล่าสุด + trend เทียบเมื่อวาน
-- เปิดหน้า Direct Table → ดูตาราง + กราฟ full-size
-
-**Architecture:**
-```
-User: "ความดันเช้านี้ 120 80"
-  → SmartPreprocessor → TrackerWorker (rule-based):
-      table_name = "ความดัน" (match จาก user config)
-      values = [120, 80]
-      timestamp = now
-  → SQLite INSERT → tracker_entries
-  → Face LLM: "จดแล้ว! ความดัน 120/80 ปกติดีเลย"
-  → UI: popup MiniChart แสดง trend 7 วัน
-
-User: "สรุปความดันเดือนนี้ให้หน่อย"
-  → intent = tracker_summary
-  → query SQLite → ดึงข้อมูลเดือนนี้
-  → LLM สรุป + แสดงตาราง/กราฟ
-```
-
-**งานที่ต้องทำ:**
-- [ ] SQLite table: `tracker_tables` (id, name, columns JSON, unit, created_at)
-- [ ] SQLite table: `tracker_entries` (id, table_id, values JSON, timestamp)
-- [ ] `DirectTableScreen` — หน้า UI: สร้างตาราง + ดูข้อมูล + กราฟ full-size
-- [ ] `TrackerWorker` (rule-based) — regex จับ table_name + numeric extraction
-- [ ] `MiniChartWidget` — inline chart ใน ChatScreen
-- [ ] `SmartPreprocessor` เพิ่ม intent: `DetectedIntent.tracker` + `DetectedIntent.trackerSummary`
-- [ ] Export: สรุปตารางเป็น text/image สำหรับส่งให้หมอ
-- **LLM usage:** 1 call (Face) สำหรับ input, 1 call สำหรับ summary query
-
-**Phase 5 Upgrade:**
-- [ ] Automation Rule: `ทุกเช้า 8 โมง → ถ้ายังไม่จดความดันวันนี้ → push notification เตือน`
-- [ ] Automation Rule: `ทุกวันศุกร์ → สรุปตาราง 7 วัน → ส่งเข้าแชท`
-- [ ] Condition: `ถ้าความดัน > 140 → แจ้งเตือนทันที`
-
----
-
----
-
-## Phase 5: Background Intelligence
-
----
-
-### 5.1 Background Geofence via WorkManager
-**สถานะ:** ยังไม่ implement (Post-MVP)
-**ความยาก:** ⭐⭐⭐⭐ (ยาก — Android Native + Kotlin WorkManager + Fused Location)
-
-> ตอนนี้ GeofenceService ทำงานได้เฉพาะตอนแอพเปิดอยู่ (foreground polling ทุก 5 นาที)
-> Phase 5.1 ทำให้ DwellTracker ทำงานได้แม้แอพปิด โดยใช้ WorkManager + Fused Location API
-
-**ปัญหาที่แก้:**
-```
-ปัจจุบัน (MVP):
-  แอพเปิด → GPS poll ทุก 5 นาที → DwellTracker → ตรวจ dwell ✅
-  แอพปิด  → ไม่มี GPS poll → ไม่รู้ว่าไปไหน ❌
-
-เป้าหมาย (5.1):
-  แอพปิด  → WorkManager ยิง task ทุก 15 นาที → poll GPS → DwellTracker ✅
-  ออกจากสถานที่ → feedback queued → เปิดแอพครั้งถัดไป → Haku ถามทันที ✅
-```
-
-**Architecture:**
-```
-Android WorkManager (PeriodicWorkRequest, 15 นาที minimum)
-  ↓ LocationWorker.kt (Kotlin, Coroutine)
-  ↓ FusedLocationProviderClient.getCurrentLocation(PRIORITY_LOW_POWER)
-  ↓ SharedPreferences: บันทึก lastLat/lastLng/lastTime
-  ↓ DwellLogic.kt (native — Haversine, dwell state, callback)
-     ถ้า dwell สำเร็จ → เพิ่มใน place_feedback_queue (SharedPreferences)
-  ↓ (เปิดแอพ) ChatScreen → dequeuePending() → PlaceFeedbackService → Haku ถาม
-```
-
-**งานที่ต้องทำ:**
-
-Kotlin (Android):
-- [ ] `LocationWorker.kt` — WorkManager `CoroutineWorker`, inject `FusedLocationProviderClient`
-- [ ] `DwellLogic.kt` — Haversine + dwell state machine (mirror ของ `dwell_tracker.dart`)
-- [ ] `WorkManagerBridge.kt` — MethodChannel `startBackgroundGeofence` / `stopBackgroundGeofence`
-- [ ] Manifest: `ACCESS_BACKGROUND_LOCATION` permission + WorkManager dependency
-- [ ] `SchedulerBridge.kt` (existing): เพิ่ม `writeFeedbackQueue()` helper
-
-Flutter:
-- [ ] `GeofenceService.startMonitoring()`: ถ้า Android → เรียก WorkManager bridge ด้วย
-- [ ] Settings UI: toggle "Background Location Tracking" (แสดงผลกระทบ battery ชัดเจน)
-- [ ] Permission flow: `ACCESS_BACKGROUND_LOCATION` (Android 10+) → dialog อธิบายเหตุผล
-
-**Battery Impact:**
-| Mode | GPS call | Battery/วัน |
-|---|---|---|
-| Foreground only (ปัจจุบัน) | ทุก 5 นาที ขณะเปิดแอพ | ~0 (แอพปิดไม่กิน) |
-| WorkManager (Phase 5.1) | ทุก 15 นาที ตลอดเวลา | ~1-2% (PRIORITY_LOW_POWER) |
-
-**Permission ที่ต้องขอเพิ่ม:**
-- `android.permission.ACCESS_BACKGROUND_LOCATION` (Android 10+, ต้องขอแยกจาก foreground)
-- User ต้องเลือก "Allow all the time" ใน Location Settings (ไม่ใช่แค่ "While using app")
-
-**LLM usage:** 0 (rule-based ล้วน — native Kotlin + SharedPreferences)
-
----
-
-## Phase 5 (ต่อ): Automation Engine (Future Concept)
-
-**เป้าหมาย:** No-code automation แบบ Samsung Routine สำหรับ Haku — Trigger → Action โดยไม่ต้อง run LLM ตลอดเวลา
-
-> ไอเดียนี้ยังอยู่ในขั้นวางแผน — ยังไม่ implement (มี mockup UI ใน Settings)
-
-### แนวคิดหลัก
-
-ผู้ใช้สร้าง "Rule" ด้วย Visual Block Editor (ไม่ต้องเขียน code):
-
-```
-[TRIGGER]  ──→  [CONDITION]  ──→  [ACTION]
-เวลา 08:00        ถ้าพรุ่งนี้มีนัด      แจ้งเตือน "เตรียมตัวก่อนนัด"
-ชาร์จแบต         ถ้า mood < 3          ส่ง "Check-in" เข้าแชท
-เชื่อม WiFi บ้าน  ─                   เปลี่ยน ringtone เป็น silent
-```
-
-### Trigger Types (Battery-Efficient)
-
-| Trigger | Android API | Battery Impact |
-|---|---|---|
-| เวลาที่กำหนด | AlarmManager (exact) | ~0 |
-| ทุก N นาที (min 15) | WorkManager | ~ต่ำ |
-| เสียบชาร์จ / ถอดชาร์จ | BroadcastReceiver | ~0 |
-| เชื่อม WiFi SSID | BroadcastReceiver | ~0 |
-| เข้า / ออก สถานที่ | Geofencing API | ต่ำ (fused) |
-| Battery level | BroadcastReceiver | ~0 |
-| เปิดแอป | App Lifecycle | ~0 |
-
-### Action Types
-
-- **ส่งข้อความเข้าแชท** — inject `ChatMessage.assistant(text)` เหมือน bot พูด
-- **แจ้งเตือน** — push notification พร้อม Quick Reply
-- **ค้นหาเว็บ** — trigger WebSearchService + ส่งผลเข้าแชท
-- **บันทึก entry** — auto-create diary entry (0 LLM)
-- **เปิดหน้า** — deep link ไปยังหน้าในแอป
-
-### Step DSL Architecture (ไม่ใช่ arbitrary code)
-
-```dart
-// Step = typed action, ไม่ใช่ Turing-complete script
-sealed class AutomationStep {}
-class NotifyStep extends AutomationStep { final String title, body; }
-class ChatMessageStep extends AutomationStep { final String message; }
-class WebSearchStep extends AutomationStep { final String query; }
-class CreateEntryStep extends AutomationStep { final String content; }
-
-class AutomationRule {
-  final String id, name, emoji;
-  final TriggerConfig trigger;
-  final List<AutomationStep> steps;
-  final bool enabled;
-}
-```
-
-### Mockup UI (ทำแล้ว)
-
-- **AutomationScreen** (`lib/screens/automation_screen.dart`) — เข้าจาก Settings > Automation
-- FAB "+" ด้านล่างขวา (placeholder, ยังเพิ่ม rule จริงไม่ได้)
-- Demo cards:
-  - **Gold Ticker 1Hr** 🥇 — กด Run → สุ่มราคาทอง → inject เข้าแชท
-  - **Stock Ticker 1Hr** 📈 — กด Run → สุ่ม 3 หุ้น + ราคา → inject เข้าแชท
-
-### งานที่ต้องทำ (Post-MVP)
-
-- [ ] `AutomationRule` model + SharedPreferences persistence
-- [ ] `AutomationEngine` service — load rules, register triggers, dispatch steps
-- [ ] `TriggerRegistry` — AlarmManager / BroadcastReceiver / WorkManager bridge (Kotlin)
-- [ ] Rule Builder UI — Visual block editor (drag-and-drop triggers + actions)
-- [ ] Condition evaluator — `mood < 3`, `hasEventToday`, `batteryLevel < 20`
-- [ ] Settings > Automation tile → AutomationScreen
-
----
-
-## สรุปโมเดลที่ใช้
-
-```yaml
-# Core SLM — On-Device (ใช้ทุกฟีเจอร์)
-primary_slm:
-  model: Gemma 3 1B
-  format: LiteRT (.task) ผ่าน MediaPipe GenAI
-  size: ~600 MB
-  context: ~2048 tokens
-  features:
-    - auto-unload หลัง 5 นาที (ประหยัดแบต)
-    - lazy loading (โหลดเมื่อใช้จริง)
-    - custom model path support
-
-# Cloud LLM Fallback — ใช้แทน SLM เมื่อ user ต้องการ
-cloud_providers:
-  gemini_flash:
-    provider: Google
-    note: Free tier, เร็ว
-  claude_haiku:
-    provider: Anthropic
-    cost: $0.25/1M tokens
-  gpt4o_mini:
-    provider: OpenAI
-    cost: $0.15/1M tokens
-  openrouter:
-    provider: OpenRouter
-    note: key เดียวใช้ได้ทุก model, default google/gemini-2.0-flash-001
-    key_format: sk-or-v1-...
-  thaillm:
-    provider: KBTG (THaLLE-0.2-8B)
-    note: LLM ภาษาไทย, 200 req/min ฟรี
-    auth: apikey header (ไม่ใช่ Authorization Bearer)
-  connection:
-    - Tunnel mode (API key ฝั่ง server)
-    - Direct mode (API key ในแอป)
-
-# Vector Search (สำหรับ RAG)
-vector_search:
-  method: TF-IDF embedding + Cosine Similarity (Dart)
-  storage: SQLite BLOB
-  note: ไม่ต้องโหลด embedding model แยก
-
-# Workers (Rule-based, 0 tokens) — 7 ตัว
-workers:
-  - FactWorker (ชื่อ, ชอบ, อาชีพ, เป้าหมาย)
-  - CalendarWorker (นัดหมาย, เวลา)
-  - ReminderWorker (เตือน, ความถี่)
-  - GoalWorker (เป้าหมาย, progress)
-  - HealthDoctor (ประจำเดือน, อาการ, ยา, แพ้)
-  - TranslatorWorker (Thai→English batch, background ตอนชาร์จ)
-  - WeatherWorker (Open-Meteo 3-day, daily cache, bypass web search)
-
-# STT (Speech-to-Text) — ยังไม่ implement
-stt_engine:
-  on_device: Whisper-Tiny (~75MB) — ไทยไม่แม่น
-  cloud: Google Speech-to-Text API
-
-# TTS (Text-to-Speech) — ยังไม่ implement
-tts_engine:
-  android: Google TTS (pre-installed) หรือ Piper-TTS (~50MB)
-  ios: Siri Announce Notifications
-```
-
----
-
-## สรุป Progress
-
-| Phase | Feature | สถานะ |
-|-------|---------|-------|
-| 1 | SQLite + Encryption | ✅ |
-| 1 | Biometric Lock | ✅ |
-| 1 | Chat UI | ✅ |
-| 1 | Android Widgets | ✅ |
-| 2 | On-Device LLM (Gemma 3 1B + MediaPipe) | ✅ |
-| 2 | Cloud LLM (Gemini/Claude/OpenAI/OpenRouter/ThaiLLM) | ✅ |
-| 2 | Smart Search / RAG | ✅ |
-| 2 | SmartPreprocessor + Workers (6 ตัว) | ✅ |
-| 2 | Lean Context (token compression) + English update | ✅ |
-| 2 | Entry Summarization | ✅ |
-| 2 | Secret Chat Architecture + PreClassify First | ✅ |
-| 2 | Auto-Scheduling + MethodChannel fix | ✅ |
-| 2 | Proactive Triggers (time + location) | ✅ |
-| 2 | Background Processing (charging) | ✅ |
-| 2 | Web Search (SearXNG JSON + Jina AI reader + Google Places nearby) | ✅ |
-| 2 | WeatherService (Open-Meteo, 3-day cache, weather worker) | ✅ |
-| 2 | Samsung Now Brief Dashboard (HomeScreen redesign) | ✅ |
-| 2 | CLI Test Tool (`/batch`, `/schedule`, `/translate`) | ✅ |
-| 2 | Google Calendar (real API) | 🟡 Mock Mode |
-| 2 | Proactive Voice (TTS) | ❌ |
-| 2 | CalendarWorker day-first + typo support | ✅ |
-| 2 | ผู้ช่วยจัดตารางอัจฉริยะ (2.11) | ✅ conflict detection |
-| 2 | ผู้ช่วยวางแผนวันทำงาน (2.12) | ✅ morning agenda + evening summary |
-| 2 | บอทช่วยเลิกผัดวันประกันพรุ่ง (2.13) | 🟡 70% goal-linked MVP |
-| 2 | Chat Persistence 50 messages (2.14) | ✅ |
-| 2 | Samsung Now Brief + WeatherService (2.20) | ✅ |
-| 2 | Meeting Pre-Flight Check (2.15) | ❌ planned |
-| 2 | Morning/Evening Briefing (2.16) | ✅ home_screen dashboard |
-| 2 | Thought Catcher — Voice (2.17) | ❌ รอ STT |
-| 2 | Focus Goal HUD — Overlay (2.18) | ❌ planned |
-| 2 | Memory Canvas — Mind Map (2.19) | ❌ planned |
-| 3 | Hidden Correlation | ✅ |
-| 3 | Social Battery | ✅ |
-| 3 | Music/News Context | ❌ |
-| 4 | Shadow Mode (4.1) | ❌ |
-| 4 | AR Memory Anchor (4.2) | ❌ |
-| 4 | Direct Diary — Core Memory (4.3) | ❌ planned |
-| 4 | Direct Table — Auto-Tracker (4.4) | ❌ planned |
-| 5 | Background Geofence via WorkManager (5.1) | ❌ planned |
-| 5 | Automation Engine | ❌ planned |
-
-**Phase 2 progress: ~98%** (เหลือ Google Calendar real, TTS, Deep Work notification)
-
----
-
-## งบประมาณพื้นที่
-
-```
-App base:          ~30 MB
-Gemma 3 1B (.task): ~600 MB
-----------------------------
-รวม:              ~630 MB (ลดจาก ~2GB ที่วางแผนไว้เดิม)
-```
-
-## งบประมาณ RAM
-
-```
-Gemma 3 1B: ~1-2 GB ขณะทำงาน (auto-unload หลัง 5 นาที)
-มือถือ RAM 4GB+: ใช้ได้สบาย
-Cloud mode: ไม่กิน RAM เพิ่ม (ส่ง API แทน)
-```
-
-
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           HAKU AI SYSTEM                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      REAL-TIME LAYER (ขณะแชท)                          │ │
-│  │                                                                         │ │
-│  │  ① SmartPreprocessor (rule-based, 0 LLM tokens)                        │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ User message (Thai)                                              │   │ │
-│  │  │  → FactWorker / CalendarWorker / HealthDoctor (0 tok, regex)    │   │ │
-│  │  │  → [Fast Path] SQL LIKE search on Thai entries                  │   │ │
-│  │  │    (e.g. "เคยไปทะเล" → SELECT * WHERE content LIKE '%ทะเล%')    │   │ │
-│  │  │  → Build lean context (profile + history + found entries)       │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ② 🔬 PreClassify (🆕 ถ้า intent=general — language-agnostic)          │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ buildPreClassifyPrompt(userMessage) → JSON                      │   │ │
-│  │  │ Input: user message only (any language)                         │   │ │
-│  │  │ Output: {intent, summaryEn, title?, date?, time?}               │   │ │
-│  │  │ → inject [INTENT:SCHEDULE:...] ใน context ก่อน Face             │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ③ Stage 1: The Face (ตอบ user พร้อม intent context)                   │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Gemma 3 1B — ตอบภาษาไทยธรรมชาติ (1-2 ประโยค)                    │   │ │
-│  │  │ Input: lean context + [INTENT:...] hint + user message          │   │ │
-│  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ④ Secret Chat (async — 0 extra LLM call ถ้ามี preClassify) 🆕        │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ ถ้ามี preClassifyResult → ใช้ intent+summaryEn โดยตรง           │   │ │
-│  │  │ ถ้าไม่มี → run buildWorkerExtractPrompt() ตามปกติ               │   │ │
-│  │  │ Output: EnglishLogEntry {                                       │   │ │
-│  │  │   summaryEn: "appointment city hall tmrw 9am"                   │   │ │
-│  │  │   intent: log | schedule | query | chat                        │   │ │
-│  │  │   tags: ["city hall"]                                           │   │ │
-│  │  │ }                                                               │   │ │
-│  │  │ → Store in SharedPreferences (english_chat_log, 50 entries)    │   │ │
-│  │  │ → updateLastPairWithEnglish(summaryEn) → lean context EN 🆕    │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ④ Big Manager (async — dispatch from English log)                      │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Reads EnglishLogEntry (no LLM call — intent already extracted)  │   │ │
-│  │  │ dispatch:                                                        │   │ │
-│  │  │   intent=schedule → CalendarWorker.addEvent()                   │   │ │
-│  │  │   intent=log      → FactWorker.extractFacts()                   │   │ │
-│  │  │   intent=search   → WebSearchService.search()                   │   │ │
-│  │  │   intent=chat     → (no action, logged only)                    │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      SEARCH STRATEGY                                    │ │
-│  │                                                                         │ │
-│  │  Fast Path (ทันที, 0 LLM):                                              │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ SmartPreprocessor → keyword extraction (regex)                  │   │ │
-│  │  │ → SQL LIKE search on raw Thai entries                           │   │ │
-│  │  │ → ถ้าเจอ → เพิ่มใน context ก่อนส่ง Face                         │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                         │ │
-│  │  Slow Path (future, LLM-assisted):                                      │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ ถ้า Fast Path ไม่เจอ → แสดง "thinking..." animation             │   │ │
-│  │  │ → Translate Thai query → English                                │   │ │
-│  │  │ → Vector search English DB (whitespace tokenizer ใช้ได้)        │   │ │
-│  │  │ → ส่ง context ให้ Face ตอบ                                       │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      TRIGGER LAYER (Event-based)                        │ │
-│  │                                                                         │ │
-│  │   ⏰ TimerTrigger              📍 LocationTrigger                       │ │
-│  │   • 30 นาทีหลังถึงร้าน          • ถึงที่ทำงาน                            │ │
-│  │   • "ร้านนี้เป็นไงบ้าง?"        • ถึงบ้าน                                │ │
-│  │                                                                         │ │
-│  │   🔋 ChargingTrigger           🌅 MorningTrigger (6:00)                 │ │
-│  │   • เสียบชาร์จ = จบวัน          • แจ้งเตือนเช้า                          │ │
-│  │   • เริ่ม ManagerSummary       • สุขภาพ + ตารางวัน                       │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                 BACKGROUND LAYER (จบวัน/ตอนชาร์จ)                       │ │
-│  │                                                                         │ │
-│  │   Input: English chat logs (from Secret Chat) +                         │ │
-│  │          English diary translations (from TranslatorWorker)             │ │
-│  │                                                                         │ │
-│  │   ┌─────────────────────────────────────────────────────────────────┐  │ │
-│  │   │              ManagerSummaryStrategy (Orchestrator)              │  │ │
-│  │   │                                                                  │  │ │
-│  │   │  1. รวม English logs ทั้งวัน                                     │  │ │
-│  │   │  2. วิเคราะห์ pattern + extract insights                         │  │ │
-│  │   │  3. Dispatch ไปยัง Specialists                                   │  │ │
-│  │   └─────────────────────────────────────────────────────────────────┘  │ │
-│  │                              │                                          │ │
-│  │           ┌──────────────────┼──────────────────┐                       │ │
-│  │           ▼                  ▼                  ▼                       │ │
-│  │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │ │
-│  │   │HealthDoctor│   │FactWorker   │   │CalendarWork │                  │ │
-│  │   │             │   │             │   │             │                  │ │
-│  │   │ • period    │   │ • fav place │   │ • predict   │                  │ │
-│  │   │ • symptoms  │   │   KidsHouse │   │   events    │                  │ │
-│  │   │ • track 2-5d│   │ • fruit salad│  │   2-5 days  │                  │ │
-│  │   └─────────────┘   └─────────────┘   └─────────────┘                  │ │
-│  │          │                 │                  │                         │ │
-│  │          ▼                 ▼                  ▼                         │ │
-│  │   ┌─────────────────────────────────────────────────┐                  │ │
-│  │   │           💾 RAG Storage (SQLite, English)       │                  │ │
-│  │   │  • health_facts    • favorite_places             │                  │ │
-│  │   │  • preferences     • scheduled_reminders         │                  │ │
-│  │   │  • english_chat_log (from Secret Chat)           │                  │ │
-│  │   └─────────────────────────────────────────────────┘                  │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                    NOTIFICATION LAYER (Proactive)                       │ │
-│  │                                                                         │ │
-│  │   🌅 Morning (6:00)              📱 Widget                              │ │
-│  │   ┌─────────────────────┐       ┌─────────────────────┐                │ │
-│  │   │ สวัสดีตอนเช้าค่ะ ฟุกิ  │       │ 📅 วันนี้:           │                │ │
-│  │   │ อาการเป็นไงบ้างคะ?  │       │ • ติดตามอาการ       │                │ │
-│  │   │ วันนี้ไม่มีนัดหมาย    │       │ • ไม่มีนัดหมาย       │                │ │
-│  │   └─────────────────────┘       └─────────────────────┘                │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-│  TOKEN BUDGET (per exchange):                                                │
-│                                                                              │
-│  Fast path (rule-based จับ intent ได้):                                      │
-│  🔬 PreClassify: 0 calls (skipped)                                          │
-│  🎭 Face LLM:    1 call  (ตอบ user พร้อม context hint)                      │
-│  🤫 Secret Chat: 0 calls (ใช้ preClassify result โดยตรง)                    │
-│  ─────────────────────────────────────────────────────                      │
-│  Total: 1 call/exchange                                                     │
-│                                                                              │
-│  Fallback (rule-based ไม่จับ intent):                                        │
-│  🔬 PreClassify: 1 call  (language-agnostic intent + English summary)       │
-│  🎭 Face LLM:    1 call  (ตอบ user พร้อม [INTENT:...] hint)                 │
-│  🤫 Secret Chat: 0 calls (ใช้ preClassify result โดยตรง)                    │
-│  ─────────────────────────────────────────────────────                      │
-│  Total: 2 calls/exchange (เท่าเดิม แต่ Face รู้ intent ก่อนตอบ)             │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-
-─────────────────────────────────────────────────────────────┐
-│                   SmartPreprocessor                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   User Message: "นัดหมอพรุ่งนี้ ฉันเป็นเมนด้วย"                │
-│                         │                                    │
-│        ┌────────────────┼────────────────┐                  │
-│        │                │                │                  │
-│        ▼                ▼                ▼                  │
-│   ┌─────────┐    ┌───────────┐    ┌────────────┐           │
-│   │FactWork │    │CalendarWk │    │HealthDoc  │           │
-│   │ 0 tok   │    │ 0 tok     │    │ 0 tok     │           │
-│   └─────────┘    └───────────┘    └────────────┘           │
-│        │                │                │                  │
-│        ▼                ▼                ▼                  │
-│   ┌─────────────────────────────────────────────────────┐  │
-│   │              WorkerResults                          │  │
-│   │ facts: [], events: [หมอ], health: [period]         │  │
-│   └─────────────────────────────────────────────────────┘  │
-│                         │                                    │
-│        ┌────────────────┘                                    │
-│        ▼                                                     │
-│   [Fast Path Search] SQL LIKE '%หมอ%', '%เมน%'               │
-│   → เจอ entry เก่า? → เพิ่มใน context                        │
-│                         │                                    │
-│                         ▼                                    │
-│   ┌─────────────────────────────────────────────────────┐  │
-│   │              Lean Context Builder                    │  │
-│   │ [Name:ฟุกิ][Health:Period:0d][Cal:หมอ,พรุ่งนี้]       │  │
-│   │ [Context] U:...|H:...|U:...|H:...                   │  │
-│   │ [Recent] Full Thai                                   │  │
-│   │ [Found] entry: "ไปหาหมอ 3 เดือนก่อน..."              │  │
-│   └─────────────────────────────────────────────────────┘  │
-│                         │                                    │
-│                         ▼                                    │
-│                    Gemma 3 1B (Face)                         │
-│                         │                                    │
-│                         ▼ (async, หลังตอบ user)              │
-│                    Secret Chat                               │
-│                    → English log                             │
-│                    → Big Manager dispatch                    │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-
-
-┌─────────────────────────────────────────────────────────────────┐
-│                      TriggerService                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
-│   │TimerTrigger │    │ChargingTrig │    │ManagerSummaryStrat  │ │
-│   │             │    │             │    │                     │ │
-│   │ • 30m ถึงร้าน │    │ • จบวัน     │    │ • วิเคราะห์ pattern │ │
-│   │ • เช้า 6 โมง  │    │ • Morning   │    │ • Health insights  │ │
-│   │ • Health    │    │ • Health    │    │ • Dispatch workers  │ │
-│   └─────────────┘    └─────────────┘    └─────────────────────┘ │
-│           │                │                      │              │
-│           └────────────────┼──────────────────────┘              │
-│                            ▼                                     │
-│                  ┌─────────────────────┐                        │
-│                  │  RAG Storage        │                        │
-│                  │ (English — from     │                        │
-│                  │  Secret Chat +      │                        │
-│                  │  TranslatorWorker)  │                        │
-│                  └─────────────────────┘                        │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+### Background Processing
+- ❌ **WorkManager batch** — defer post-MVP (LLM tasks ทำ background ไม่ได้ใน Flutter isolate)
+
+### Focus Timer
+- [x] Break reminder notification ✅
+- [ ] Deep Work session (mute notifications) — post-MVP
+
+### GPS / Location
+- [x] `GeofenceService` + `MVPTriggerService` (foreground only) ✅
+- **ข้อจำกัด:** DwellTracker ทำงานได้เฉพาะแอพเปิดอยู่ — Phase 5.3 จะแก้
+
+### UI / UX
+- [x] Haku Crystal Design System (main, nav, chat, home, onboarding, FAB) ✅
+- [x] `CausticShimmer` widget ✅
+- [x] Entry Mini Map (FlutterMap, OpenStreetMap) ✅
+- [ ] `settings_screen.dart` — ยังไม่ migrate เป็น Haku Crystal

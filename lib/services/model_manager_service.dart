@@ -102,48 +102,92 @@ class ModelManagerService {
 
   // ── Download ──
 
-  /// ดาวน์โหลดโมเดล .gguf จาก URL
+  final Map<String, http.Client> _activeClients = {};
+
+  /// ดาวน์โหลดโมเดลจาก URL พร้อม progress callback + cancel support
   Future<bool> downloadModel(
     String url,
     String fileName, {
     required void Function(double progress) onProgress,
+    String? hfToken,
   }) async {
     try {
       debugPrint('📥 Downloading model: $fileName');
       final modelsDir = await _modelsDir;
       final filePath = '${modelsDir.path}/$fileName';
+      final tmpPath = '$filePath.tmp';
 
-      final existingFile = File(filePath);
-      if (await existingFile.exists()) {
+      if (await File(filePath).exists()) {
         debugPrint('⚠️ Model already exists: $filePath');
         return true;
       }
 
-      final request = http.Request('GET', Uri.parse(url));
-      final response = await http.Client().send(request);
+      final client = http.Client();
+      _activeClients[fileName] = client;
 
+      final request = http.Request('GET', Uri.parse(url));
+      if (hfToken != null && hfToken.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $hfToken';
+      }
+
+      final response = await client.send(request);
+
+      if (response.statusCode == 401) {
+        debugPrint('❌ HF auth required — ใส่ Token ใน Settings');
+        _activeClients.remove(fileName);
+        return false;
+      }
       if (response.statusCode != 200) {
         debugPrint('❌ Download failed: ${response.statusCode}');
+        _activeClients.remove(fileName);
         return false;
       }
 
       final totalBytes = response.contentLength ?? 0;
       var receivedBytes = 0;
-      final sink = File(filePath).openWrite();
+      final sink = File(tmpPath).openWrite();
 
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        receivedBytes += chunk.length;
-        if (totalBytes > 0) onProgress(receivedBytes / totalBytes);
+      try {
+        await for (final chunk in response.stream) {
+          sink.add(chunk);
+          receivedBytes += chunk.length;
+          if (totalBytes > 0) onProgress(receivedBytes / totalBytes);
+        }
+        await sink.close();
+        await File(tmpPath).rename(filePath);
+        debugPrint('✅ Downloaded: $filePath (${receivedBytes ~/ 1024 ~/ 1024} MB)');
+        return true;
+      } catch (_) {
+        await sink.close();
+        final tmp = File(tmpPath);
+        if (await tmp.exists()) await tmp.delete();
+        return false;
       }
-
-      await sink.close();
-      debugPrint('✅ Downloaded: $filePath (${receivedBytes ~/ 1024 ~/ 1024} MB)');
-      return true;
     } catch (e) {
       debugPrint('❌ Download error: $e');
       return false;
+    } finally {
+      _activeClients.remove(fileName);
     }
+  }
+
+  /// ยกเลิกการดาวน์โหลด
+  void cancelDownload(String fileName) {
+    _activeClients[fileName]?.close();
+    _activeClients.remove(fileName);
+    debugPrint('🚫 Cancelled: $fileName');
+  }
+
+  /// ตรวจว่าไฟล์โมเดลมีในเครื่องแล้วหรือยัง
+  Future<bool> hasFile(String fileName) async {
+    final modelsDir = await _modelsDir;
+    return File('${modelsDir.path}/$fileName').exists();
+  }
+
+  /// path ของโมเดลใน app models dir
+  Future<String> modelPath(String fileName) async {
+    final modelsDir = await _modelsDir;
+    return '${modelsDir.path}/$fileName';
   }
 
   // ── Delete ──

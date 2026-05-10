@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../lean_context_service.dart';
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 
@@ -18,12 +17,10 @@ import '../user_profile_service.dart';
 /// - FactWorker: บันทึกข้อมูลใหม่
 
 class ManagerSummaryStrategy {
-  final LeanContextService leanContext;
   final UnifiedVectorService vectorService;
   final UserProfileService userProfile;
 
   ManagerSummaryStrategy({
-    required this.leanContext,
     required this.vectorService,
     required this.userProfile,
   });

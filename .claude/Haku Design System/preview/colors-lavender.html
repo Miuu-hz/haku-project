@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Colors — Lavender</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--field-aurora);color:var(--fg-1)}
+  .wrap{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;gap:8px}
+  .sw{flex:1;height:64px;border-radius:var(--r-3);position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+  .sw .lab{position:absolute;left:10px;bottom:8px;font:var(--t-mono-sm);color:#fff;mix-blend-mode:difference}
+  .ttl{font:var(--t-eyebrow);letter-spacing:var(--letter-eyebrow);text-transform:uppercase;color:var(--fg-3);margin:0}
+  .note{font:var(--t-caption);color:var(--fg-3);margin:0}
+</style></head><body><div class="wrap">
+  <p class="ttl">Lavender — heritage / sentiment</p>
+  <div class="row">
+    <div class="sw" style="background:var(--lavender-300)"><span class="lab">300 · #C8B3DF</span></div>
+    <div class="sw" style="background:var(--lavender-400)"><span class="lab">400 · #B69BD2</span></div>
+    <div class="sw" style="background:var(--lavender-500)"><span class="lab">500 · #9B7CB6</span></div>
+    <div class="sw" style="background:var(--lavender-600)"><span class="lab">600 · #7E5D9B</span></div>
+    <div class="sw" style="background:var(--lavender-700)"><span class="lab">700 · #6B4E71</span></div>
+  </div>
+  <p class="note">Carried over from the Flutter codebase (seedColor #6B4E71, FAB #9B7CB6) — used for mood / personal-data accents.</p>
+</div></body></html>

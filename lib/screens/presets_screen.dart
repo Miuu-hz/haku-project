@@ -121,7 +121,11 @@ class _PresetsTabState extends State<_PresetsTab> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _PresetDetailsSheet(preset: preset),
+      builder: (_) => _PresetDetailsSheet(
+        preset: preset,
+        parentContext: context,
+        onRefresh: () => setState(() {}),
+      ),
     );
   }
 
@@ -131,9 +135,15 @@ class _PresetsTabState extends State<_PresetsTab> {
   }
 
   void _showAddPresetDialog() {
-    // TODO: Implement add preset dialog
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon: Custom Presets')),
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _PresetFormSheet(
+        onSave: (preset) async {
+          await PresetService().addPreset(preset);
+          if (mounted) setState(() {});
+        },
+      ),
     );
   }
 }
@@ -261,8 +271,14 @@ class _PresetCard extends StatelessWidget {
 /// Preset Details Sheet
 class _PresetDetailsSheet extends StatelessWidget {
   final Preset preset;
+  final BuildContext? parentContext;
+  final VoidCallback? onRefresh;
 
-  const _PresetDetailsSheet({required this.preset});
+  const _PresetDetailsSheet({
+    required this.preset,
+    this.parentContext,
+    this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) => DraggableScrollableSheet(
@@ -405,9 +421,19 @@ class _PresetDetailsSheet extends StatelessWidget {
   }
 
   void _editPreset(BuildContext context) {
-    // TODO: Implement edit preset
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon: Edit Preset')),
+    Navigator.pop(context); // close details sheet
+    final parent = parentContext;
+    if (parent == null) return;
+    showModalBottomSheet<void>(
+      context: parent,
+      isScrollControlled: true,
+      builder: (_) => _PresetFormSheet(
+        preset: preset,
+        onSave: (Preset updated) async {
+          await PresetService().updatePreset(updated);
+          onRefresh?.call();
+        },
+      ),
     );
   }
 }
@@ -633,10 +659,31 @@ class _LocationsTabState extends State<_LocationsTab> {
   }
 
   Future<void> _deleteLocation(String type) async {
-    // TODO: Implement delete location
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Removed $type location')),
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Location'),
+        content: Text('Remove "$type" from saved locations?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
+    if (confirm != true || !mounted) return;
+    await PresetService().removeLocation(type);
+    setState(() {});
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Removed $type location')),
+      );
+    }
   }
 }
 
@@ -710,4 +757,196 @@ class _LocationCard extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ============================================================================
+// Preset Form Sheet (Add / Edit)
+// ============================================================================
+
+class _PresetFormSheet extends StatefulWidget {
+  final Preset? preset; // null = add mode
+  final Future<void> Function(Preset) onSave;
+
+  const _PresetFormSheet({this.preset, required this.onSave});
+
+  @override
+  State<_PresetFormSheet> createState() => _PresetFormSheetState();
+}
+
+class _PresetFormSheetState extends State<_PresetFormSheet> {
+  late final TextEditingController _iconCtrl;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _descCtrl;
+  late final TextEditingController _greetingCtrl;
+  late final TextEditingController _personalityCtrl;
+  bool _manualOnly = true;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.preset;
+    _iconCtrl = TextEditingController(text: p?.icon ?? '⭐');
+    _nameCtrl = TextEditingController(text: p?.name ?? '');
+    _descCtrl = TextEditingController(text: p?.description ?? '');
+    _greetingCtrl = TextEditingController(text: p?.behavior.greeting ?? '');
+    _personalityCtrl = TextEditingController(text: p?.behavior.personality ?? '');
+    _manualOnly = p?.trigger.manualOnly ?? true;
+  }
+
+  @override
+  void dispose() {
+    _iconCtrl.dispose();
+    _nameCtrl.dispose();
+    _descCtrl.dispose();
+    _greetingCtrl.dispose();
+    _personalityCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a preset name')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final preset = Preset(
+        id: widget.preset?.id ?? 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        icon: _iconCtrl.text.trim().isEmpty ? '⭐' : _iconCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        trigger: PresetTrigger(manualOnly: _manualOnly),
+        behavior: PresetBehavior(
+          greeting: _greetingCtrl.text.trim(),
+          personality: _personalityCtrl.text.trim(),
+        ),
+        isCustom: true,
+        isEnabled: widget.preset?.isEnabled ?? true,
+      );
+      await widget.onSave(preset);
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.preset != null;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              isEdit ? 'Edit Preset' : 'New Preset',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+
+            // Icon + Name
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 72,
+                  child: TextField(
+                    controller: _iconCtrl,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 28),
+                    maxLength: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Icon',
+                      counterText: '',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Name *'),
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _greetingCtrl,
+              decoration: const InputDecoration(labelText: 'Greeting message'),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _personalityCtrl,
+              decoration: const InputDecoration(labelText: 'Personality'),
+            ),
+            const SizedBox(height: 4),
+
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Manual activation only'),
+              subtitle: const Text('Do not auto-trigger by time or location'),
+              value: _manualOnly,
+              onChanged: (v) => setState(() => _manualOnly = v),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _isSaving ? null : _save,
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(isEdit ? 'Save Changes' : 'Create Preset'),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 }
