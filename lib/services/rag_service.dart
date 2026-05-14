@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../models/entry.dart';
 import 'database_helper.dart';
 import 'hybrid_vector_search.dart';
-import 'workers/translator_worker.dart';
 
 // Re-export SearchResult ให้ไฟล์อื่นใช้งานได้
 export 'hybrid_vector_search.dart' show SearchResult;
@@ -27,7 +26,6 @@ class RAGService {
 
   // Hybrid Vector Search: เก็บใน SQLite ธรรมดา คำนวณใน Dart
   HybridVectorSearch? _vectorSearch;
-  final TranslatorWorker _translatorWorker = TranslatorWorker();
 
   /// สถานะการ initialize
   bool get isInitialized => _isInitialized;
@@ -124,8 +122,6 @@ class RAGService {
       return 'No related entries found';
     }
 
-    await _translatorWorker.initialize();
-
     final buffer = StringBuffer();
     buffer.writeln('Related entries:');
     buffer.writeln();
@@ -133,12 +129,7 @@ class RAGService {
     for (var i = 0; i < results.length; i++) {
       final result = results[i];
 
-      // Prefer English translation (saves tokens in 2048 context window)
-      final translation =
-          _translatorWorker.getTranslation(result.entry.id ?? 0);
-      final content = translation?.englishSummary ?? result.entry.content;
-
-      buffer.writeln('[${i + 1}] ${result.entry.createdAt}: $content');
+      buffer.writeln('[${i + 1}] ${result.entry.createdAt}: ${result.entry.content}');
       if (result.entry.locationName != null) {
         buffer.writeln('    at: ${result.entry.locationName}');
       }

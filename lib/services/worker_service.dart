@@ -7,7 +7,6 @@ import 'dart:convert';
 
 import '../models/entry.dart';
 import 'battery_aware_service.dart';
-import 'database_helper.dart';
 import 'chat_history_service.dart';
 import 'deferred_task_service.dart';
 import 'llm_service.dart';
@@ -17,8 +16,6 @@ import 'topic_service.dart';
 import 'unified_vector_service.dart';
 import 'user_profile_service.dart';
 import 'vector_service.dart';
-import 'workers/translator_worker.dart';
-
 /// 👷 Worker Service - Background Batch Processing
 ///
 /// ทำงานตอน: เครื่องว่าง / ชาร์จแบต
@@ -44,7 +41,6 @@ class WorkerService {
   final DeferredTaskService _deferredService = DeferredTaskService();
   final LLMService _llmService = LLMService();
   final RAGService _ragService = RAGService();
-  final TranslatorWorker _translatorWorker = TranslatorWorker();
 
   bool _isInitialized = false;
   bool _isProcessing = false;
@@ -147,20 +143,9 @@ class WorkerService {
     }
   }
 
-  /// 🌐 Handle translate entries task
+  /// 🌐 Handle translate entries task (no-op — SecretChat logs English directly)
   Future<void> _handleTranslateEntries(Map<String, dynamic> payload) async {
-    debugPrint('🌐 Running entry translation...');
-    await _translatorWorker.initialize();
-
-    final entries = await DatabaseHelper.instance.getAllEntries();
-    final translated = await _translatorWorker.translatePending(entries);
-
-    // NOTE: ไม่ re-index ด้วย English text เพราะ embedding ต้องเป็นไทย
-    // (user ค้นหาเป็นไทย → Thai query ต้อง match Thai embedding)
-    // English translations ใช้แค่ตอน buildContext() เพื่อประหยัด token
-    if (translated > 0) {
-      debugPrint('✅ Translated $translated entries (cached for context display)');
-    }
+    debugPrint('🌐 translate_entries: no-op (SecretChat handles English logging)');
   }
 
   /// 🔌 On charging started
@@ -234,12 +219,8 @@ class WorkerService {
   // 🌐 TRANSLATION
   // ============================================================
 
-  /// 🌐 Translate pending entries (Thai → English)
-  Future<void> _translateEntries() async {
-    await _translatorWorker.initialize();
-    final entries = await DatabaseHelper.instance.getAllEntries();
-    await _translatorWorker.translatePending(entries);
-  }
+  /// 🌐 Translate pending entries — no-op, SecretChat logs English directly
+  Future<void> _translateEntries() async {}
 
   // ============================================================
   // 📝 SUMMARIZATION

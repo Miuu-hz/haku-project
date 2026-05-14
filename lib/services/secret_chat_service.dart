@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'database_helper.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
+import 'wiki_service.dart';
 
 /// 🤫 Secret Chat Service
 ///
@@ -63,6 +66,22 @@ class SecretChatService {
       _log.add(entry);
       if (_log.length > _maxEntries) _log.removeAt(0);
       await _persist();
+      // feed tags + location → WikiService knowledge pages (fire-and-forget)
+      final wiki = WikiService();
+      for (final tag in entry.tags) {
+        unawaited(wiki.onNewFact(category: 'topic', key: tag, content: entry.summaryEn));
+      }
+      if (entry.location != null) {
+        unawaited(wiki.onNewFact(category: 'place', key: entry.location!, content: entry.summaryEn));
+      }
+      // dual-write ลง SQLite เพื่อรองรับ FTS5 + LTM
+      unawaited(DatabaseHelper.instance.insertChatLog(
+        summaryEn: entry.summaryEn,
+        intent: entry.intent,
+        tags: entry.tags,
+        location: entry.location,
+        mood: entry.mood,
+      ));
       return entry;
     } catch (e) {
       debugPrint('⚠️ SecretChatService.logExchange failed: $e');

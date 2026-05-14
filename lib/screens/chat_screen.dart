@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -24,10 +25,12 @@ import '../services/smart_preprocessor.dart';
 import '../services/place_feedback_service.dart';
 import '../services/place_service.dart';
 import '../services/tag_context_service.dart';
+import '../services/wiki_service.dart';
 import '../services/correlation_service.dart';
 import '../services/geofence_service.dart';
 import '../services/location_service.dart';
 import '../services/scheduler_service.dart';
+import '../services/session_resume_service.dart';
 import '../services/web_search_service.dart';
 import '../utils/haku_design_tokens.dart';
 
@@ -96,15 +99,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     }
   }
 
-  /// 🗑️ ล้าง chat history + AI memory ทั้งหมด (Set Zero)
+  /// 🗑️ ล้าง chat UI + in-memory log — แต่ preserve LTM ใน SQLite
+  ///
+  /// หลักการ: "ลบแชท ≠ ลืม" — Haku จะยังจำจาก facts + episodic log ใน DB
   Future<void> clearHistory() async {
     state = [ChatMessage.welcome()];
-    // ล้าง UI history
+    // ล้าง UI history + in-memory SharedPreferences เท่านั้น
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyKey);
-    // ล้าง secret chat English log
+    // ล้าง in-memory log แต่ไม่ลบ SQLite secret_chat_log (LTM preserved)
     await SecretChatService().clearAll();
-    debugPrint('💬 Chat history + AI memory cleared (Set Zero)');
+    debugPrint('💬 Chat UI cleared — LTM (SQLite facts + episodic) preserved');
   }
 
   /// 🔧 Extract response text from JSON or plain text
@@ -295,13 +300,19 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           debugPrint('🏷️ Tag context injected (${tagCtx.length} chars)');
         }
 
-        // 1.6. Calendar Context — inject when message looks like a schedule query
-        if (_isScheduleQuery(userMessage)) {
-          final calCtx = await _buildCalendarContext(userMessage);
-          if (calCtx.isNotEmpty) {
-            contextStr = calCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
-            debugPrint('📅 Calendar context injected (${calCtx.length} chars)');
-          }
+        // 1.55. Wiki Context — knowledge pages สำหรับ entity ที่เกี่ยวข้อง (0 LLM)
+        final wikiPages = await WikiService().query(userMessage);
+        if (wikiPages.isNotEmpty) {
+          final wikiCtx = WikiService().formatForContext(wikiPages);
+          contextStr = wikiCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
+          debugPrint('📚 Wiki context injected (${wikiPages.length} pages)');
+        }
+
+        // 1.6. Calendar Context — ดึงตารางวันนี้เสมอ (ให้ LLM รู้เสมอว่ามีอะไร)
+        final calCtx = await _buildCalendarContext(userMessage);
+        if (calCtx.isNotEmpty) {
+          contextStr = calCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
+          debugPrint('📅 Calendar context injected (${calCtx.length} chars)');
         }
 
         // 2. Face LLM — Stage 1 (The Face)
@@ -551,15 +562,7 @@ Reply in Thai (1-2 sentences):
     );
   }
 
-  /// 📅 ตรวจว่าข้อความถามเรื่อง schedule/calendar
-  bool _isScheduleQuery(String text) {
-    final lower = text.toLowerCase();
-    const queryWords = ['ต้องทำอะไร', 'มีอะไร', 'มีนัด', 'วางแผน', 'ตาราง',
-        'schedule', 'calendar', 'appointment', 'plan', 'today', 'tomorrow'];
-    return queryWords.any(lower.contains);
-  }
-
-  /// 🔗 ดึง sources จาก context (เฉพาะวันที่ที่เป็น log entries จริงๆ ไม่ใช่ future events)
+/// 🔗 ดึง sources จาก context (เฉพาะวันที่ที่เป็น log entries จริงๆ ไม่ใช่ future events)
   List<String>? _extractSources(String context) {
     if (context.contains('ไม่พบบันทึก')) return null;
 
@@ -907,6 +910,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
   bool _contextEnabled = true;
+  Timer? _midnightTimer;
 
   final List<QuickQuestion> _quickQuestions = [
     QuickQuestion(icon: Icons.calendar_today_outlined, text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
@@ -930,14 +934,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// 🔄 เริ่ม LiteRT Conversation session ใหม่
-  /// รีเซ็ต KV cache + ตั้ง system instruction ครั้งเดียวต่อ session
-  void _startNewLiteRTSession() {
+  /// รีเซ็ต KV cache + ตั้ง system instruction + inject resume + 3-day schedule
+  Future<void> _startNewLiteRTSession() async {
     final provider = LLMProviderManager().provider;
-    if (provider is LiteRTLLMProvider) {
-      provider.resetConversation();
-      provider.setSystemInstruction(PromptBuilder.buildSystemInstruction());
-      debugPrint('🔄 LiteRT session ใหม่ — system instruction ตั้งแล้ว');
-    }
+    if (provider is! LiteRTLLMProvider) return;
+
+    provider.resetConversation();
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final rangeEnd = today.add(const Duration(days: 3));
+
+    final results = await Future.wait([
+      SessionResumeService().buildResume(),
+      SchedulerService().getCalendarEvents(today, rangeEnd),
+    ]);
+
+    final resume = results[0] as String;
+    final events = results[1] as List<Map<String, dynamic>>;
+
+    final scheduleBlock = PromptBuilder.buildScheduleBlock(events);
+    final base = PromptBuilder.buildSystemInstruction();
+    final full = [base, if (resume.isNotEmpty) resume, if (scheduleBlock.isNotEmpty) scheduleBlock]
+        .join('\n\n');
+
+    provider.setSystemInstruction(full);
+    debugPrint('🔄 LiteRT session ใหม่ — resume: ${resume.length} chars, events: ${events.length}');
+
+    // ตั้ง timer รีเฟรช session เมื่อเที่ยงคืน (วันใหม่ → ตารางใหม่)
+    _midnightTimer?.cancel();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final untilMidnight = midnight.difference(DateTime.now());
+    _midnightTimer = Timer(untilMidnight, _startNewLiteRTSession);
   }
 
   Future<void> _initializeServices() async {
@@ -952,9 +980,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await LLMProviderManager().initialize();
       debugPrint('✅ LLM Provider: ${LLMProviderManager().providerName}');
 
-      // รีเซ็ต stateful Conversation เมื่อเริ่ม chat session ใหม่
-      // System instruction ตั้งครั้งเดียว — Conversation จัดการ KV cache เอง
-      _startNewLiteRTSession();
+      // รีเซ็ต stateful Conversation + inject LTM resume เมื่อเริ่ม session ใหม่
+      await _startNewLiteRTSession();
 
       debugPrint('💡 LLM จะโหลดแบบ Lazy Loading (เมื่อใช้งานจริง)');
 
@@ -1046,6 +1073,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _midnightTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1154,32 +1182,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: HakuGlassAppBar(
         title: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [kCrystal300, kCrystal500],
-                ),
-                borderRadius: BorderRadius.all(Radius.circular(18)),
-              ),
-              child: const Center(
-                child: Text('箱', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kFgOnCyan)),
-              ),
-            ),
+            const HakuCrystalCore(size: 36),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Haku AI', style: TextStyle(fontSize: 16, color: kFg1, fontWeight: FontWeight.w600)),
-                Text(
-                  llmService.isInitialized ? '${LLMProviderManager().providerName} Online' : 'Mock Mode',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: llmService.isInitialized ? kOk : kWarn,
-                    fontWeight: FontWeight.normal,
+                // Eyebrow chip — provider label
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: kCrystal400.withAlpha(46),
+                    borderRadius: BorderRadius.circular(kRPill),
+                  ),
+                  child: Text(
+                    llmService.isInitialized
+                        ? 'on-device · ${LLMProviderManager().providerName}'
+                        : 'on-device · Gemma 3',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: kCrystal600,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 2),
+                const Text('Haku AI',
+                    style: TextStyle(fontSize: 20, color: kFg1, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
               ],
             ),
           ],
@@ -1299,14 +1328,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
   Widget _buildInputArea() => Container(
-      padding: const EdgeInsets.all(12),
+      // Extra bottom padding lifts the input above the floating nav pill (~88px)
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       decoration: const BoxDecoration(
         color: kGlassFillSoft,
         border: Border(
           top: BorderSide(color: kGlassEdge, width: 1),
         ),
       ),
-      child: SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 88),
         child: Row(
           children: [
             IconButton(
@@ -1761,7 +1792,7 @@ class _ThinkingSectionState extends State<_ThinkingSection> {
                   color: kFg3,
                 ),
                 const SizedBox(width: 4),
-                Text(
+                const Text(
                   '💭 reasoning',
                   style: TextStyle(
                     fontSize: 11,

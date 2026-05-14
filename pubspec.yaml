@@ -79,6 +79,9 @@ dependencies:
   # 🌐 HTML Parser (สำหรับ Web Scraping)
   html: ^0.15.4
 
+  # 🔐 Runtime Permissions (Calendar, ฯลฯ)
+  permission_handler: ^11.3.1
+
   # 🔑 Google Sign-In (สำหรับ Calendar Sync)
   google_sign_in: ^6.2.1
 

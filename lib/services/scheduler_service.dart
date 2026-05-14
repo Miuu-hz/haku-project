@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
@@ -19,6 +20,9 @@ class SchedulerService {
   static final SchedulerService _instance = SchedulerService._internal();
   factory SchedulerService() => _instance;
   SchedulerService._internal();
+
+  // 🔒 Lock ป้องกัน concurrent permission request (permission_handler ไม่รองรับ)
+  static Future<bool>? _permissionRequest;
 
   /// 🧠 วิเคราะห์ข้อความแล้วดึงข้อมูลกิจกรรม
   ///
@@ -59,6 +63,11 @@ class SchedulerService {
 
   /// 📅 สร้าง event ใน Calendar
   Future<bool> createCalendarEvent(EventInfo event) async {
+    final hasPermission = await _ensureCalendarPermission();
+    if (!hasPermission) {
+      if (kDebugMode) print('⚠️ Calendar permission denied — cannot create event');
+      return false;
+    }
     try {
       // Android ต้องการ startTime/endTime เป็น milliseconds since epoch
       final now = DateTime.now();
@@ -120,11 +129,44 @@ class SchedulerService {
   // 📅 CALENDAR READ & CONFLICT DETECTION (Feature 2.11)
   // ============================================================
 
+  /// 🔐 ตรวจสอบและขอ Calendar permission (Android 6+ ต้องขอ runtime permission)
+  /// 
+  /// ใช้ static lock เพื่อป้องกัน concurrent request ที่ทำให้ permission_handler crash
+  Future<bool> _ensureCalendarPermission() async {
+    // ถ้ามี request กำลังทำงานอยู่ → รอผลลัพธ์จาก request นั้น
+    if (_permissionRequest != null) {
+      return _permissionRequest!;
+    }
+
+    _permissionRequest = _doRequestCalendarPermission();
+    try {
+      return await _permissionRequest!;
+    } finally {
+      _permissionRequest = null;
+    }
+  }
+
+  Future<bool> _doRequestCalendarPermission() async {
+    final status = await Permission.calendarFullAccess.status;
+    if (status.isGranted) return true;
+    if (status.isDenied) {
+      final result = await Permission.calendarFullAccess.request();
+      return result.isGranted;
+    }
+    // permanentlyDenied / restricted → ไม่สามารถขอได้อีก
+    return false;
+  }
+
   /// 📋 ดึง events จาก Android Calendar ในช่วงเวลาที่กำหนด
   Future<List<Map<String, dynamic>>> getCalendarEvents(
     DateTime start,
     DateTime end,
   ) async {
+    final hasPermission = await _ensureCalendarPermission();
+    if (!hasPermission) {
+      if (kDebugMode) print('⚠️ Calendar permission denied — returning empty list');
+      return [];
+    }
     try {
       final result = await _channel.invokeMethod<List<dynamic>>('getEvents', {
         'startTime': start.millisecondsSinceEpoch,

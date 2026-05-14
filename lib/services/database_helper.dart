@@ -20,10 +20,13 @@ import 'encryption_service.dart';
 class DatabaseHelper {
   // 🎯 ค่าคงที่สำหรับ Database
   static const String _databaseName = 'haku_encrypted.db';
-  static const int _databaseVersion = 2;  // เพิ่มเวอร์ชันเมื่อเพิ่มการเข้ารหัส
+  static const int _databaseVersion = 3;
   
   // 📋 ชื่อตารางและคอลัมน์
   static const String tableEntries = 'entries';
+  static const String tableChatLog = 'secret_chat_log';
+  static const String tableKnowledgePages = 'knowledge_pages';
+  static const String tableKnowledgeLinks = 'knowledge_links';
   static const String columnId = 'id';
   static const String columnContent = 'content';
   static const String columnCreatedAt = 'created_at';
@@ -104,17 +107,99 @@ class DatabaseHelper {
     await db.execute('''
       CREATE INDEX idx_created_at ON $tableEntries($columnCreatedAt DESC)
     ''');
-    
+
     await db.execute('''
       CREATE INDEX idx_tags ON $tableEntries($columnTags)
+    ''');
+
+    await _createChatLogTables(db);
+    await _createKnowledgeTables(db);
+  }
+
+  Future<void> _createChatLogTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableChatLog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        summary_en TEXT NOT NULL,
+        intent TEXT NOT NULL DEFAULT 'chat',
+        tags TEXT DEFAULT '',
+        location TEXT,
+        mood INTEGER,
+        consolidated INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_chat_log_timestamp
+        ON $tableChatLog(timestamp DESC)
+    ''');
+
+    // FTS5 virtual table — content table mirrors secret_chat_log
+    await db.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS chat_fts USING fts5(
+        summary_en, tags, location,
+        content='$tableChatLog',
+        content_rowid='id'
+      )
+    ''');
+
+    // Triggers to keep FTS5 in sync
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS chat_fts_ai AFTER INSERT ON $tableChatLog BEGIN
+        INSERT INTO chat_fts(rowid, summary_en, tags, location)
+        VALUES (new.id, new.summary_en, COALESCE(new.tags,''), COALESCE(new.location,''));
+      END
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS chat_fts_bd BEFORE DELETE ON $tableChatLog BEGIN
+        INSERT INTO chat_fts(chat_fts, rowid, summary_en, tags, location)
+        VALUES ('delete', old.id, old.summary_en, COALESCE(old.tags,''), COALESCE(old.location,''));
+      END
+    ''');
+
+    await db.execute('''
+      CREATE TRIGGER IF NOT EXISTS chat_fts_au AFTER UPDATE ON $tableChatLog BEGIN
+        INSERT INTO chat_fts(chat_fts, rowid, summary_en, tags, location)
+        VALUES ('delete', old.id, old.summary_en, COALESCE(old.tags,''), COALESCE(old.location,''));
+        INSERT INTO chat_fts(rowid, summary_en, tags, location)
+        VALUES (new.id, new.summary_en, COALESCE(new.tags,''), COALESCE(new.location,''));
+      END
+    ''');
+  }
+
+  Future<void> _createKnowledgeTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableKnowledgePages (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT DEFAULT '',
+        raw_facts TEXT DEFAULT '[]',
+        contradictions TEXT DEFAULT '[]',
+        superseded_by TEXT,
+        confidence REAL DEFAULT 1.0,
+        last_updated INTEGER NOT NULL,
+        access_count INTEGER DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableKnowledgeLinks (
+        from_id TEXT NOT NULL,
+        to_id TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        PRIMARY KEY (from_id, to_id)
+      )
     ''');
   }
 
   /// ⬆️ อัพเกรด Database เมื่อเปลี่ยนเวอร์ชัน
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // Migration สำหรับเวอร์ชันใหม่
-      // ในอนาคตถ้าต้องการเพิ่มตาราง/คอลัมน์ จะทำที่นี่
+    if (oldVersion < 3) {
+      await _createChatLogTables(db);
+      await _createKnowledgeTables(db);
     }
   }
 
@@ -353,6 +438,90 @@ class DatabaseHelper {
     
     // ลบ encryption key ด้วย
     await EncryptionService.clearAllKeys();
+  }
+
+  // ==================== Chat Log (Episodic Memory) ====================
+
+  /// ➕ บันทึก English log entry ลง SQLite
+  Future<int> insertChatLog({
+    required String summaryEn,
+    required String intent,
+    required List<String> tags,
+    String? location,
+    int? mood,
+  }) async {
+    final db = await database;
+    return db.insert(tableChatLog, {
+      'timestamp': DateTime.now().toIso8601String(),
+      'summary_en': summaryEn,
+      'intent': intent,
+      'tags': tags.join(','),
+      'location': location,
+      'mood': mood,
+      'consolidated': 0,
+    });
+  }
+
+  /// 🔍 Full-text search บน chat log ด้วย BM25 ranking
+  ///
+  /// คืน rows ที่ match เรียงจาก relevance สูงสุด (bm25 score ต่ำสุด = ดีที่สุด)
+  Future<List<Map<String, dynamic>>> searchChatFTS(String query,
+      {int limit = 5}) async {
+    if (query.trim().isEmpty) return [];
+    final db = await database;
+    // escape ตัวพิเศษที่ FTS5 ไม่ชอบ
+    final safe = query.replaceAll(RegExp(r'["\*\(\)\[\]]'), ' ').trim();
+    if (safe.isEmpty) return [];
+    try {
+      return db.rawQuery(
+        '''
+        SELECT s.*, bm25(chat_fts) AS rank
+        FROM chat_fts
+        JOIN $tableChatLog s ON s.id = chat_fts.rowid
+        WHERE chat_fts MATCH ?
+        ORDER BY rank
+        LIMIT ?
+        ''',
+        [safe, limit],
+      );
+    } catch (e) {
+      debugPrint('⚠️ searchChatFTS error: $e');
+      return [];
+    }
+  }
+
+  /// 📚 ดึง chat log ล่าสุด N รายการ
+  Future<List<Map<String, dynamic>>> getRecentChatLog({int limit = 20}) async {
+    final db = await database;
+    return db.query(
+      tableChatLog,
+      orderBy: 'timestamp DESC',
+      limit: limit,
+    );
+  }
+
+  /// 🏳️ mark entries ว่า consolidated แล้ว (สำหรับ TASK-4)
+  Future<void> markChatLogsConsolidated(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final db = await database;
+    final placeholders = ids.map((_) => '?').join(',');
+    await db.rawUpdate(
+      'UPDATE $tableChatLog SET consolidated = 1 WHERE id IN ($placeholders)',
+      ids,
+    );
+  }
+
+  /// 🗑️ prune episodic entries อายุ > N วัน ที่ consolidated แล้ว
+  Future<int> pruneOldChatLogs({int olderThanDays = 30}) async {
+    final db = await database;
+    final cutoff = DateTime.now()
+        .subtract(Duration(days: olderThanDays))
+        .toIso8601String();
+    return db.delete(
+      tableChatLog,
+      where: 'consolidated = 1 AND timestamp < ?',
+      whereArgs: [cutoff],
+    );
   }
 
   /// 🔒 ปิดการเชื่อมต่อ Database

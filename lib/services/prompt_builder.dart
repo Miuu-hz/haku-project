@@ -93,6 +93,30 @@ Output:''';
   /// Conversation API จัดการ template tokens เอง → ไม่ต้องใส่ <start_of_turn>
   static String buildSystemInstruction() => hakuFacePrompt;
 
+  /// 📅 สร้าง schedule block สำหรับ inject เข้า system instruction
+  ///
+  /// Return "" ถ้าไม่มีนัด → token cost = 0 เมื่อไม่มีกิจกรรม
+  static String buildScheduleBlock(List<Map<String, dynamic>> events) {
+    if (events.isEmpty) return '';
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final buf = StringBuffer('\nSCHEDULE (next 3 days):');
+    for (final e in events) {
+      final title = e['title'] as String? ?? '';
+      final startMs = e['startTime'] as int?;
+      if (startMs == null || title.isEmpty) continue;
+
+      final dt = DateTime.fromMillisecondsSinceEpoch(startMs);
+      final diff = DateTime(dt.year, dt.month, dt.day).difference(today).inDays;
+      final dayLabel = diff == 0 ? 'Today' : diff == 1 ? 'Tomorrow' : '+${diff}d';
+      final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      buf.write('\n- [$dayLabel $timeStr] $title');
+    }
+    return buf.toString();
+  }
+
   /// User Turn สำหรับ Stateful Conversation (ส่งทุกรอบ)
   ///
   /// ไม่มี history ใน string — Conversation จัดการ KV cache เอง
@@ -297,6 +321,14 @@ Output ONLY the English translation, no JSON.<end_of_turn>
     
     return '<start_of_turn>user\nRole: Entry Summarizer.\n\nEntry:\n$content$contextSection\n\nOutput JSON ONLY:\n{\n  "type": "summary",\n  "data": {\n    "summary": "Thai summary",\n    "mood": "Detected mood",\n    "tags": ["Tag1", "Tag2"]\n  },\n  "response": "Thai reply with emoji"\n}<end_of_turn>\n<start_of_turn>model\n';
   }
+
+  /// 🧠 Memory Consolidation — สรุป episodic log หลาย entries → 1 fact
+  static String buildConsolidationPrompt(String combinedSummaries) =>
+      '<start_of_turn>user\n'
+      'Distill these conversation summaries into 2-3 key facts about the user. '
+      'Be concise. English only. No bullet points.\n\n'
+      'Summaries:\n$combinedSummaries\n'
+      '<end_of_turn>\n<start_of_turn>model\n';
 
   /// 🔍 Insights
   static String buildInsightsPrompt(String content, {String? context}) {

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,15 +7,7 @@ import 'package:intl/intl.dart';
 import '../models/entry.dart';
 import '../services/database_helper.dart';
 import '../services/location_service.dart';
-
-/// ➕ หน้าสร้าง Entry ใหม่
-/// 
-/// รองรับ:
-/// - เขียนข้อความ
-/// - เลือกอารมณ์ (mood)
-/// - บันทึกตำแหน่ง (auto)
-/// - อัดเสียง (เตรียมไว้ Phase 2)
-/// - แนบรูป (เตรียมไว้ Phase 2)
+import '../utils/haku_design_tokens.dart';
 
 class NewEntryScreen extends ConsumerStatefulWidget {
   final Entry? existingEntry;
@@ -26,9 +20,9 @@ class NewEntryScreen extends ConsumerStatefulWidget {
 
 class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
   final TextEditingController _contentController = TextEditingController();
-  int? _selectedMood;  // 1-5 (null = ไม่ได้เลือก)
+  int? _selectedMood;
   bool _isLoadingLocation = false;
-  bool _includeLocation = true;  // บันทึกตำแหน่งโดยค่าเริ่มต้น
+  bool _includeLocation = true;
   double? _latitude;
   double? _longitude;
   String? _locationName;
@@ -57,19 +51,14 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     super.dispose();
   }
 
-  /// 📍 ดึงตำแหน่งปัจจุบัน
   Future<void> _fetchLocation() async {
     setState(() => _isLoadingLocation = true);
-    
     final position = await LocationService.getCurrentPosition();
-    
     if (position != null && mounted) {
-      // แปลงพิกัดเป็นชื่อสถานที่
       final placeName = await LocationService.getLocationName(
         position.latitude,
         position.longitude,
       );
-
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
@@ -81,19 +70,15 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     }
   }
 
-  /// 💾 บันทึก Entry
   Future<void> _saveEntry() async {
     final content = _contentController.text.trim();
-    
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('กรุณาเขียนอะไรสักหน่อย')),
       );
       return;
     }
-
     setState(() => _isSaving = true);
-
     try {
       final entry = Entry(
         id: _isEditing ? widget.existingEntry!.id : null,
@@ -105,16 +90,12 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
         mood: _selectedMood,
         tags: Entry.extractTags(content),
       );
-
       if (_isEditing) {
         await DatabaseHelper.instance.updateEntry(entry);
       } else {
         await DatabaseHelper.instance.createEntry(entry);
       }
-
-      if (mounted) {
-        Navigator.pop(context, true);  // กลับไปหน้า home พร้อมบอกว่าสำเร็จ
-      }
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,96 +111,103 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('EEEE, d MMMM yyyy · HH:mm', 'th_TH');
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Text(_isEditing ? 'แก้ไขบันทึก' : 'บันทึกใหม่'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          // 💾 ปุ่มบันทึก
-          TextButton(
-            onPressed: _isSaving ? null : _saveEntry,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text(
-                    'บันทึก',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 🗓️ แสดงวันที่ปัจจุบัน
-                  Text(
-                    dateFormat.format(DateTime.now()),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withAlpha(100),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // 📝 ช่องเขียนข้อความ
-                  TextField(
-                    controller: _contentController,
-                    maxLines: null,
-                    minLines: 10,
-                    autofocus: true,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.8,
-                      color: Colors.white,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'วันนี้เป็นยังไงบ้าง?\n\nเล่าให้ Haku ฟังหน่อย...',
-                      hintStyle: TextStyle(
-                        color: Colors.white.withAlpha(50),
-                        height: 1.8,
+    return HakuAuroraBackground(
+      children: [
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: _buildAppBar(),
+          body: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dateFormat.format(DateTime.now()),
+                        style: const TextStyle(fontSize: 14, color: kFg3),
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _contentController,
+                        maxLines: null,
+                        minLines: 10,
+                        autofocus: true,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.8,
+                          color: kFg1,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'วันนี้เป็นยังไงบ้าง?\n\nเล่าให้ Haku ฟังหน่อย...',
+                          hintStyle: TextStyle(
+                            color: kFg1.withAlpha(60),
+                            height: 1.8,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildMoodSelector(),
+                    ],
                   ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // 😊 เลือกอารมณ์
-                  _buildMoodSelector(),
-                ],
+                ),
               ),
-            ),
+              _buildBottomToolbar(),
+            ],
           ),
-          
-          // 📍 แถบเครื่องมือด้านล่าง
-          _buildBottomToolbar(),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  /// 😊 ส่วนเลือกอารมณ์ (Mood Selector)
+  PreferredSizeWidget _buildAppBar() => PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: AppBar(
+              backgroundColor: kGlassFill,
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              iconTheme: const IconThemeData(color: kFg1),
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: kFg1),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                _isEditing ? 'แก้ไขบันทึก' : 'บันทึกใหม่',
+                style: const TextStyle(
+                    color: kFg1, fontWeight: FontWeight.w600),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isSaving ? null : _saveEntry,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: kCrystal400),
+                        )
+                      : const Text(
+                          'บันทึก',
+                          style: TextStyle(
+                            color: kCrystal600,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
   Widget _buildMoodSelector() {
     final moods = [
       {'emoji': '😢', 'label': 'แย่มาก', 'value': 1},
@@ -232,12 +220,9 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'วันนี้รู้สึกยังไง?',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.white.withAlpha(100),
-          ),
+          style: TextStyle(fontSize: 14, color: kFg3),
         ),
         const SizedBox(height: 12),
         Row(
@@ -245,38 +230,38 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
           children: moods.map((mood) {
             final value = mood['value'] as int;
             final isSelected = _selectedMood == value;
-            
+
             return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedMood = isSelected ? null : value;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
+              onTap: () =>
+                  setState(() => _selectedMood = isSelected ? null : value),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFF9B7CB6).withAlpha(100)
-                      : Colors.white.withAlpha(10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: isSelected
-                      ? Border.all(color: const Color(0xFF9B7CB6))
-                      : null,
+                      ? kCrystal400.withAlpha(40)
+                      : Colors.white.withAlpha(60),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? kCrystal400 : kGlassStroke,
+                    width: isSelected ? 1.5 : 0.5,
+                  ),
                 ),
                 child: Column(
                   children: [
                     Text(
                       mood['emoji'] as String,
-                      style: const TextStyle(fontSize: 28),
+                      style: const TextStyle(fontSize: 26),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       mood['label'] as String,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected
-                            ? Colors.white
-                            : Colors.white.withAlpha(70),
+                        fontSize: 10,
+                        color: isSelected ? kCrystal600 : kFg3,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -289,92 +274,81 @@ class _NewEntryScreenState extends ConsumerState<NewEntryScreen> {
     );
   }
 
-  /// 📍 แถบเครื่องมือด้านล่าง
-  Widget _buildBottomToolbar() => Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        border: Border(
-          top: BorderSide(color: Colors.white.withAlpha(20)),
-        ),
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            // 📍 สลับบันทึกตำแหน่ง
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: _isLoadingLocation
-                      ? const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF9B7CB6),
-                        )
-                      : Checkbox(
-                          value: _includeLocation,
-                          onChanged: (v) {
-                            setState(() => _includeLocation = v ?? true);
-                          },
-                          activeColor: const Color(0xFF9B7CB6),
+  Widget _buildBottomToolbar() => ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: kGlassFill,
+              border: Border(
+                top: BorderSide(color: kFg1.withAlpha(12)),
+              ),
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  // Location toggle
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: _isLoadingLocation
+                            ? const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: kLavender500,
+                              )
+                            : Checkbox(
+                                value: _includeLocation,
+                                onChanged: (v) => setState(
+                                    () => _includeLocation = v ?? true),
+                                activeColor: kCrystal400,
+                                checkColor: kFgOnCyan,
+                              ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 18,
+                        color: _includeLocation ? kLavender500 : kFg4,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          _locationName ?? 'ไม่มีตำแหน่ง',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _includeLocation ? kFg2 : kFg4,
+                          ),
                         ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 18,
-                  color: _includeLocation
-                      ? const Color(0xFF9B7CB6)
-                      : Colors.white.withAlpha(100),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _locationName ?? 'ไม่มีตำแหน่ง',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: _includeLocation
-                          ? Colors.white.withAlpha(200)
-                          : Colors.white.withAlpha(70),
-                    ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            
-            const Spacer(),
-            
-            // 🎙️ ปุ่มอัดเสียง (เตรียมไว้ Phase 2)
-            IconButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ฟีเจอร์อัดเสียงจะมาใน Phase 2')),
-                );
-              },
-              icon: Icon(
-                Icons.mic_outlined,
-                color: Colors.white.withAlpha(100),
+
+                  const Spacer(),
+
+                  IconButton(
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('ฟีเจอร์อัดเสียงจะมาใน Phase 2')),
+                    ),
+                    icon: const Icon(Icons.mic_outlined, color: kFg4),
+                  ),
+                  IconButton(
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('ฟีเจอร์แนบรูปจะมาใน Phase 2')),
+                    ),
+                    icon: const Icon(Icons.image_outlined, color: kFg4),
+                  ),
+                ],
               ),
             ),
-            
-            // 🖼️ ปุ่มแนบรูป (เตรียมไว้ Phase 2)
-            IconButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ฟีเจอร์แนบรูปจะมาใน Phase 2')),
-                );
-              },
-              icon: Icon(
-                Icons.image_outlined,
-                color: Colors.white.withAlpha(100),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    );
+      );
 }

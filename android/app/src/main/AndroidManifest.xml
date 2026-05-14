@@ -66,6 +66,34 @@
                 android:resource="@xml/haku_widget_info"/>
         </receiver>
 
+        <!-- 🎗️ Foreground Service -->
+        <service
+            android:name=".service.HakuForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 🔄 Boot Receiver -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 🔌 Charging Receiver -->
+        <receiver
+            android:name=".receiver.ChargingBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
         <!-- 🔧 Flutter Plugin Registrant -->
         <meta-data
             android:name="flutterEmbedding"

@@ -153,9 +153,18 @@ class LLMService {
         return false;
       }
 
+      final prefs = await SharedPreferences.getInstance();
+      // migrate legacy llm_use_gpu → llm_accelerator
+      String accelerator = prefs.getString(StorageKeys.llmAccelerator) ?? '';
+      if (accelerator.isEmpty) {
+        final legacyGpu = prefs.getBool(StorageKeys.llmUseGpu) ?? true;
+        accelerator = legacyGpu ? 'GPU' : 'CPU';
+      }
+
       final result = await _channel.invokeMethod('loadModel', {
         'modelPath': modelPath,
         'maxTokens': effectiveMaxTokens,
+        'accelerator': accelerator,
         if (systemInstruction != null && systemInstruction.isNotEmpty)
           'systemInstruction': systemInstruction,
       });

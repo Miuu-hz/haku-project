@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'automation_screen.dart';
 import '../models/llm_model_config.dart';
+import '../utils/haku_design_tokens.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
 import '../services/database_helper.dart';
@@ -16,6 +17,7 @@ import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/llm_settings_service.dart';
 import '../services/model_manager_service.dart';
+import '../utils/constants.dart';
 import '../widgets/profile_editor_widget.dart';
 
 // ══════════════════════════════════════════════════════════════
@@ -65,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // LLM Settings (user overrides)
   LLMModelConfig _modelConfig = LLMModelConfig.unknown;
   bool _hasLlmOverride = false;
+  String _accelerator = 'GPU'; // CPU / GPU / NPU
   int _userMaxTokens = 1024;
   double _userTemperature = 0.8;
   int _userTopK = 40;
@@ -135,6 +138,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_googleAuth.isSignedIn) {
       await _loadCalendarEvents();
     }
+
+    // Load GPU/CPU preference
+    // migrate legacy llm_use_gpu → llm_accelerator
+    String accelerator = prefs.getString(StorageKeys.llmAccelerator) ?? '';
+    if (accelerator.isEmpty) {
+      final legacyGpu = prefs.getBool(StorageKeys.llmUseGpu) ?? true;
+      accelerator = legacyGpu ? 'GPU' : 'CPU';
+    }
+
+    if (!mounted) return;
+    setState(() => _accelerator = accelerator);
 
     // Load LLM model config + user overrides
     _modelConfig = _providerManager.modelConfig;
@@ -219,19 +233,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_kSField, Color(0xFFE6EFFF), Color(0xFFF3E6FF)],
-          stops: [0.0, 0.45, 1.0],
-        ),
-      ),
-      child: Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: const Color(0xB8FFFFFF),
+    return HakuAuroraBackground(
+      children: [
+        Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: kGlassFill,
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -248,6 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 120),
         children: [
           // 🔒 ส่วนความปลอดภัย
           _buildSectionHeader('🔐 ความปลอดภัย'),
@@ -828,7 +836,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    ));
+    ),
+  ],
+  );
   }
 
   Widget _buildSectionHeader(String title) => Padding(
@@ -1222,6 +1232,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           )
         else ...[
+          // Accelerator selector — CPU / GPU / NPU
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Inference Backend', style: TextStyle(color: _kSTextMain, fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(
+                  _accelerator == 'GPU' ? 'GPU — เร็วสุด (ต้องการ OpenCL)'
+                  : _accelerator == 'NPU' ? 'NPU — ประหยัดแบตที่สุด (Hexagon)'
+                  : 'CPU — เสถียร รองรับทุกเครื่อง',
+                  style: const TextStyle(color: _kSTextSub, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'CPU', label: Text('CPU'), icon: Icon(Icons.developer_board, size: 16)),
+                    ButtonSegment(value: 'GPU', label: Text('GPU'), icon: Icon(Icons.memory, size: 16)),
+                    ButtonSegment(value: 'NPU', label: Text('NPU'), icon: Icon(Icons.electric_bolt, size: 16)),
+                  ],
+                  selected: {_accelerator},
+                  style: ButtonStyle(
+                    iconColor: WidgetStateProperty.resolveWith((s) =>
+                        s.contains(WidgetState.selected) ? _kSCrystal : _kSTextSub),
+                  ),
+                  onSelectionChanged: (v) async {
+                    final selected = v.first;
+                    setState(() => _accelerator = selected);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString(StorageKeys.llmAccelerator, selected);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('$selected mode — โหลดโมเดลใหม่เพื่อใช้งาน'),
+                      duration: const Duration(seconds: 2),
+                    ));
+                  },
+                ),
+              ],
+            ),
+          ),
+
           // Max Tokens slider
           _buildSliderTile(
             icon: Icons.expand,
@@ -2124,20 +2176,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ] else ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: () => _startModelDownload(m),
-                    icon: const Icon(Icons.download, size: 16),
-                    label: Text('ดาวน์โหลด ${m.sizeLabel}', style: const TextStyle(fontSize: 12)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _kSGlassStroke,
-                      foregroundColor: _kSTextMain,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      minimumSize: const Size(0, 32),
+                // Download buttons
+                if (m.gdriveUrl != null && m.gdriveUrl!.isNotEmpty) ...[
+                  // มี Google Drive link → ให้เลือกแหล่งดาวน์โหลด
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // 🌐 Google Drive (ไม่ต้อง login)
+                      FilledButton.icon(
+                        onPressed: () => _startModelDownload(m, useGDrive: true),
+                        icon: const Icon(Icons.cloud_download, size: 16),
+                        label: Text('Drive ${m.sizeLabel}', style: const TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF34A853),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // 🤗 HuggingFace (ต้องมี Token)
+                      OutlinedButton.icon(
+                        onPressed: () => _startModelDownload(m, useGDrive: false),
+                        icon: const Icon(Icons.download, size: 16),
+                        label: Text('HF ${m.sizeLabel}', style: const TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kSTextSub,
+                          side: const BorderSide(color: _kSGlassStroke),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // มีแค่ HuggingFace
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: () => _startModelDownload(m),
+                      icon: const Icon(Icons.download, size: 16),
+                      label: Text('ดาวน์โหลด ${m.sizeLabel}', style: const TextStyle(fontSize: 12)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kSGlassStroke,
+                        foregroundColor: _kSTextMain,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        minimumSize: const Size(0, 32),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ],
           ),
@@ -2146,21 +2234,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _startModelDownload(_RemoteModel m) async {
+  Future<void> _startModelDownload(_RemoteModel m, {bool useGDrive = false}) async {
     final token = _hfTokenController.text.trim();
     setState(() {
       _activeDownloads.add(m.filename);
       _downloadProgress[m.filename] = 0.0;
     });
 
-    final url = 'https://huggingface.co/${m.hfRepo}/resolve/main/${m.filename}';
+    // 🌐 เลือกแหล่งดาวน์โหลด
+    String url;
+    String? authToken;
+    if (useGDrive && m.gdriveUrl != null && m.gdriveUrl!.isNotEmpty) {
+      url = m.gdriveUrl!;
+      authToken = null; // Google Drive ไม่ต้อง token
+      debugPrint('🌐 Downloading from Google Drive: ${m.name}');
+    } else {
+      url = 'https://huggingface.co/${m.hfRepo}/resolve/main/${m.filename}';
+      authToken = token.isNotEmpty ? token : null;
+      debugPrint('🌐 Downloading from HuggingFace: ${m.name}');
+    }
+
     final ok = await ModelManagerService().downloadModel(
       url,
       m.filename,
       onProgress: (p) {
         if (mounted) setState(() => _downloadProgress[m.filename] = p);
       },
-      hfToken: token.isNotEmpty ? token : null,
+      hfToken: authToken,
     );
 
     if (!mounted) return;
@@ -2179,10 +2279,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('❌ ดาวน์โหลดล้มเหลว — ตรวจสอบ HF Token หรือพื้นที่เก็บข้อมูล'),
+      final source = useGDrive ? 'Google Drive' : 'HuggingFace';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('❌ ดาวน์โหลดจาก $source ล้มเหลว — ตรวจสอบลิงก์หรือพื้นที่เก็บข้อมูล'),
         backgroundColor: Colors.red,
-        duration: Duration(seconds: 4),
+        duration: const Duration(seconds: 4),
       ));
     }
   }
@@ -2221,6 +2322,7 @@ class _RemoteModel {
   final String description;
   final String filename;
   final String hfRepo;
+  final String? gdriveUrl;   // ⭐ Google Drive direct link (ไม่ต้อง HF Token)
 
   const _RemoteModel({
     required this.name,
@@ -2232,6 +2334,7 @@ class _RemoteModel {
     required this.description,
     required this.filename,
     required this.hfRepo,
+    this.gdriveUrl,
   });
 
   String get sizeLabel {
@@ -2245,12 +2348,13 @@ const _kRemoteModels = <_RemoteModel>[
     name: 'Gemma 3 1B',
     badge: '⚡ เร็วสุด',
     badgeColor: Color(0xFF4FC3F7),
-    sizeGB: 0.62,
+    sizeGB: 0.50,
     contextLabel: '1K',
-    quantLabel: 'INT8',
+    quantLabel: 'INT4',
     description: 'เบาที่สุด ใช้แบตน้อย เหมาะกับมือถือทุกรุ่น',
-    filename: 'gemma3-1b-it-int8.litertlm',
+    filename: 'gemma3-1b-it-int4.litertlm',
     hfRepo: 'google/gemma-3-1b-it-litert-lm',
+    gdriveUrl: 'https://drive.google.com/file/d/1ArY52BPfJgq40zEbSF7V8VN4N8XehlLP/view?usp=sharing',
   ),
   _RemoteModel(
     name: 'Gemma 4 E2B',
@@ -2262,6 +2366,7 @@ const _kRemoteModels = <_RemoteModel>[
     description: 'สมดุลระหว่างความเร็วและคุณภาพ รองรับบทสนทนายาว',
     filename: 'gemma4-e2b-it-int4.litertlm',
     hfRepo: 'google/gemma-4-e2b-it-litert-lm',
+    gdriveUrl: 'https://drive.google.com/file/d/1Hu2TNwpfIIHj7l8z51jb8ogglmMJjFTN/view?usp=sharing',
   ),
   _RemoteModel(
     name: 'Gemma 4 E4B',
@@ -2273,5 +2378,6 @@ const _kRemoteModels = <_RemoteModel>[
     description: 'คุณภาพสูงสุด เข้าใจภาษาไทยได้ดี เหมาะกับเครื่องแรง',
     filename: 'gemma4-e4b-it-int4.litertlm',
     hfRepo: 'google/gemma-4-e4b-it-litert-lm',
+    gdriveUrl: 'https://drive.google.com/file/d/19Mukj47cxxOtDTUhGRQ9hpqfZYZxksDw/view?usp=sharing',
   ),
 ];

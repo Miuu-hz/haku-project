@@ -5,7 +5,7 @@ import 'chat_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 
-/// 🧭 หน้า Navigation หลัก (Bottom Navigation Bar)
+/// 🧭 หน้า Navigation หลัก — Floating Glass Pill Nav
 ///
 /// มี 3 แท็บ:
 /// - บันทึก (Home)
@@ -26,6 +26,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     final screens = [
       const HomeScreen(),
       ChatScreen(initialQuestion: widget.initialChatQuestion),
@@ -33,28 +34,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
-      ),
-      bottomNavigationBar: HakuGlassNavBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.book_outlined),
-            selectedIcon: Icon(Icons.book_rounded),
-            label: 'บันทึก',
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: screens,
           ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
-            label: 'Haku AI',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
-            label: 'ตั้งค่า',
+          // Floating glass pill nav
+          Positioned(
+            bottom: 22 + bottomInset,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: HakuGlassNavBar(
+                currentIndex: _currentIndex,
+                onTap: (i) => setState(() => _currentIndex = i),
+                destinations: const [],
+              ),
+            ),
           ),
         ],
       ),

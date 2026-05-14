@@ -1,6 +1,6 @@
 # Haku — Private Life OS: Features Roadmap
 
-> อัปเดตล่าสุด: 2026-05-11
+> อัปเดตล่าสุด: 2026-05-13 (Business Roadmap depa + Haku OS Vision Q&A)
 > เรียงตามวัตถุประสงค์และที่มาของโปรเจกต์
 
 ---
@@ -42,11 +42,78 @@ Vision: Haku OS / Launcher (National Infrastructure)
 | Phase | ชื่อ | แก้ปัญหา / Goal | สถานะ |
 |-------|------|----------------|--------|
 | **1** | Privacy Core (MVP) | ปัญหา 1 — Privacy Leaks | ✅ Done |
-| **2** | Proactive Intelligence | ปัญหา 2 — Passive AI | 🟡 ~85% Done |
+| **2** | Proactive Intelligence | ปัญหา 2 — Passive AI | 🟡 ~90% Done |
 | **3** | B2C Monetization | Goal 1+2 — Revenue + Stickiness | 🔴 Planned |
-| **4** | Analytics & Deep Personalization | Goal 1 — AI รู้จักคุณในระดับลึก | 🟡 ~30% Done |
+| **4** | Analytics & Deep Personalization | Goal 1 — AI รู้จักคุณในระดับลึก | 🟡 ~45% Done |
 | **5** | B2B — Agent Protocol | Goal 2+3 — B2B + Data Sovereignty | 🔴 Planned |
 | **6** | Haku OS Vision | Goal 3 — National Impact | 💡 Concept |
+
+---
+
+---
+
+## 🚀 18-Month Business Roadmap (depa Grant Plan)
+
+> แผนธุรกิจสำหรับยื่นขอทุน depa — เริ่มต้นจาก Foundation ที่สร้างแล้ว
+> **ก่อนขอทุน:** Phase 1 (Privacy Core) ✅ + Phase 2 (Proactive Intelligence) 🟡 90% — สร้างด้วยทุนส่วนตัว
+
+### Phase B1: Sovereign Core & Context Awareness (เดือนที่ 1–6)
+
+> **เป้าหมาย:** "สร้างสมองและสัมผัสอัจฉริยะ" — วางโครงสร้าง AI ที่รู้ใจ ไม่มโน เริ่มทำงานเชิงรุกพื้นฐาน
+
+**🛠️ Tech & Product:**
+- [ ] **Voice Input (STT)** — Whisper-Tiny on-device (privacy-safe, ไม่ส่งเสียงออก Cloud)
+- [ ] **Meeting Pre-Flight Check** — RAG สรุปบริบทส่งถึงมือ 15 นาทีก่อนนัดทุกครั้ง
+- [ ] **A2A Identity Layer** — keypair บน Android Keystore + E2E encrypted bundle (รากฐาน A2A)
+- [ ] **Privacy Transparency Screen** — แสดงหลักฐาน Zero Cloud ให้ผู้ใช้เห็นด้วยตาตัวเอง (Zero network calls audit)
+
+**💼 BD & Marketing:**
+- [ ] **Pre-B2B Onboarding** — เข้าพบและทำ MOU หอการค้าจังหวัดกาฬสินธุ์ (กลุ่ม SME, YEC)
+- [ ] สำรวจ Workflow จริงของ SME เพื่อจูน A2A ให้ตอบโจทย์ธุรกิจจริง
+- [ ] รวบรวม Requirements สำหรับ B2B Beta Phase B2
+
+**🎯 Milestone:** A2A Foundation พร้อม Beta — MOU หอการค้าฯ กาฬสินธุ์ลงนามแล้ว
+
+---
+
+### Phase B2: The A2A Network & B2B MVP (เดือนที่ 7–12)
+
+> **เป้าหมาย:** "เปิดตัวเครือข่าย AI ระดับองค์กร" — สร้าง Game Changer ด้วย AI ที่คุยกันเองได้
+
+**🛠️ Tech & Product:**
+- [ ] **A2A Transport Layer** — WiFi Direct ก่อน (ออฟฟิศเดียวกัน) → E2E Encrypted Relay สำหรับระยะไกล
+- [ ] **AI Handshake (เพิ่มเพื่อน)** — Haku-to-Haku peer pairing + E2E Encryption ไม่เห็น Calendar ของกัน
+- [ ] **MeetingNegotiationProtocol** — ประสานนัดหมายโดยส่งเพียง "ว่าง/ไม่ว่าง" ไม่เปิด Calendar จริง
+- [ ] **A2A UI** — ค้นหา Haku peers ในเครือข่าย + real-time negotiation status screen
+- [ ] **Task Delegation Protocol** — มอบหมายงานระหว่าง Haku agents แบบ encrypted
+
+**💼 BD & Marketing:**
+- [ ] **Exclusive Beta Test** — เครือข่ายหอการค้าฯ กาฬสินธุ์เป็น Real-world Sandbox พิสูจน์ A2A ลดงานซ้ำซ้อน
+- [ ] **Traction Building** — เก็บ Case Study ตัวเลขจริง: ประหยัดเวลา/ต้นทุนเท่าไหร่ เพื่อ Pitching
+- [ ] เตรียม Traction Report + Product Demo สำหรับ investor รอบถัดไป
+
+**🎯 Milestone:** A2A Alpha ทำงานจริงกับ SME 3–5 องค์กรในกาฬสินธุ์ — มีตัวเลข Case Study พิสูจน์แล้ว
+
+---
+
+### Phase B3: Proactive Guardrails & Commercialization (เดือนที่ 13–18)
+
+> **เป้าหมาย:** "ระบบป้องกันขั้นสูงและการทำรายได้" — ขยายสเกลธุรกิจ + ปกป้องการตัดสินใจของผู้ใช้
+
+**🛠️ Tech & Product:**
+- [ ] **Pin of Point (Cognitive Guardrail)** — ประมวลผลขั้นสูง สังเกตพฤติกรรม สะกิดเตือนเมื่อตัดสินใจผิดปกติจากมาตรฐาน
+  - rule-based anomaly detection (threshold-based, fast) + optional LLM nudge
+  - ตัวอย่าง: กำลังโอนเงินให้บัญชีแปลกหน้า / ตัดสินใจโดยไม่มีข้อมูล
+- [ ] **A2A Commercial Release** — เสถียรจาก Alpha สู่ Enterprise-grade พร้อม SLA + B2B subscription gate
+- [ ] **AI Personas + Skills System** — เปิด B2C revenue layer (IAP Personas + Skill Modules)
+
+**💼 BD & Marketing:**
+- [ ] **Monetization** — Convert Beta Testers หอการค้าฯ → Paid B2B Subscribers
+- [ ] **National Expansion** — นำ Success Story จากกาฬสินธุ์เสนอขายหอการค้าจังหวัดอื่น + หน่วยงานส่วนกลาง
+  - เป้าหมาย: "เริ่มติดต่อ" ไม่ใช่ "close ทันที" (realistic)
+- [ ] เตรียมเอกสาร Pre-Series A ด้วย Valuation ที่สูงขึ้นจาก Product-Market Fit ที่พิสูจน์กับ SME ไทย
+
+**🎯 Milestone:** รายได้ B2B จริงครั้งแรก + National Expansion เริ่มแล้ว + เอกสาร Pre-Series A พร้อม
 
 ---
 
@@ -55,6 +122,51 @@ Vision: Haku OS / Launcher (National Infrastructure)
 ## 🏗️ Infrastructure: On-Device AI Stack
 
 > รองรับทุก Phase — ฐานที่ทุก feature ต้องพึ่ง
+
+### ✅ Long-Term Memory + Context Compression (เสร็จแล้ว — 2026-05-11)
+
+> แชทเดียวต่อเนื่องตลอดชีพ — ลบแชทแล้วยังจำ + รองรับ A2A Protocol
+
+**Architecture: 3-Tier Memory**
+```
+Working Memory (RAM, ~800 tokens)   ← LeanContext last 8 turns
+  ↓ flush every 5 exchanges
+Episodic Memory (SQLite FTS5)       ← secret_chat_log + BM25 retrieval
+  ↓ nightly consolidation (charging)
+Semantic Memory (facts + Wiki)      ← UnifiedVectorService + WikiService
+```
+
+- [x] `DatabaseHelper` v3 — `secret_chat_log` table + `chat_fts` FTS5 virtual table + 3 sync triggers
+- [x] `SecretChatService` — dual-write SharedPrefs + SQLite (episodic LTM)
+- [x] `TagContextService` — ใช้ `searchChatFTS()` BM25 แทน linear scan (fallback ไว้)
+- [x] `ContextBudgetService` — hard token budget สำหรับ Gemma 4 4B (8192 ctx): input 4100 / response 2000 / safety ~2000
+- [x] `SessionResumeService` — `buildResume()` = top facts + calendar today/tomorrow + recent episodic → inject system instruction ทุก session
+- [x] `chat_screen._startNewLiteRTSession()` — async + inject LTM resume
+- [x] `clearHistory()` — ล้างแค่ UI + in-memory, **SQLite LTM preserved** (ลบแชท ≠ ลืม)
+- [x] `BackgroundTaskHandlers.handleMemoryConsolidation` — episodic >7d → LLM 1 call → fact, prune >30d
+- [x] `BackgroundTaskHandlers.handleWikiUpdate` — update pending wiki summaries
+- [x] `DeferredTaskService._enqueueNightlyTasks()` — auto-enqueue consolidation + wiki ทุกครั้งที่ชาร์จ
+- [x] `WikiService` — LLM Wiki (Karpathy+Mem0 pattern): `KnowledgePage` per entity, contradiction detection, supersession chain, confidence scoring
+- [x] `knowledge_pages` + `knowledge_links` SQLite tables
+- [x] `MemoryBundleService` — `exportBundle(categories)` + `importBundle()` + dedup/conflict flagging (A2A foundation)
+- [x] `PromptBuilder.buildConsolidationPrompt()` — distill episodic batch → facts
+
+**Token Budget (Gemma 4 4B / 8192 ctx):**
+```
+System + persona   :  300 tokens
+Session resume     :  300 tokens  ← facts + calendar
+Working memory     :  800 tokens  ← last 8 turns
+Episodic FTS5      : 1000 tokens  ← BM25 top-3
+Wiki pages         : 1200 tokens  ← top-2 entities
+User message       :  300 tokens
+────────────────────────────────
+Total input        : 3900 tokens  (safety margin ~2300)
+Response budget    : 2000 tokens
+```
+
+**Reference:** [Karpathy LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) · [Mem0 AI](https://github.com/mem0ai/mem0)
+
+---
 
 ### ✅ LiteRT-LM Migration (เสร็จแล้ว)
 
@@ -132,15 +244,115 @@ Gemma 3 1B (Face) — ตอบภาษาธรรมชาติ
 | `main_navigation_screen.dart` — Curved nav | ✅ |
 | `chat_screen.dart` — Dark scaffold + crystal accent | ✅ |
 | `home_screen.dart` — Aurora blob + glass cards | ✅ |
-| `onboarding_screen.dart` | ✅ |
+| `onboarding_screen.dart` — Glass emoji card + accent per page | ✅ |
+| `lock_screen.dart` — Lavender fingerprint orb | ✅ |
+| `settings_screen.dart` — Glass sections + aurora bg | ✅ |
+| `new_entry_screen.dart` — Glass AppBar + mood selector | ✅ |
+| `view_entry_screen.dart` — AI summary + insights glass cards | ✅ |
+| `focus_timer_screen.dart` — Lavender timer ring + glass chips | ✅ |
+| `model_manager_screen.dart` — Glass cards + kVividMint badge | ✅ |
+| `automation_screen.dart` — Aurora bg + crystal FAB | ✅ |
+| `presets_screen.dart` — Glass TabBar + preset cards | ✅ |
 | `quick_actions_fab.dart` | ✅ |
-| `settings_screen.dart` | ❌ ยังไม่ migrate |
 
 **Widgets:**
 - [x] `CausticShimmer` — Reusable glass shimmer `CustomPainter`
 - [x] `FlutterMap` mini map ใน `view_entry_screen.dart` (OpenStreetMap, 200px)
 
 **Rules:** ไม่ใช้ emoji ใน user-facing string ยกเว้น source comments
+
+---
+
+---
+
+## 🔬 Memory & Knowledge System — Architecture Research
+
+> วิเคราะห์สถาปัตยกรรมระบบความจำระยะยาวและ Knowledge Graph จาก Repository ชั้นนำ
+> วันที่วิเคราะห์: 2026-05-13
+
+---
+
+### 1. Karpathy's LLM Wiki (Gist) — Haku ทำไป 90% แล้ว
+
+| แนวคิด Karpathy | Haku ปัจจุบัน | สถานะ |
+|---|---|---|
+| AI ดูแลหน้า Wiki ต่อ entity | `KnowledgePage` (person/place/topic/goal/habit) | ✅ มีแล้ว |
+| อัปเดตสะสม ไม่เขียนทับ | `rawFacts[]` + `copyWith()` สะสม | ✅ มีแล้ว |
+| ตรวจจับข้อขัดแย้ง | `_detectContradiction()` → YES/NO LLM check | ✅ มีแล้ว |
+| Confidence Scoring | `confidence` field + corroboration boost | ✅ มีแล้ว |
+| Wiki-links เชื่อมโยง | `knowledge_links` table | ⚠️ มี schema แต่ยังไม่มี graph traversal |
+| Supersession chain | `supersededBy` field | ✅ มีแล้ว |
+
+**สรุป:** Haku ไม่ต้องศึกษาเพิ่มมาก — แค่ต้อง implement **graph traversal** บน `knowledge_links` ให้ WikiService สามารถ "เดินตามลิงก์" ได้ (เช่น ค้นหา "บอส" → เจอ linked "ออฟฟิศ" → ดึง context สองหน้ามา inject พร้อมกัน)
+
+---
+
+### 2. Mem0 (mem0ai/mem0) — น่าศึกษาเฉพาะบางส่วน
+
+**จุดเด่นที่ Haku ยังไม่มี:**
+
+| Mem0 Feature | Haku ปัจจุบัน | ควรยืมมั้ย? |
+|---|---|---|
+| **Graph Memory** (Neo4j/Memgraph) | มีแค่ `knowledge_links` table เปล่าๆ | ✅ **ควรยืม concept** |
+| **Hybrid Search** (Vector + BM25 + Graph) | Vector (TF-IDF) + FTS5 แยกกัน | ⚠️ ปรับปรุงได้ |
+| **Multi-user isolation** | Haku เป็น single-user | ❌ ไม่จำเป็น |
+| **REST API / MCP Server** | On-device ไม่มี server | ❌ ไม่จำเป็น |
+
+**ข้อจำกัดของ Mem0 ที่ทำให้ไม่เหมาะกับ Haku:**
+- Mem0 ต้องการ **PostgreSQL + pgvector** (ต้องลง Docker) → Haku ใช้ SQLite + SQLCipher (single file, encrypted)
+- Mem0 ใช้ LLM สำหรับ extraction ทุกครั้ง → Haku ใช้ **Workers (0 LLM token)** + LLM เฉพาะตอนชาร์จ
+- Mem0 เป็น Python/JS server-side → Haku เป็น Dart on-device
+
+**สรุป:** ศึกษา concept **Graph Memory + Hybrid Search** ได้ แต่ **อย่าเอา codebase มาใช้** — ไม่ fit architecture on-device
+
+---
+
+### 3. Microsoft GraphRAG — เก็บไว้สำหรับเอกสารในอนาคต
+
+| ปัจจัย | GraphRAG | Haku ปัจจุบัน |
+|---|---|---|
+| **Target use case** | Index เอกสารเป็นชุดใหญ่ (batch) | Real-time chat memory |
+| **LLM usage ตอน index** | หนักมาก (extract entity+relation ทุก chunk) | Workers 0 token / LLM เฉพาะ background |
+| **Hardware** | Server / Desktop + GPU | Mobile CPU |
+| **Speed** | นาที-ชั่วโมงต่อ corpus | ต้องตอบใน <1 วินาที |
+
+**เหตุผลที่เก็บไว้:** ในอนาคต Haku อาจรองรับการ import เอกสาร (PDF, รูปภาพ, ไฟล์) → GraphRAG pattern (entity extraction + community detection + hierarchical summarization) อาจมีประโยชน์สำหรับ **batch indexing** เอกสารเหล่านั้น โดยเฉพาะตอนชาร์จ
+
+**คำแนะนำ:** อย่า port GraphRAG มาทั้งตัว — ถ้าต้องการ multi-hop reasoning ให้ implement เองบน `knowledge_links` ที่มีอยู่ สำหรับ document RAG ค่อยศึกษา GraphRAG pattern อีกครั้งตอน implement Phase 4.5 (Document Import)
+
+---
+
+### 4. Workers vs Skill.md — คำตอบสถาปัตยกรรม
+
+**ตอบ: Workers (rule-based) ยังจำเป็น และน่าจะ "จำเป็นมากขึ้น" เมื่อ Haku ใหญ่ขึ้น**
+
+| ปัจจัย | Workers (Rule-based) | Skill.md / Function Calling |
+|---|---|---|
+| **Token cost** | 0 | 1+ LLM call |
+| **Latency** | <1ms | 2-10s (load model + generate) |
+| **Battery** | ไม่กินแบต | กิน NPU/CPU มาก |
+| **Offline** | ทำงานได้ทันที | ต้องรอ model load |
+| **Coverage** | 80% common cases | 20% edge cases |
+| **Maintainability** | เพิ่ม regex | เพิ่ม tool definition |
+
+**Architecture ที่ถูกต้องคือ Hybrid:**
+- **Workers** จับ common cases ก่อน (เร็ว ฟรี แน่นอน)
+- **Function Calling / Skill.md** จับ cases ที่ Workers miss (flexible แต่แพง)
+- **Wiki + Memory** เป็นชั้น long-term storage ที่ทั้งสองฝั่งใช้ร่วมกัน
+
+Gemma 4 มี context มากขึ้น → ไม่ได้แปลว่าต้องใช้ LLM ทุกอย่าง แต่แปลว่า **มี budget เหลือสำหรับงานที่ LLM ทำได้ดีจริงๆ** (เช่น contradiction detection, summary generation, link inference)
+
+---
+
+### 5. Action Items จากการวิเคราะห์
+
+| # | งาน | Priority | Effort | LLM tokens |
+|---|---|---|---|---|
+| 1 | Implement graph traversal บน `knowledge_links` | 🔴 High | 1-2 วัน | 0 |
+| 2 | Hybrid search (Vector + FTS5) สำหรับ Wiki | 🟡 Medium | 2-3 วัน | 0 |
+| 3 | Auto-generate knowledge_links ตอนชาร์จ | 🟢 Low | 3-5 วัน | ~100/page |
+| 4 | ศึกษา Mem0 Graph Memory API design pattern | 🟢 Low | 0.5 วัน | 0 (read-only) |
+| 5 | GraphRAG pattern สำหรับ document import (อนาคต) | 🔴 Future | — | — |
 
 ---
 
@@ -725,9 +937,9 @@ tts_engine:
 
 ---
 
-### 5.1 Agent-to-Agent Protocol 🔴 NEW
+### 5.1 Agent-to-Agent Protocol 🟡 (Foundation Done)
 
-**สถานะ:** ยังไม่ implement
+**สถานะ:** Foundation implement แล้ว — transport layer + UI ยังไม่ implement
 **ความยาก:** ⭐⭐⭐⭐⭐
 **Business:** B2B Subscription — Team Delegation Protocol
 
@@ -757,9 +969,14 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 | E2E Encrypted Relay (self-hosted) | ระยะไกลได้ | ต้องการ relay server (operator ไม่เห็น content) |
 | Local Network (LAN) | ออฟฟิศ fast | จำกัด network เดียวกัน |
 
-**งานที่ต้องทำ:**
+**Foundation ที่ทำแล้ว:**
+- [x] `MemoryBundleService` — `exportBundle(categories)` → JSON + `importBundle()` → merge with dedup/conflict flagging
+- [x] `WikiService` — knowledge pages พร้อม confidence score + supersession chain (ส่งผ่าน bundle ได้)
+- [x] DB schema: `knowledge_pages` + `knowledge_links` tables
+
+**งานที่ยังเหลือ:**
 - [ ] `HakuAgentIdentity` — keypair ที่เก็บใน device keystore (Keystore API)
-- [ ] `AgentChannel` — encrypted message format (NaCl/libsodium)
+- [ ] `AgentChannel` — encrypt bundle ด้วย NaCl/libsodium ก่อนส่ง
 - [ ] `MeetingNegotiationProtocol` — request / propose / confirm / decline
 - [ ] Transport layer abstraction — BT / WiFi Direct / relay
 - [ ] `A2AScreen` — UI: ค้นหา Haku user ใกล้เคียง + negotiation status
@@ -870,13 +1087,76 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 ## Phase 6: Haku OS Vision 💡
 
 > **Goal 3:** National Impact — Data Sovereignty
-> ระยะยาว — ยังเป็น concept
+> แผน 3 ปี — Road to Haku OS (The 3-Year Fast Track)
 
-**Phase 6 Concept:**
-- Haku Launcher — แทน Android home screen เป็น "Haku OS"
-- AI Layer ระหว่าง human กับ digital world
-- Thai Data Sovereignty — ข้อมูลอยู่บน device คนไทย ไม่ออก server ต่างชาติ
-- Enterprise Haku — deploy บน device องค์กรที่ควบคุมโดย IT admin
+### 🗺️ 4-Phase OS Roadmap
+
+#### Step 1: The Beachhead — App + Accessibility (เดือนที่ 1–18) ✅ Committed
+> ยึดหัวหาดผ่านแอปพลิเคชัน — นี่คือแผน depa 18 เดือน
+
+- **ระดับเทคโนโลยี:** Haku ยังเป็น "แอปพลิเคชัน" ที่ขอสิทธิ์ Accessibility Service เพื่อทำหน้าที่ Intelligent Assistant
+- **เป้าหมาย:** พิสูจน์ว่า AI ออฟไลน์ 100% ทำงานได้จริง ไม่มโน (LLM Wiki) และ A2A ประสานงานได้
+- **กลยุทธ์:** เจาะ B2B นำร่องผ่านหอการค้าจังหวัดกาฬสินธุ์ เปลี่ยน workflow SME จนขาด Haku ไม่ได้
+
+#### Step 2: The Enterprise Layer — MDM Profile (เดือนที่ 19–24) ✅ Realistic
+> แทรกซึมระดับองค์กร — ก้าวข้ามจากแอปธรรมดาสู่ระบบควบคุมมือถือองค์กร
+
+- **ระดับเทคโนโลยี:** พัฒนา Haku ให้เป็น Mobile Device Management (MDM) Profile
+- **เป้าหมาย:** Haku กลายเป็น "แอปบังคับลง (System-level App)" สำหรับมือถือที่แจกให้พนักงานองค์กร
+- **กลยุทธ์:** นำเสนอ "Haku for Work" ให้องค์กรใหญ่/หน่วยงานรัฐ (กฟภ., โรงพยาบาลรัฐ) — ชูจุดขาย "ข้อมูลความลับองค์กรไม่มีวันรั่วไหล 100%"
+- **Tech:** Android MDM API (standard, ไม่ต้อง AOSP) + Zero Data Leakage USP
+
+#### Step 3: The Strategic OEM Partnership (เดือนที่ 25–36) ⚠️ Ambitious
+> จับมือค่ายมือถือ/Telco — Haku เริ่มฝังตัวลงถึงแกนระบบ
+
+- **ระดับเทคโนโลยี:** นำ AOSP มาดัดแปลง ฝัง SLM + A2A Protocol ระดับแกนกลาง Pre-installed จากโรงงาน
+- **เป้าหมาย:** สร้าง "Sovereign AI Phone" เครื่องแรกของไทย
+- **กลยุทธ์ (Game Changer):** จับมือ Telco (AIS, True) หรือแบรนด์มือถือระดับกลาง (POCO, Infinix) ออกรุ่นพิเศษ "Powered by Haku OS" สำหรับราชการและ B2B Enterprise
+- **Note:** แทนที่จะผลิตมือถือเอง (แพง+เสี่ยง) ให้ partnership เป็นช่องทาง
+
+#### Step 4: True Haku OS (ปีที่ 3–4) 💡 Vision / Moonshot
+> ระบบปฏิบัติการแห่งชาติ — บรรลุวิสัยทัศน์ Data Sovereignty
+
+- **ระดับเทคโนโลยี:** Haku OS แยกจาก Google Services สมบูรณ์ — AI สั่ง NPU โดยตรง (Direct NPU Integration) ทำงาน Proactive 24 ชม. แบตต่ำมาก
+- **เป้าหมาย:** สถาปนา "อธิปไตยข้อมูล (Data Sovereignty)" ให้กับประเทศ
+- **กลยุทธ์:** เปิด Patent + API ให้หน่วยงานอื่นสร้างแอปบน Haku OS → กลายเป็น Platform → Series C / IPO ในฐานะ Alternative OS ของอาเซียน
+
+---
+
+### ❓ Q&A — สิ่งที่ Investor มักถาม
+
+#### 🔋 Haku OS จะ "Power-up" พลัง AI ได้อย่างไร?
+
+| จากแอป (ปัจจุบัน) | จาก OS (เป้าหมาย) |
+|---|---|
+| ประมวลผลผ่านชั้นคัดกรอง Android | **Direct NPU Integration** — AI ฝังตัวกับชิปโดยตรง Zero-Latency |
+| เห็นแค่ข้อความที่ user พิมพ์ | **System-Level Context** — รู้บริบทข้ามทุกแอป (เพิ่งเปิดรูป อ่านอีเมล กำลังแชท) |
+| Knowledge Graph ต่อแอป | **OS-level LLM Wiki** — ทุกแอปรวมสู่ Knowledge Graph ส่วนกลาง |
+
+#### 🔓 ข้อจำกัดที่จะถูกปลดล็อกเมื่อเป็น OS
+
+| ข้อจำกัดปัจจุบัน | สิ่งที่ OS ปลดล็อก |
+|---|---|
+| Android บังคับปิดแอป (Background Kill) | **No More Background Kills** — Haku OS ควบคุม battery เอง, AI standby 24 ชม. ไม่หลุด |
+| ข้อมูลถูกขังแยกแอป (App Silos) | **No App Silos** — ทุกข้อมูลรวมสู่ Knowledge Graph เดียว |
+| Accessibility Service มีความเสี่ยงถูกแฮก | **Absolute Zero Leakage** — Kernel-level architecture บล็อก external data extraction สมบูรณ์ (Air-Gap Capable) |
+
+#### 🚀 Features ที่ OS ปลดล็อกให้
+
+- **System-Wide Pin of Point** — สะกิดเตือนกลางจอทุกแอป เช่น กำลังโอนเงินให้บัญชีแปลกหน้า / พิมพ์ด้วยอารมณ์โกรธใน Line → Haku ป็อปอัปเตือนทันที
+- **Native A2A Protocol** — คล้าย AirDrop สำหรับ AI — แลกเปลี่ยนงานระหว่างเครื่องโดยไม่ต้องเปิดแอปใดๆ
+- **Intent-Based UI (App-less)** — ไม่ต้องเปิดแอป แค่บอกเป้าหมาย Haku จัดการทุกอย่างให้ ไม่สลับหน้าจอ
+
+#### 🔑 Key Success Factors (KSF) ที่ investor อยากได้ยิน
+
+1. **Strategic OEM/Telco Partnership** — จับมือค่ายมือถือ/Telco Pre-install "Sovereign AI Phone" เครื่องแรกของประเทศ
+2. **Killer B2B Ecosystem** — องค์กรมองว่า Haku OS = MDM ที่ปลอดภัยที่สุด ยอมซื้อมือถือ Haku ให้พนักงานทั้งบริษัท
+3. **Developer API** — เปิด API ให้นักพัฒนาสร้าง Skill บน Haku AI → สร้าง Ecosystem ที่แข็งแกร่ง
+
+#### 🌍 Turning Point — จุดเปลี่ยนของยุคสมัย AI
+
+1. **จาก App-Centric สู่ Intent-Centric** — โลกเลิกหมกมุ่นกับการ "เปิดแอป" มือถือเปลี่ยนจาก "Smart Phone (ลงแอปได้)" → "Intelligent Phone (คิดแทนคุณ)"
+2. **ยุคทองของ Data Sovereignty** — เมื่อ AI ระดับโลกทำงานได้โดยไม่ต้องใช้ Internet ผู้คนและองค์กรจะ "เลิกส่งข้อมูลชีวิตตัวเองให้ Big Tech ข้ามชาติ" — Haku นำร่องพิสูจน์ให้โลกเห็น
 
 ---
 
@@ -896,7 +1176,6 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 - **ข้อจำกัด:** DwellTracker ทำงานได้เฉพาะแอพเปิดอยู่ — Phase 5.3 จะแก้
 
 ### UI / UX
-- [x] Haku Crystal Design System (main, nav, chat, home, onboarding, FAB) ✅
+- [x] Haku Crystal Design System — ครบทุก screen (13 screens) ✅
 - [x] `CausticShimmer` widget ✅
 - [x] Entry Mini Map (FlutterMap, OpenStreetMap) ✅
-- [ ] `settings_screen.dart` — ยังไม่ migrate เป็น Haku Crystal

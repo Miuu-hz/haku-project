@@ -90,7 +90,34 @@ class DeferredTaskService {
   /// 🔌 Callback เมื่อเริ่มชาร์จ
   void _onChargingStarted() {
     debugPrint('🔌 Charging started - processing deferred tasks');
+    _enqueueNightlyTasks();
     _processQueue();
+  }
+
+  /// ➕ auto-enqueue nightly maintenance tasks (dedup ด้วย maxAge)
+  Future<void> _enqueueNightlyTasks() async {
+    // memory_consolidation: ทำทุกวัน (maxAge 23h ป้องกัน enqueue ซ้ำ)
+    final alreadyQueued = _taskQueue.any(
+      (t) => t.type == 'memory_consolidation' && t.status == TaskStatus.pending,
+    );
+    if (!alreadyQueued) {
+      await enqueue(
+        taskType: 'memory_consolidation',
+        priority: TaskPriority.normal,
+        maxAge: const Duration(hours: 23),
+      );
+    }
+    // wiki_update: ทำทุกวัน หลัง consolidation
+    final wikiQueued = _taskQueue.any(
+      (t) => t.type == 'wiki_update' && t.status == TaskStatus.pending,
+    );
+    if (!wikiQueued) {
+      await enqueue(
+        taskType: 'wiki_update',
+        priority: TaskPriority.low,
+        maxAge: const Duration(hours: 23),
+      );
+    }
   }
 
   /// ⚙️ ประมวลผลคิว

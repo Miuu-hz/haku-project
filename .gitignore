@@ -27,6 +27,8 @@ android/key.properties
 *.iws
 *.swp
 *.swo
+.claude/
+.github/
 *~
 
 # OS

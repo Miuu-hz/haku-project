@@ -321,7 +321,7 @@ class HakuAuroraBackground extends StatelessWidget {
             decoration: const BoxDecoration(gradient: kFieldGradient),
           ),
         ),
-        // Orbs
+        // Orbs (4 total: cyan, lavender, magenta, lime)
         if (showOrbs)
           Positioned.fill(
             child: LayoutBuilder(
@@ -342,9 +342,14 @@ class HakuAuroraBackground extends StatelessWidget {
                       child: const _AuroraOrb(color: kOrbLavender, size: 380),
                     ),
                     Positioned(
+                      top: h * 0.36,
+                      right: -w * 0.20,
+                      child: const _AuroraOrb(color: kOrbMagenta, size: 260),
+                    ),
+                    Positioned(
                       bottom: -h * 0.10,
-                      left: w * 0.20,
-                      child: const _AuroraOrb(color: kOrbMagenta, size: 280),
+                      left: -w * 0.15,
+                      child: const _AuroraOrb(color: kOrbLime, size: 220),
                     ),
                   ],
                 );
@@ -419,12 +424,13 @@ class HakuGlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Glass Bottom Nav Bar
+// Floating Glass Nav Pill
 // ═══════════════════════════════════════════════════════════════
 
 class HakuGlassNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  // destinations param kept for API compat but not used — labels are hardcoded
   final List<NavigationDestination> destinations;
   const HakuGlassNavBar({
     super.key,
@@ -433,25 +439,199 @@ class HakuGlassNavBar extends StatelessWidget {
     required this.destinations,
   });
 
+  static const _tabs = [
+    (icon: Icons.book_outlined, activeIcon: Icons.book_rounded, label: 'บันทึก'),
+    (icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble_rounded, label: 'Haku AI'),
+    (icon: Icons.settings_outlined, activeIcon: Icons.settings_rounded, label: 'ตั้งค่า'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kRPill),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: kGlassFillStrong,
+            borderRadius: BorderRadius.circular(kRPill),
+            boxShadow: kShadowGlass2,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _tabs.length; i++)
+                _NavPillTab(
+                  icon: _tabs[i].icon,
+                  activeIcon: _tabs[i].activeIcon,
+                  label: _tabs[i].label,
+                  isActive: currentIndex == i,
+                  onTap: () => onTap(i),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavPillTab extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+  const _NavPillTab({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isActive
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF7BEBFF), kCrystal400],
+                )
+              : null,
+          borderRadius: BorderRadius.circular(kRPill),
+          boxShadow: isActive ? kGlowCyan : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive ? activeIcon : icon,
+              size: 20,
+              color: isActive ? kFgOnCyan : kFg3,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: kLabel.copyWith(
+                color: isActive ? kFgOnCyan : kFg3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Crystal Core — breathing animated orb
+// ═══════════════════════════════════════════════════════════════
+
+class HakuCrystalCore extends StatefulWidget {
+  final double size;
+  const HakuCrystalCore({super.key, this.size = 96});
+
+  @override
+  State<HakuCrystalCore> createState() => _HakuCrystalCoreState();
+}
+
+class _HakuCrystalCoreState extends State<HakuCrystalCore>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      duration: const Duration(milliseconds: 1600),
+      vsync: this,
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.94, end: 1.08).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+    _opacity = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Transform.scale(
+          scale: _scale.value,
+          child: _CoreSphere(size: widget.size),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoreSphere extends StatelessWidget {
+  final double size;
+  const _CoreSphere({required this.size});
+
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: size,
+      height: size,
       decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: kGlassEdge, width: 1),
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          center: Alignment(-0.3, -0.4),
+          colors: [
+            Colors.white,
+            kCrystal200,
+            kCrystal400,
+            kCrystal700,
+            kCrystal900,
+          ],
+          stops: [0.0, 0.18, 0.45, 0.80, 1.0],
         ),
+        boxShadow: kGlowCyan,
       ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: NavigationBar(
-            selectedIndex: currentIndex,
-            onDestinationSelected: onTap,
-            backgroundColor: kGlassFillSoft,
-            indicatorColor: kCrystal400.withAlpha(40),
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: destinations,
-          ),
+      child: ClipOval(
+        child: Stack(
+          children: [
+            // Inner highlight (lens flare)
+            Positioned(
+              top: size * 0.06,
+              left: size * 0.10,
+              child: Container(
+                width: size * 0.55,
+                height: size * 0.45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withAlpha(178),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

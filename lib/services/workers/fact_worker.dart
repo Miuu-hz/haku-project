@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
+import '../wiki_service.dart';
 import 'health_doctor.dart' show HealthFact, HealthFactType;
 
 /// 📝 Fact Worker - ตรวจจับและบันทึกข้อมูลจากการสนทนา
@@ -96,6 +99,7 @@ class FactWorker {
         source: message,
       ));
       await _userProfile.setBasicInfo(name: name);
+      unawaited(WikiService().onNewFact(category: 'person', key: name, content: 'Name: $name'));
       debugPrint('📝 FactWorker: Detected name = $name');
     }
 
@@ -109,6 +113,7 @@ class FactWorker {
         source: message,
       ));
       await _userProfile.setBasicInfo(nickname: nickname);
+      unawaited(WikiService().onNewFact(category: 'person', key: nickname, content: 'Nickname: $nickname'));
       debugPrint('📝 FactWorker: Detected nickname = $nickname');
     }
 
@@ -123,6 +128,7 @@ class FactWorker {
           source: message,
         ));
         await _userProfile.addLike(like);
+        unawaited(WikiService().onNewFact(category: 'preference', key: like, content: 'Likes: $like'));
         debugPrint('💚 FactWorker: Detected like = $like');
       }
     }
@@ -138,6 +144,7 @@ class FactWorker {
           source: message,
         ));
         await _userProfile.addDislike(dislike);
+        unawaited(WikiService().onNewFact(category: 'preference', key: dislike, content: 'Dislikes: $dislike'));
         debugPrint('💔 FactWorker: Detected dislike = $dislike');
       }
     }
@@ -152,6 +159,7 @@ class FactWorker {
         source: message,
       ));
       await _userProfile.setBasicInfo(role: role);
+      unawaited(WikiService().onNewFact(category: 'person', key: 'self', content: 'Role: $role'));
       debugPrint('💼 FactWorker: Detected role = $role');
     }
 
@@ -166,11 +174,12 @@ class FactWorker {
           source: message,
         ));
         await _userProfile.addGoal(goal);
+        unawaited(WikiService().onNewFact(category: 'goal', key: goal.substring(0, goal.length.clamp(0, 40)), content: 'Goal: $goal'));
         debugPrint('🎯 FactWorker: Detected goal = $goal');
       }
     }
 
-    // 7. ตรวจจับสถานที่ → บันทึกลง RAG
+    // 7. ตรวจจับสถานที่ → บันทึกลง RAG + Wiki
     final places = _extractPlaces(message);
     for (final place in places) {
       facts.add(ExtractedFact(
@@ -185,10 +194,11 @@ class FactWorker {
         'source': message,
         'date': DateTime.now().toIso8601String(),
       });
+      unawaited(WikiService().onNewFact(category: 'place', key: place.name, content: '${place.name} (${place.sentiment})'));
       debugPrint('📍 FactWorker: Detected place = ${place.name} (${place.sentiment})');
     }
 
-    // 8. ตรวจจับสุขภาพ → บันทึกลง RAG
+    // 8. ตรวจจับสุขภาพ → บันทึกลง RAG + Wiki
     final healthFacts = _extractHealth(message);
     for (final health in healthFacts) {
       facts.add(ExtractedFact(
@@ -202,6 +212,7 @@ class FactWorker {
         'type': health.type.name,
         'date': health.date.toIso8601String(),
       });
+      unawaited(WikiService().onNewFact(category: 'health', key: health.type.name, content: health.value));
       debugPrint('🏥 FactWorker: Detected health = ${health.value}');
     }
 

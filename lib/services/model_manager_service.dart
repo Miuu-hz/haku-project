@@ -105,6 +105,11 @@ class ModelManagerService {
   final Map<String, http.Client> _activeClients = {};
 
   /// ดาวน์โหลดโมเดลจาก URL พร้อม progress callback + cancel support
+  /// 
+  /// รองรับ:
+  /// - HuggingFace (ต้องมี hfToken)
+  /// - Google Drive direct link (ไม่ต้อง login)
+  /// - ลิงก์ตรงทั่วไป
   Future<bool> downloadModel(
     String url,
     String fileName, {
@@ -125,12 +130,58 @@ class ModelManagerService {
       final client = http.Client();
       _activeClients[fileName] = client;
 
-      final request = http.Request('GET', Uri.parse(url));
+      // 🔧 แปลง Google Drive share link → direct download link
+      var downloadUrl = url;
+      String? gdriveFileId;
+      if (url.contains('drive.google.com/file/d/')) {
+        gdriveFileId = RegExp(r'/d/([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1);
+        if (gdriveFileId != null) {
+          // ใช้ endpoint ใหม่ที่ reliable กว่าสำหรับไฟล์ใหญ่
+          downloadUrl = 'https://drive.usercontent.google.com/download?id=$gdriveFileId&export=download&confirm=t';
+          debugPrint('🔧 Converted to Google Drive direct link: $downloadUrl');
+        }
+      }
+
+      final request = http.Request('GET', Uri.parse(downloadUrl));
       if (hfToken != null && hfToken.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $hfToken';
       }
+      // Google Drive ต้องการ User-Agent ที่เหมือน browser ถึงจะไม่ส่ง virus scan
+      request.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
 
-      final response = await client.send(request);
+      var response = await client.send(request);
+
+      // 🔧 Google Drive อาจส่ง 302 redirect → follow ไปจนกว่าจะได้ไฟล์จริง
+      if (downloadUrl.contains('drive.google.com') || downloadUrl.contains('drive.usercontent.google.com')) {
+        var redirectCount = 0;
+        while ((response.statusCode == 302 || response.statusCode == 307) && redirectCount < 5) {
+          final location = response.headers['location'];
+          if (location != null) {
+            debugPrint('🔧 Following redirect #$redirectCount: $location');
+            final redirectReq = http.Request('GET', Uri.parse(location));
+            redirectReq.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+            response = await client.send(redirectReq);
+          }
+          redirectCount++;
+        }
+        // ถ้าเจอ virus scan page (สำหรับไฟล์ใหญ่) → ดึง confirm token แล้วขอใหม่
+        if (response.statusCode == 200) {
+          final contentLen = response.contentLength;
+          if (contentLen != null && contentLen < 1024 * 1024) {
+            debugPrint('🔧 Possible virus scan page (size=$contentLen), checking for confirm token...');
+            final bodyBytes = await response.stream.toBytes();
+            final body = String.fromCharCodes(bodyBytes);
+            final confirmMatch = RegExp(r'confirm=([a-zA-Z0-9_-]+)').firstMatch(body);
+            if (confirmMatch != null && gdriveFileId != null) {
+              final confirmUrl = 'https://drive.usercontent.google.com/download?id=$gdriveFileId&export=download&confirm=${confirmMatch.group(1)}';
+              debugPrint('🔧 Confirming Google Drive download with token...');
+              final confirmReq = http.Request('GET', Uri.parse(confirmUrl));
+              confirmReq.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+              response = await client.send(confirmReq);
+            }
+          }
+        }
+      }
 
       if (response.statusCode == 401) {
         debugPrint('❌ HF auth required — ใส่ Token ใน Settings');

@@ -56,6 +56,9 @@ class LiteRTLMBridge(private val context: Context) {
     // Stateful conversation — เก็บ KV cache ข้ามรอบ (ต่อ session)
     private var currentConversation: Conversation? = null
 
+    // accelerator ที่ใช้อยู่ — CPU / GPU / NPU
+    private var _currentAccelerator: String = "GPU"
+
     val isInitialized: Boolean get() = engine?.isInitialized() ?: false
 
     // ── Model Loading ──────────────────────────────────────────────────────────
@@ -71,9 +74,10 @@ class LiteRTLMBridge(private val context: Context) {
         modelPath: String,
         maxTokens: Int = 1024,
         systemInstruction: String? = null,
+        accelerator: String = "GPU",
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            Log.i(TAG, "📥 กำลังโหลดโมเดล: $modelPath")
+            Log.i(TAG, "📥 กำลังโหลดโมเดล: $modelPath (accelerator=$accelerator)")
 
             if (!File(modelPath).exists()) {
                 Log.e(TAG, "❌ ไม่พบไฟล์โมเดล: $modelPath")
@@ -84,17 +88,26 @@ class LiteRTLMBridge(private val context: Context) {
             _maxTokens = maxTokens
             currentSystemInstruction = systemInstruction
 
+            val backend: Backend = when (accelerator.uppercase()) {
+                "NPU" -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
+                "CPU" -> Backend.CPU()
+                else  -> Backend.GPU()  // default = GPU
+            }
+            Log.i(TAG, "🎯 backend: $accelerator")
+
             val config = EngineConfig(
                 modelPath = modelPath,
-                backend = Backend.GPU(),
+                backend = backend,
                 maxNumTokens = maxTokens,
+                cacheDir = context.getExternalFilesDir(null)?.absolutePath,
             )
 
             engine = Engine(config)
             engine!!.initialize()
 
             currentModelPath = modelPath
-            Log.i(TAG, "✅ โหลดโมเดลสำเร็จ — maxTokens=$maxTokens systemInstruction=${systemInstruction != null}")
+            _currentAccelerator = accelerator.uppercase()
+            Log.i(TAG, "✅ โหลดโมเดลสำเร็จ — backend=$_currentAccelerator maxTokens=$maxTokens")
             true
 
         } catch (e: Exception) {
@@ -152,6 +165,9 @@ class LiteRTLMBridge(private val context: Context) {
         currentConversation?.let { return it }
 
         val eng = engine ?: return null
+        // ปิด session เก่าก่อนสร้างใหม่ (บาง device รองรับแค่ session เดียว)
+        try { currentConversation?.close() } catch (_: Exception) {}
+
         val sampler = SamplerConfig(topK = _topK, topP = _topP, temperature = _temperature, seed = 0)
         val config = ConversationConfig(
             systemInstruction = currentSystemInstruction?.let { Contents.of(it) },
@@ -169,6 +185,10 @@ class LiteRTLMBridge(private val context: Context) {
     /** สร้าง Conversation แบบ one-shot (stateless) — ไม่บันทึกใน currentConversation */
     private fun newOneshotConversation(): Conversation? {
         val eng = engine ?: return null
+        // ปิด conversation เก่าก่อนสร้างใหม่ (engine รองรับ session เดียว)
+        try { currentConversation?.close() } catch (_: Exception) {}
+        currentConversation = null
+
         val sampler = SamplerConfig(topK = _topK, topP = _topP, temperature = _temperature, seed = 0)
         val config = ConversationConfig(
             systemInstruction = currentSystemInstruction?.let { Contents.of(it) },
@@ -242,6 +262,7 @@ class LiteRTLMBridge(private val context: Context) {
         return@withContext try {
             val result = StringBuilder()
             val latch = CountDownLatch(1)
+            var inferenceError: String? = null
 
             conversation.sendMessageAsync(userMessage, object : MessageCallback {
                 override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
@@ -249,15 +270,22 @@ class LiteRTLMBridge(private val context: Context) {
                 }
                 override fun onDone() { latch.countDown() }
                 override fun onError(throwable: Throwable) {
-                    Log.e(TAG, "❌ generateTurn error: ${throwable.message}")
-                    // รีเซ็ต conversation เมื่อ error — state อาจเสีย
-                    resetConversation()
+                    // บันทึก error แล้ว countdown — ห้าม close conversation ใน callback
+                    // เพราะ native session จะไม่ release จนกว่า callback thread จะ return
+                    inferenceError = throwable.message
                     latch.countDown()
                 }
             })
 
             latch.await()
-            result.toString()
+
+            if (inferenceError != null) {
+                Log.e(TAG, "❌ generateTurn error: $inferenceError")
+                resetConversation() // reset หลัง callback เสร็จ → native session release ได้จริง
+                ""
+            } else {
+                result.toString()
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ generateTurn ล้มเหลว: ${e.message}")
@@ -330,8 +358,11 @@ class LiteRTLMBridge(private val context: Context) {
         "initialized"          to isInitialized,
         "modelPath"            to currentModelPath,
         "backend"              to "LiteRT-LM",
+        "accelerator"          to _currentAccelerator,
         "hasSystemInstruction" to (currentSystemInstruction != null),
         "hasActiveSession"     to (currentConversation != null),
-        "status"               to if (isInitialized) "Ready" else "Not loaded",
+        "status"               to if (isInitialized) "Ready ($currentAccelerator)" else "Not loaded",
     )
+
+    private val currentAccelerator get() = _currentAccelerator
 }

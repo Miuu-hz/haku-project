@@ -88,8 +88,25 @@ class TagContextService {
 
   Future<String?> _buildFromChatLog(
       List<String> keywords, String? location) async {
-    final log = SecretChatService().getRecentLog(limit: 40);
+    // ลอง FTS5 ก่อน — เร็วและ ranked
+    if (keywords.isNotEmpty) {
+      final query = keywords.take(3).join(' OR ');
+      final rows = await _db.searchChatFTS(query, limit: 3);
+      if (rows.isNotEmpty) {
+        return rows.map((r) {
+          final ts = DateTime.tryParse(r['timestamp'] as String? ?? '');
+          final d = ts ?? DateTime.now();
+          final loc = r['location'] as String?;
+          final mood = r['mood'] as int?;
+          final locStr = (loc != null && loc.isNotEmpty) ? ' @$loc' : '';
+          final moodStr = mood != null ? ' mood:$mood' : '';
+          return '[${d.day}/${d.month}]$locStr$moodStr ${r['summary_en']}';
+        }).join('\n');
+      }
+    }
 
+    // fallback: in-memory linear scan (ก่อนที่ SQLite จะ populate)
+    final log = SecretChatService().getRecentLog(limit: 40);
     final related = log.where((e) {
       final text = '${e.summaryEn} ${e.tags.join(' ')}'.toLowerCase();
       final tagMatch = keywords.any((k) => text.contains(k.toLowerCase()));

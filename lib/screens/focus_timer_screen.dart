@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../services/focus_timer_service.dart';
 import '../services/workers/goal_worker.dart';
+import '../utils/haku_design_tokens.dart';
 
 /// ⏱️ Focus Timer Screen — Pomodoro + Goal-Linked (Feature 2.13)
 class FocusTimerScreen extends StatefulWidget {
@@ -54,7 +57,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg.toString()),
-        backgroundColor: const Color(0xFF6B4E71),
+        backgroundColor: kLavender500,
         duration: const Duration(seconds: 3),
       ),
     );
@@ -72,54 +75,81 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: _buildAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Column(
-          children: [
-            _buildStreakRow(),
-            const SizedBox(height: 32),
-            _buildTimerRing(),
-            const SizedBox(height: 8),
-            _buildStateLabel(),
-            const SizedBox(height: 24),
-            _buildPomodoroDots(),
-            const SizedBox(height: 8),
-            Text(
-              'วันนี้: ${_timer.totalToday} pomodoro${_timer.totalToday != 1 ? "s" : ""}',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+    return HakuAuroraBackground(
+      children: [
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: _buildAppBar(),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              children: [
+                _buildStreakRow(),
+                const SizedBox(height: 32),
+                _buildTimerRing(),
+                const SizedBox(height: 8),
+                _buildStateLabel(),
+                const SizedBox(height: 24),
+                _buildPomodoroDots(),
+                const SizedBox(height: 8),
+                Text(
+                  'วันนี้: ${_timer.totalToday} pomodoro${_timer.totalToday != 1 ? "s" : ""}',
+                  style: const TextStyle(color: kFg3, fontSize: 13),
+                ),
+                const SizedBox(height: 28),
+                if (_timer.state == FocusState.idle) _buildGoalPicker(),
+                const SizedBox(height: 24),
+                _buildControls(),
+                const SizedBox(height: 32),
+                if (_timer.state == FocusState.idle) _buildGoalProgressList(),
+              ],
             ),
-            const SizedBox(height: 28),
-            if (_timer.state == FocusState.idle) _buildGoalPicker(),
-            const SizedBox(height: 24),
-            _buildControls(),
-            const SizedBox(height: 32),
-            if (_timer.state == FocusState.idle) _buildGoalProgressList(),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  AppBar _buildAppBar() {
-    return AppBar(
-      backgroundColor: const Color(0xFF1A1A2E),
-      title: const Text('Focus Timer'),
-      actions: [
-        if (_timer.currentStreak > 0)
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Chip(
-              label: Text(
-                '🔥 ${_timer.currentStreak} วัน',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-              backgroundColor: const Color(0xFF6B4E71),
+  PreferredSizeWidget _buildAppBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kToolbarHeight),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: AppBar(
+            backgroundColor: kGlassFill,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            iconTheme: const IconThemeData(color: kFg1),
+            title: const Text(
+              'Focus Timer',
+              style: TextStyle(color: kFg1, fontWeight: FontWeight.w600),
             ),
+            actions: [
+              if (_timer.currentStreak > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(kRPill),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: kLavender500.withAlpha(20),
+                      child: Text(
+                        '🔥 ${_timer.currentStreak} วัน',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: kLavender500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 
@@ -136,20 +166,32 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
   }
 
   Widget _statChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2E),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kR3),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: kGlassFill,
+            borderRadius: BorderRadius.circular(kR3),
+            border: Border.all(color: kGlassStroke),
+          ),
+          child: Column(
+            children: [
+              Text(label, style: const TextStyle(color: kFg3, fontSize: 11)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: kFg1,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -159,10 +201,10 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
     final isBreak = _timer.state == FocusState.shortBreak ||
         _timer.state == FocusState.longBreak;
     final color = isFocusing
-        ? const Color(0xFF9B7CB6)
+        ? kLavender500
         : isBreak
-            ? const Color(0xFF4CAF50)
-            : Colors.white24;
+            ? kVividMint
+            : kFg1.withAlpha(50);
 
     return SizedBox(
       width: 220,
@@ -176,7 +218,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
             child: CircularProgressIndicator(
               value: _timer.state == FocusState.idle ? 0 : _timer.progress,
               strokeWidth: 10,
-              backgroundColor: const Color(0xFF2A2A3E),
+              backgroundColor: kFg1.withAlpha(20),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -186,7 +228,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
               Text(
                 _timer.formattedTime,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: kFg1,
                   fontSize: 52,
                   fontWeight: FontWeight.w300,
                   letterSpacing: 2,
@@ -197,8 +239,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     '${_timer.selectedGoal!.category.emoji} ${_timer.selectedGoal!.title}',
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: kFg3, fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -212,7 +253,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
   Widget _buildStateLabel() {
     return Text(
       _timer.stateLabel,
-      style: const TextStyle(color: Colors.white70, fontSize: 15),
+      style: const TextStyle(color: kFg2, fontSize: 15),
     );
   }
 
@@ -229,8 +270,8 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
             height: 14,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: filled ? const Color(0xFF9B7CB6) : const Color(0xFF2A2A3E),
-              border: Border.all(color: const Color(0xFF9B7CB6), width: 1.5),
+              color: filled ? kLavender500 : kFg1.withAlpha(20),
+              border: Border.all(color: kLavender500, width: 1.5),
             ),
           ),
         );
@@ -240,16 +281,23 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
 
   Widget _buildGoalPicker() {
     if (_activeGoals.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2E),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Text(
-          'ยังไม่มีเป้าหมาย — บอก Haku ว่าอยากทำอะไรในแชทก่อนนะคะ',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
-          textAlign: TextAlign.center,
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(kR3),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kGlassFill,
+              borderRadius: BorderRadius.circular(kR3),
+              border: Border.all(color: kGlassStroke),
+            ),
+            child: const Text(
+              'ยังไม่มีเป้าหมาย — บอก Haku ว่าอยากทำอะไรในแชทก่อนนะคะ',
+              style: TextStyle(color: kFg3, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
       );
     }
@@ -259,53 +307,60 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
       children: [
         const Text(
           'Focus เพื่อเป้าหมายไหน?',
-          style: TextStyle(color: Colors.white70, fontSize: 14),
+          style: TextStyle(color: kFg2, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E2E),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButton<Goal?>(
-            value: _timer.selectedGoal,
-            isExpanded: true,
-            dropdownColor: const Color(0xFF1E1E2E),
-            underline: const SizedBox(),
-            hint: const Text('ไม่ระบุ (focus ทั่วไป)',
-                style: TextStyle(color: Colors.white38)),
-            items: [
-              const DropdownMenuItem<Goal?>(
-                value: null,
-                child: Text('ไม่ระบุ',
-                    style: TextStyle(color: Colors.white54)),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(kR3),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: kGlassFill,
+                borderRadius: BorderRadius.circular(kR3),
+                border: Border.all(color: kGlassStroke),
               ),
-              ..._activeGoals.map(
-                (g) => DropdownMenuItem<Goal?>(
-                  value: g,
-                  child: Row(
-                    children: [
-                      Text(g.category.emoji),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          g.title,
-                          style: const TextStyle(color: Colors.white),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (g.target != null)
-                        Text(
-                          '${g.progress}/${g.target!.amount}',
-                          style: const TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
-                    ],
+              child: DropdownButton<Goal?>(
+                value: _timer.selectedGoal,
+                isExpanded: true,
+                dropdownColor: kFieldTop,
+                underline: const SizedBox(),
+                hint: const Text('ไม่ระบุ (focus ทั่วไป)',
+                    style: TextStyle(color: kFg4)),
+                items: [
+                  const DropdownMenuItem<Goal?>(
+                    value: null,
+                    child: Text('ไม่ระบุ',
+                        style: TextStyle(color: kFg3)),
                   ),
-                ),
+                  ..._activeGoals.map(
+                    (g) => DropdownMenuItem<Goal?>(
+                      value: g,
+                      child: Row(
+                        children: [
+                          Text(g.category.emoji),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              g.title,
+                              style: const TextStyle(color: kFg1),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (g.target != null)
+                            Text(
+                              '${g.progress}/${g.target!.amount}',
+                              style: const TextStyle(color: kFg4, fontSize: 12),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: (goal) => setState(() => _timer.selectGoal(goal)),
               ),
-            ],
-            onChanged: (goal) => setState(() => _timer.selectGoal(goal)),
+            ),
           ),
         ),
       ],
@@ -322,7 +377,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
           IconButton(
             onPressed: () => setState(() => _timer.reset()),
             icon: const Icon(Icons.stop_rounded),
-            color: Colors.white38,
+            color: kFg4,
             iconSize: 32,
             tooltip: 'รีเซ็ต',
           ),
@@ -344,7 +399,8 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
                 }
               });
             },
-            backgroundColor: const Color(0xFF9B7CB6),
+            backgroundColor: kLavender500,
+            foregroundColor: Colors.white,
             child: Icon(
               state == FocusState.idle
                   ? Icons.play_arrow_rounded
@@ -363,7 +419,7 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
           IconButton(
             onPressed: () => _timer.skip(),
             icon: const Icon(Icons.skip_next_rounded),
-            color: Colors.white38,
+            color: kFg4,
             iconSize: 32,
             tooltip: 'ข้าม',
           ),
@@ -378,11 +434,11 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12),
+        Divider(color: kFg1.withAlpha(20)),
         const SizedBox(height: 8),
         const Text(
           'ความคืบหน้าเป้าหมาย',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
+          style: TextStyle(color: kFg3, fontSize: 13),
         ),
         const SizedBox(height: 10),
         ..._activeGoals.take(4).map(_buildGoalTile),
@@ -406,14 +462,14 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
               Expanded(
                 child: Text(
                   goal.title,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  style: const TextStyle(color: kFg2, fontSize: 13),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (hasTarget)
                 Text(
                   '${goal.progress}/${goal.target!.amount} ${goal.target!.unit}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  style: const TextStyle(color: kFg4, fontSize: 12),
                 ),
             ],
           ),
@@ -421,9 +477,8 @@ class _FocusTimerScreenState extends State<FocusTimerScreen> {
             const SizedBox(height: 4),
             LinearProgressIndicator(
               value: percent,
-              backgroundColor: const Color(0xFF2A2A3E),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFF9B7CB6)),
+              backgroundColor: kFg1.withAlpha(20),
+              valueColor: const AlwaysStoppedAnimation<Color>(kLavender500),
               minHeight: 4,
               borderRadius: BorderRadius.circular(2),
             ),

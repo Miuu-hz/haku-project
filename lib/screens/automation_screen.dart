@@ -100,57 +100,60 @@ class _AutomationScreenState extends ConsumerState<AutomationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(gradient: kFieldGradient),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: HakuGlassAppBar(
-          title: const Text('Automation'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.help_outline, color: kFg3),
-              tooltip: 'เกี่ยวกับ Automation',
-              onPressed: _showInfoDialog,
-            ),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: [
-            // 📌 Banner
-            _buildBanner(),
-            const SizedBox(height: 20),
+    return HakuAuroraBackground(
+      children: [
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: HakuGlassAppBar(
+            title: const Text('Automation'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.help_outline, color: kFg3),
+                tooltip: 'เกี่ยวกับ Automation',
+                onPressed: _showInfoDialog,
+              ),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            children: [
+              // 📌 Banner
+              _buildBanner(),
+              const SizedBox(height: 20),
 
-            // 🥇 Gold Ticker
-            _buildAutomationCard(
-              emoji: '🥇',
-              title: 'Gold Ticker',
-              subtitle: 'ส่งราคาทองสุ่มเข้าแชท',
-              interval: '1Hr',
-              enabled: _goldEnabled,
-              onToggle: (v) => setState(() => _goldEnabled = v),
-              onRun: _goldEnabled ? _runGoldTicker : null,
-            ),
-            const SizedBox(height: 12),
+              // 🥇 Gold Ticker
+              _buildAutomationCard(
+                emoji: '🥇',
+                title: 'Gold Ticker',
+                subtitle: 'ส่งราคาทองสุ่มเข้าแชท',
+                interval: '1Hr',
+                enabled: _goldEnabled,
+                onToggle: (v) => setState(() => _goldEnabled = v),
+                onRun: _goldEnabled ? _runGoldTicker : null,
+              ),
+              const SizedBox(height: 12),
 
-            // 📈 Stock Ticker
-            _buildAutomationCard(
-              emoji: '📈',
-              title: 'Stock Ticker',
-              subtitle: 'ส่งราคาหุ้น 3 ตัวสุ่มเข้าแชท',
-              interval: '1Hr',
-              enabled: _stockEnabled,
-              onToggle: (v) => setState(() => _stockEnabled = v),
-              onRun: _stockEnabled ? _runStockTicker : null,
-            ),
-          ],
+              // 📈 Stock Ticker
+              _buildAutomationCard(
+                emoji: '📈',
+                title: 'Stock Ticker',
+                subtitle: 'ส่งราคาหุ้น 3 ตัวสุ่มเข้าแชท',
+                interval: '1Hr',
+                enabled: _stockEnabled,
+                onToggle: (v) => setState(() => _stockEnabled = v),
+                onRun: _stockEnabled ? _runStockTicker : null,
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton(
+            tooltip: 'เพิ่ม Automation',
+            onPressed: _showComingSoonSnackbar,
+            backgroundColor: kCrystal400,
+            foregroundColor: kFgOnCyan,
+            child: const Icon(Icons.add),
+          ),
         ),
-        floatingActionButton: FloatingActionButton(
-          tooltip: 'เพิ่ม Automation',
-          onPressed: _showComingSoonSnackbar,
-          child: const Icon(Icons.add),
-        ),
-      ),
+      ],
     );
   }
 

@@ -80,11 +80,11 @@ class _LockScreenState extends State<LockScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: const BoxDecoration(gradient: kFieldGradient),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: SafeArea(
+  Widget build(BuildContext context) => HakuAuroraBackground(
+        children: [
+          Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
@@ -220,5 +220,6 @@ class _LockScreenState extends State<LockScreen>
             ),
           ),
         ),
-      );
+      ],
+    );
 }

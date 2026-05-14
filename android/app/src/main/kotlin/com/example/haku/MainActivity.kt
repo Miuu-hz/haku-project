@@ -201,19 +201,21 @@ class MainActivity: FlutterFragmentActivity() {
                         val modelPath = call.argument<String>("modelPath")
                         val maxTokens = call.argument<Int>("maxTokens") ?: 1024
                         val systemInstruction = call.argument<String>("systemInstruction")
+                        val accelerator = call.argument<String>("accelerator") ?: "GPU"
 
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
                             return@setMethodCallHandler
                         }
 
-                        Log.i(TAG, "📥 Loading LiteRT-LM model: $modelPath")
+                        Log.i(TAG, "📥 Loading LiteRT-LM model: $modelPath (accelerator=$accelerator)")
 
                         CoroutineScope(Dispatchers.Main).launch {
                             val success = llmBridge.loadModel(
                                 modelPath = modelPath,
                                 maxTokens = maxTokens,
                                 systemInstruction = systemInstruction,
+                                accelerator = accelerator,
                             )
                             result.success(success)
                         }
