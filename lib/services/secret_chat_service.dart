@@ -4,9 +4,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/entry.dart';
 import 'database_helper.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
+import 'rag_service.dart';
 import 'wiki_service.dart';
 
 /// 🤫 Secret Chat Service
@@ -66,6 +68,8 @@ class SecretChatService {
       _log.add(entry);
       if (_log.length > _maxEntries) _log.removeAt(0);
       await _persist();
+      // index ลง RAGService เพื่อให้ future trigger/query ค้นเจอ (fire-and-forget)
+      unawaited(_indexIntoRag(entry));
       // feed tags + location → WikiService knowledge pages (fire-and-forget)
       final wiki = WikiService();
       for (final tag in entry.tags) {
@@ -136,6 +140,26 @@ class SecretChatService {
     );
   }
 
+
+  /// Index EnglishLogEntry เข้า RAGService
+  /// สร้าง Entry จริงใน entries table เพื่อให้ search() ของ RAGService look up ได้
+  Future<void> _indexIntoRag(EnglishLogEntry logEntry) async {
+    try {
+      final entry = Entry(
+        content: logEntry.summaryEn,
+        createdAt: logEntry.timestamp,
+        locationName: logEntry.location,
+        mood: logEntry.mood,
+        tags: logEntry.tags,
+      );
+      final entryId = await DatabaseHelper.instance.createEntry(entry);
+      final rag = RAGService();
+      await rag.initialize();
+      await rag.indexEntry(entry.copyWith(id: entryId));
+    } catch (e) {
+      debugPrint('⚠️ SecretChatService: RAG index failed (non-fatal): $e');
+    }
+  }
 
   Future<void> _persist() async {
     try {

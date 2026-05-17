@@ -50,7 +50,6 @@ desktop.ini
 hive/
 
 # Large model files (LLM weights)
-*.gguf
 *.onnx
 *.tflite
 *.pt
@@ -86,9 +85,8 @@ npm-debug.log
 yarn-error.log
 package-lock.json
 
-# Native libraries (prebuilt — re-downloadable จาก llama.rn)
+# Native libraries (prebuilt — re-downloadable จาก LiteRT)
 android/app/src/main/jniLibs/
-**/libggml-htp*.so
 
 # Firebase
 android/app/google-services.json

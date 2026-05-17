@@ -5,12 +5,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'screens/lock_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/onboarding_screen.dart';
+
 import 'services/background_task_service.dart';
+import 'services/battery_optimization_service.dart';
 import 'services/biometric_service.dart';
 import 'services/encryption_service.dart';
+import 'services/llm_service.dart';
+import 'services/mvp_trigger_service.dart';
+import 'services/notification_service.dart';
+import 'services/rag_service.dart';
+import 'services/triggers/charging_trigger.dart';
+import 'services/unified_vector_service.dart';
+import 'services/user_profile_service.dart';
 import 'services/widget_service.dart';
 import 'utils/haku_design_tokens.dart';
 
@@ -46,6 +59,111 @@ void main() async {
       child: HakuApp(),
     ),
   );
+}
+
+/// 🔌 Background Entry Point — รันจาก HakuForegroundService (Kotlin) เมื่อชาร์จ
+/// ไม่ได้รัน main() / runApp() แต่รัน isolate แยกสำหรับประมวลผลเบื้องหลัง
+@pragma('vm:entry-point')
+void chargingBackgroundMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  const channel = MethodChannel('com.example.haku/foreground');
+  channel.setMethodCallHandler((call) async {
+    if (call.method == 'chargingConnected') {
+      debugPrint('🔌 [BG] chargingConnected event received');
+      await _runChargingBackgroundProcess();
+    }
+    return null;
+  });
+
+  // รอรับ event (service จะ invokeMethod มาที่นี่)
+  debugPrint('🔌 [BG] chargingBackgroundMain ready — waiting for events');
+}
+
+/// 🧠 รัน charging-time processing ใน background isolate
+Future<void> _runChargingBackgroundProcess() async {
+  try {
+    debugPrint('🌙 [BG] Starting end-of-day background processing...');
+
+    // Initialize services (background-safe)
+    final vectorService = UnifiedVectorService();
+    await vectorService.initialize();
+
+    final ragService = RAGService();
+    await ragService.initialize();
+
+    final userProfile = UserProfileService();
+    await userProfile.initialize();
+
+    // 🧠 โหลด SLM
+    final llmService = LLMService();
+    final slmAvailable = await llmService.beginBackgroundSession();
+    debugPrint(slmAvailable ? '🧠 [BG] SLM loaded' : '⚠️ [BG] SLM not available');
+
+    // รัน ChargingTrigger
+    final trigger = ChargingTrigger(
+      batteryService: null,
+      vectorService: vectorService,
+      ragService: ragService,
+      userProfile: userProfile,
+      onTrigger: (event) async {
+        debugPrint('🔔 [BG] Trigger: ${event.type.name} — ${event.message}');
+        // แสดง notification ผ่าน flutter_local_notifications
+        await _showBgNotification(event);
+      },
+    );
+
+    await trigger.processEndOfDay(llmService: slmAvailable ? llmService : null);
+
+    if (slmAvailable) await llmService.endBackgroundSession();
+
+    debugPrint('✅ [BG] Charging process complete');
+  } catch (e, st) {
+    debugPrint('❌ [BG] Charging process failed: $e');
+    debugPrint(st.toString());
+  }
+}
+
+Future<void> _showBgNotification(ChargingTriggerEvent event) async {
+  try {
+    // เก็บ ragContext ไว้ใน SharedPreferences เพื่อให้ foreground อ่านตอน notification tap
+    if (event.ragContext != null && event.ragContext!.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pending_charging_rag_context', event.ragContext!);
+    }
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+    );
+    await plugin.show(
+      200 + event.type.index,
+      'Haku — ${_chargingEventTitle(event.type)}',
+      event.message,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'haku_proactive_triggers',
+          'Haku Proactive',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+        ),
+      ),
+      payload: 'charging:${event.type.name}',
+    );
+    debugPrint('📱 [BG] Notification shown: ${event.message}');
+  } catch (e) {
+    debugPrint('⚠️ [BG] Failed to show notification: $e');
+  }
+}
+
+String _chargingEventTitle(ChargingTriggerType type) {
+  switch (type) {
+    case ChargingTriggerType.morningNotification: return 'สวัสดีตอนเช้า ☀️';
+    case ChargingTriggerType.endOfDaySummary:     return 'สรุปวันนี้ 🌙';
+    case ChargingTriggerType.healthAnalysis:      return 'สุขภาพ 💊';
+  }
 }
 
 /// 🎨 ธีมหลักของแอพ — Haku Crystal (light aurora + glass)
@@ -228,6 +346,7 @@ class _AppEntryPointState extends State<AppEntryPoint>
   DateTime? _lastActiveTime;
   Timer? _lockTimer;
   String? _pendingWidgetQuestion;
+  StreamSubscription<TriggerEvent>? _triggerSub;
 
   @override
   void initState() {
@@ -252,12 +371,23 @@ class _AppEntryPointState extends State<AppEntryPoint>
       _isLocked = hasKey && _biometricEnabled; // ล็อกถ้ามี key และเปิด biometric
       _isLoading = false;
     });
+
+    // เริ่ม notification + trigger service ที่ root level (ไม่ block UI)
+    _initBackgroundServices();
+
+    // 🔋 ขอสิทธิ์ไม่ให้ Android optimize battery (หลัง onboarding)
+    if (hasKey) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _requestBatteryOptimization();
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _lockTimer?.cancel();
+    _triggerSub?.cancel();
     super.dispose();
   }
 
@@ -300,6 +430,39 @@ class _AppEntryPointState extends State<AppEntryPoint>
 
     if (shouldLock && mounted) {
       setState(() => _isLocked = true);
+    }
+  }
+
+  /// 🔔 เริ่ม background services หลัง UI ready
+  /// — notification channel + MVPTrigger timer
+  /// — root subscription → notification ทุกครั้งที่ trigger fire
+  Future<void> _initBackgroundServices() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+
+      final triggerService = MVPTriggerService();
+      await triggerService.initialize();
+
+      _triggerSub = triggerService.triggerStream.listen((event) {
+        notificationService.showTriggerNotification(event);
+      });
+
+      debugPrint('✅ Root-level trigger service initialized');
+    } catch (e) {
+      debugPrint('⚠️ Background services init failed (non-fatal): $e');
+    }
+  }
+
+  /// 🔋 ขอสิทธิ์ ignore battery optimizations
+  Future<void> _requestBatteryOptimization() async {
+    try {
+      final status = await BatteryOptimizationService().checkStatus();
+      if (!status.isIgnoringBatteryOptimizations && mounted) {
+        await BatteryOptimizationService().ensurePermission(context);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Battery optimization request failed: $e');
     }
   }
 

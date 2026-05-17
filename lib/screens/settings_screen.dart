@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'automation_screen.dart';
 import '../models/llm_model_config.dart';
+import '../services/background_task_service.dart';
 import '../utils/haku_design_tokens.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
@@ -89,6 +90,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isBenchmarking = false;
   String? _benchmarkResult;
 
+  // Proactive AI toggles
+  bool _proactiveMorningEnabled = true;
+  bool _proactiveEveningEnabled = true;
+  bool _proactiveLocationEnabled = true;
+  bool _proactiveChargingEnabled = true;
+
   // Google Calendar
   final _googleAuth = GoogleAuthService();
   bool _googleSignedIn = false;
@@ -168,9 +175,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     await _scanLocalModels();
 
+    // Load proactive AI settings
+    final proactiveMorning = prefs.getBool('proactive_morning_enabled') ?? true;
+    final proactiveEvening = prefs.getBool('proactive_evening_enabled') ?? true;
+    final proactiveLocation = prefs.getBool('proactive_location_enabled') ?? true;
+    final proactiveCharging = prefs.getBool('proactive_charging_enabled') ?? true;
+
     setState(() {
       _customLlmPath = savedPath;
       _modelValidation = validation;
+      _proactiveMorningEnabled = proactiveMorning;
+      _proactiveEveningEnabled = proactiveEvening;
+      _proactiveLocationEnabled = proactiveLocation;
+      _proactiveChargingEnabled = proactiveCharging;
       _googleSignedIn = _googleAuth.isSignedIn;
       _isLoading = false;
     });
@@ -726,6 +743,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(),
 
+          // 🔔 ส่วน Proactive AI
+          _buildSectionHeader('🔔 Proactive AI'),
+          _buildProactiveSection(),
+
+          const Divider(),
+
           // 🪪 ส่วนโปรไฟล์ผู้ใช้
           _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
 
@@ -839,6 +862,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
   ],
   );
+  }
+
+  // ─── Proactive AI Handlers ──────────────────────────────────────
+
+  Future<void> _toggleProactiveMorning(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('proactive_morning_enabled', value);
+    setState(() => _proactiveMorningEnabled = value);
+    await BackgroundTaskService.cancelDailyTriggers();
+    await BackgroundTaskService.scheduleDailyTriggers();
+  }
+
+  Future<void> _toggleProactiveEvening(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('proactive_evening_enabled', value);
+    setState(() => _proactiveEveningEnabled = value);
+    await BackgroundTaskService.cancelDailyTriggers();
+    await BackgroundTaskService.scheduleDailyTriggers();
+  }
+
+  Future<void> _toggleProactiveLocation(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('proactive_location_enabled', value);
+    setState(() => _proactiveLocationEnabled = value);
+  }
+
+  Future<void> _toggleProactiveCharging(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('proactive_charging_enabled', value);
+    setState(() => _proactiveChargingEnabled = value);
+  }
+
+  Widget _buildProactiveSection() {
+    return Column(
+      children: [
+        SwitchListTile(
+          secondary: const Icon(Icons.wb_sunny_outlined, color: _kSCrystal),
+          title: const Text('แจ้งเตือนตอนเช้า (09:00)',
+              style: TextStyle(color: _kSTextMain)),
+          subtitle: const Text('Agenda + สภาพอากาศ ทุกเช้า',
+              style: TextStyle(color: _kSTextSub, fontSize: 12)),
+          value: _proactiveMorningEnabled,
+          activeThumbColor: _kSCrystal,
+          onChanged: _toggleProactiveMorning,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.nightlight_round, color: _kSLavender),
+          title: const Text('สรุปตอนเย็น (20:00)',
+              style: TextStyle(color: _kSTextMain)),
+          subtitle: const Text('สรุปวันนี้ + เตรียมพรุ่งนี้',
+              style: TextStyle(color: _kSTextSub, fontSize: 12)),
+          value: _proactiveEveningEnabled,
+          activeThumbColor: _kSCrystal,
+          onChanged: _toggleProactiveEvening,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.location_on_outlined, color: _kSCrystal),
+          title: const Text('Trigger จาก GPS',
+              style: TextStyle(color: _kSTextMain)),
+          subtitle: const Text('ถามความรู้สึกเมื่อออกจากสถานที่ใหม่',
+              style: TextStyle(color: _kSTextSub, fontSize: 12)),
+          value: _proactiveLocationEnabled,
+          activeThumbColor: _kSCrystal,
+          onChanged: _toggleProactiveLocation,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.bolt, color: _kSLavender),
+          title: const Text('ประมวลผลเมื่อชาร์จ',
+              style: TextStyle(color: _kSTextMain)),
+          subtitle: const Text('รวบรวม memory + RAG เมื่อเสียบชาร์จ',
+              style: TextStyle(color: _kSTextSub, fontSize: 12)),
+          value: _proactiveChargingEnabled,
+          activeThumbColor: _kSCrystal,
+          onChanged: _toggleProactiveCharging,
+        ),
+      ],
+    );
   }
 
   Widget _buildSectionHeader(String title) => Padding(
@@ -1016,7 +1116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _clearCustomLlmPath() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('llama_model_path');
+    await prefs.remove(StorageKeys.customLlmModelPath);
     setState(() {
       _customLlmPath = null;
       _modelValidation = null;

@@ -15,7 +15,7 @@ import 'package:timezone/timezone.dart' as tz;
 /// ทำงานได้แม้แอพปิด (AlarmManager-based, ไม่ขึ้นกับ Flutter engine)
 /// ข้อมูล calendar อ่านจาก SharedPreferences 'calendar_events'
 
-const _kNotifChannel = 'haku_triggers';
+const _kNotifChannel = 'haku_proactive_triggers';
 const _kMorningId = 901;
 const _kEveningId = 902;
 const _kCalendarKey = 'calendar_events';
@@ -46,15 +46,45 @@ class BackgroundTaskService {
     debugPrint('✅ BackgroundTaskService initialized');
   }
 
+  /// ยกเลิก morning + evening alarms และ reset idempotency guard
+  static Future<void> cancelDailyTriggers() async {
+    await _plugin.cancel(_kMorningId);
+    await _plugin.cancel(_kEveningId);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('last_scheduled_daily_triggers');
+    debugPrint('⏰ Daily triggers cancelled');
+  }
+
   /// Schedule morning (09:00) + evening (20:00) daily repeating notifications
+  /// Idempotent: ถ้าเคย schedule แล้วจะ skip
+  /// เคารพ proactive_morning_enabled / proactive_evening_enabled จาก SharedPreferences
   static Future<void> scheduleDailyTriggers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastScheduled = prefs.getInt('last_scheduled_daily_triggers') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // ถ้าเคย schedule ภายใน 1 ชั่วโมงที่ผ่านมา → skip (idempotent)
+    if (now - lastScheduled < 3600000) {
+      debugPrint('⏰ Daily triggers already scheduled (within 1 hour)');
+      return;
+    }
+
+    final morningEnabled = prefs.getBool('proactive_morning_enabled') ?? true;
+    final eveningEnabled = prefs.getBool('proactive_evening_enabled') ?? true;
+
+    if (!morningEnabled && !eveningEnabled) {
+      await prefs.setInt('last_scheduled_daily_triggers', now);
+      debugPrint('⏰ Daily triggers skipped (both disabled)');
+      return;
+    }
+
     final morningBody = await _buildMorningBody();
     final eveningBody = await _buildEveningBody();
 
     const notifDetails = NotificationDetails(
       android: AndroidNotificationDetails(
         _kNotifChannel,
-        'Haku Triggers',
+        'Haku Proactive',
         channelDescription: 'แจ้งเตือนตามเวลาจาก Haku',
         importance: Importance.high,
         priority: Priority.high,
@@ -62,32 +92,37 @@ class BackgroundTaskService {
     );
 
     // Morning 09:00
-    await _plugin.zonedSchedule(
-      _kMorningId,
-      'สวัสดีตอนเช้า ☀️',
-      morningBody,
-      _nextInstanceOf(9, 0),
-      notifDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    if (morningEnabled) {
+      await _plugin.zonedSchedule(
+        _kMorningId,
+        'สวัสดีตอนเช้า ☀️',
+        morningBody,
+        _nextInstanceOf(9, 0),
+        notifDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
 
     // Evening 20:00
-    await _plugin.zonedSchedule(
-      _kEveningId,
-      'เย็นแล้ว 🌙',
-      eveningBody,
-      _nextInstanceOf(20, 0),
-      notifDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    if (eveningEnabled) {
+      await _plugin.zonedSchedule(
+        _kEveningId,
+        'เย็นแล้ว 🌙',
+        eveningBody,
+        _nextInstanceOf(20, 0),
+        notifDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
 
-    debugPrint('⏰ Daily triggers scheduled: 09:00 + 20:00');
+    await prefs.setInt('last_scheduled_daily_triggers', now);
+    debugPrint('⏰ Daily triggers scheduled: morning=$morningEnabled evening=$eveningEnabled');
   }
 
   /// คำนวณ TZDateTime ถัดไปสำหรับเวลาที่กำหนด (local time → UTC TZDateTime)
@@ -117,7 +152,7 @@ class BackgroundTaskService {
   static const _kFocusDetails = NotificationDetails(
     android: AndroidNotificationDetails(
       _kNotifChannel,
-      'Haku Triggers',
+      'Haku Proactive',
       channelDescription: 'แจ้งเตือนตามเวลาจาก Haku',
       importance: Importance.high,
       priority: Priority.high,

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'context_retriever.dart';
 import 'database_helper.dart';
@@ -41,8 +42,12 @@ class MVPTriggerService {
   final Set<String> _triggeredToday = {};
   DateTime? _lastTriggerDate;
 
-  // Callback เมื่อมี Trigger
+  // Callback เมื่อมี Trigger (legacy — ใช้ triggerStream แทนถ้าต้องการ multi-subscriber)
   void Function(TriggerEvent)? onTrigger;
+
+  // Broadcast stream — subscribe ได้จากหลาย widget พร้อมกัน
+  final _triggerController = StreamController<TriggerEvent>.broadcast();
+  Stream<TriggerEvent> get triggerStream => _triggerController.stream;
 
   /// สถานะการติดตามตำแหน่ง
   bool get isLocationTrackingEnabled => _locationTrackingEnabled;
@@ -339,6 +344,12 @@ class MVPTriggerService {
     String? message,
     String? location,
   }) async {
+    // ตรวจสอบ flag ก่อนยิง location-based triggers
+    if (type == TriggerType.locationRevisit || type == TriggerType.placeFeedback) {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool('proactive_location_enabled') ?? true)) return;
+    }
+
     // ดึง Context สำหรับ trigger นี้
     final context = await ContextRetriever().retrieveFullContext(
       currentTime: DateTime.now(),
@@ -356,9 +367,10 @@ class MVPTriggerService {
       quickReplyOptions: quickReplyOptions,
     );
     
-    // เรียก callback
+    // เรียก callback (legacy) + emit ออก stream
     onTrigger?.call(event);
-    
+    if (!_triggerController.isClosed) _triggerController.add(event);
+
     debugPrint('🔔 Trigger fired: ${type.name} - $message');
   }
 
@@ -413,6 +425,7 @@ class MVPTriggerService {
     _locationSubscription = null;
     _isInitialized = false;
     _triggeredToday.clear();
+    if (!_triggerController.isClosed) _triggerController.close();
     debugPrint('🧹 MVP Trigger Service disposed');
   }
 

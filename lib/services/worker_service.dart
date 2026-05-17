@@ -159,59 +159,65 @@ class WorkerService {
   // ============================================================
 
   /// 🔄 Run full batch process
-  Future<void> runBatchProcess() async {
+  /// [backgroundMode] — ถ้า true จะไม่เรียก UI callbacks (ใช้ในพื้นหลัง)
+  Future<void> runBatchProcess({bool backgroundMode = false}) async {
     if (_isProcessing) {
       debugPrint('⚠️ Worker already processing');
       return;
     }
 
-    if (!_batteryService.isChargingOrFull) {
+    if (!backgroundMode && !_batteryService.isChargingOrFull) {
       debugPrint('🔋 Not charging, skipping batch process');
       return;
     }
 
     _isProcessing = true;
-    onStatusChanged?.call('Starting batch process...');
+    if (!backgroundMode) {
+      onStatusChanged?.call('Starting batch process...');
+    }
 
     try {
       // 1. Summarize chat history
-      onStatusChanged?.call('Summarizing conversations...');
-      onProgressChanged?.call(0.2);
+      _reportStatus('Summarizing conversations...', 0.2, backgroundMode);
       await _summarizeChat();
 
       // 2. Process pending topics
-      onStatusChanged?.call('Processing topics...');
-      onProgressChanged?.call(0.4);
+      _reportStatus('Processing topics...', 0.4, backgroundMode);
       await _processTopics();
 
       // 3. Extract user facts
-      onStatusChanged?.call('Extracting facts...');
-      onProgressChanged?.call(0.6);
+      _reportStatus('Extracting facts...', 0.6, backgroundMode);
       await _extractFacts();
 
       // 4. Vectorize topics
-      onStatusChanged?.call('Building search index...');
-      onProgressChanged?.call(0.7);
+      _reportStatus('Building search index...', 0.7, backgroundMode);
       await _vectorizeTopics();
 
       // 5. Translate entries (Thai → English)
-      onStatusChanged?.call('Translating entries...');
-      onProgressChanged?.call(0.85);
+      _reportStatus('Translating entries...', 0.85, backgroundMode);
       await _translateEntries();
 
       // 6. Process deferred tasks
-      onStatusChanged?.call('Processing deferred tasks...');
-      onProgressChanged?.call(0.95);
+      _reportStatus('Processing deferred tasks...', 0.95, backgroundMode);
       await _deferredService.forceProcess();
 
-      onStatusChanged?.call('Batch process complete!');
-      onProgressChanged?.call(1.0);
+      _reportStatus('Batch process complete!', 1.0, backgroundMode);
       debugPrint('✅ Worker: Batch process complete');
     } catch (e) {
       debugPrint('❌ Worker batch process error: $e');
-      onStatusChanged?.call('Error: $e');
+      if (!backgroundMode) {
+        onStatusChanged?.call('Error: $e');
+      }
     } finally {
       _isProcessing = false;
+    }
+  }
+
+  void _reportStatus(String status, double progress, bool backgroundMode) {
+    debugPrint('👷 Worker: $status ($progress)');
+    if (!backgroundMode) {
+      onStatusChanged?.call(status);
+      onProgressChanged?.call(progress);
     }
   }
 

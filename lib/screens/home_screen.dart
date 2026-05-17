@@ -67,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // Dashboard data
   DayForecast? _weather;
   List<Map<String, dynamic>> _todayEvents = [];
+  List<List<Map<String, dynamic>>> _threeDayEvents = [[], [], []];
   List<Objective> _activeObjectives = [];
   int _streak = 0;
   CorrelationInsight? _topInsight;
@@ -192,9 +193,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     try {
       final now      = DateTime.now();
       final dayStart = DateTime(now.year, now.month, now.day);
-      final dayEnd   = dayStart.add(const Duration(days: 1));
-      final events   = await SchedulerService().getCalendarEvents(dayStart, dayEnd);
-      if (mounted) setState(() => _todayEvents = events);
+      // load 3 days at once
+      final threeEnd = dayStart.add(const Duration(days: 3));
+      final all = await SchedulerService().getCalendarEvents(dayStart, threeEnd);
+
+      final grouped = [<Map<String, dynamic>>[], <Map<String, dynamic>>[], <Map<String, dynamic>>[]];
+      for (final ev in all) {
+        final ms = ev['startTime'] as int?;
+        if (ms == null) continue;
+        final d = DateTime.fromMillisecondsSinceEpoch(ms);
+        final diff = DateTime(d.year, d.month, d.day).difference(dayStart).inDays;
+        if (diff >= 0 && diff < 3) grouped[diff].add(ev);
+      }
+
+      if (mounted) {
+        setState(() {
+          _todayEvents = grouped[0];
+          _threeDayEvents = grouped;
+        });
+      }
     } catch (_) {}
   }
 
@@ -234,6 +251,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final result = await SocialBatteryService().analyze();
       if (mounted) setState(() => _socialBattery = result);
     } catch (_) {}
+  }
+
+  void _showCalendarModal() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withAlpha(60),
+      builder: (_) => _CalendarModal(threeDayEvents: _threeDayEvents),
+    );
   }
 
   Future<void> _refreshData() async {
@@ -315,7 +342,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (_todayEvents.isNotEmpty)
-                                  Expanded(child: _CalendarMini(events: _todayEvents)),
+                                  Expanded(child: _CalendarMini(
+                                    events: _todayEvents,
+                                    onTap: () => _showCalendarModal(),
+                                  )),
                                 if (_todayEvents.isNotEmpty && _weather != null)
                                   const SizedBox(width: 12),
                                 if (_weather != null)
@@ -682,9 +712,9 @@ class _GlassCard extends StatelessWidget {
                   borderRadius: BorderRadius.all(Radius.circular(kR4)),
                   border: Border(
                     top:    BorderSide(color: kGlassEdge, width: 1),
-                    left:   BorderSide(color: kGlassStroke, width: 0.5),
-                    right:  BorderSide(color: kGlassStroke, width: 0.5),
-                    bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                    left:   BorderSide(color: kGlassEdge, width: 0.5),
+                    right:  BorderSide(color: kGlassEdge, width: 0.5),
+                    bottom: BorderSide(color: kGlassEdge, width: 0.5),
                   ),
                 ),
                 child: child,
@@ -940,9 +970,9 @@ class _EntryCard extends StatelessWidget {
                   borderRadius: BorderRadius.all(Radius.circular(18)),
                   border: Border(
                     top:    BorderSide(color: kGlassEdge, width: 1),
-                    left:   BorderSide(color: kGlassStroke, width: 0.5),
-                    right:  BorderSide(color: kGlassStroke, width: 0.5),
-                    bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                    left:   BorderSide(color: kGlassEdge, width: 0.5),
+                    right:  BorderSide(color: kGlassEdge, width: 0.5),
+                    bottom: BorderSide(color: kGlassEdge, width: 0.5),
                   ),
                 ),
                 child: InkWell(
@@ -1456,74 +1486,332 @@ class _SuggestionCard extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 📅 Calendar Mini — compact 2-col card
+// 📅 Calendar Mini — compact 2-col card (tappable)
 // ══════════════════════════════════════════════════════════════
 
 class _CalendarMini extends StatelessWidget {
   final List<Map<String, dynamic>> events;
-  const _CalendarMini({required this.events});
+  final VoidCallback? onTap;
+  const _CalendarMini({required this.events, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final shown = events.take(2).toList();
-    return _AccentGlassCard(
-      accent: kOrbLime,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 14, color: kFg2),
-              const SizedBox(width: 6),
-              Text(
-                '${events.length} นัดวันนี้',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: kFg1,
+    return GestureDetector(
+      onTap: onTap,
+      child: _AccentGlassCard(
+        accent: kOrbLime,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 14, color: kFg2),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${events.length} นัดวันนี้',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kFg1),
+                  ),
                 ),
+                const Icon(Icons.chevron_right, size: 14, color: kFg3),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...shown.map((ev) {
+              final title = ev['title'] as String? ?? 'กิจกรรม';
+              final startMs = ev['startTime'] as int?;
+              final timeStr = startMs != null
+                  ? DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(startMs))
+                  : '--:--';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Text(timeStr,
+                        style: const TextStyle(fontSize: 11, color: kFg3, fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(title,
+                          style: const TextStyle(fontSize: 12, color: kFg1),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (events.length > 2)
+              Text('+${events.length - 2} อื่น', style: const TextStyle(fontSize: 11, color: kFg3)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 📅 Calendar Modal — 3-day animated bottom sheet
+// ══════════════════════════════════════════════════════════════
+
+class _CalendarModal extends StatefulWidget {
+  final List<List<Map<String, dynamic>>> threeDayEvents;
+  const _CalendarModal({required this.threeDayEvents});
+
+  @override
+  State<_CalendarModal> createState() => _CalendarModalState();
+}
+
+class _CalendarModalState extends State<_CalendarModal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    _slide = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  static const _dayLabels = ['วันนี้', 'พรุ่งนี้', 'มะรืนนี้'];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => FadeTransition(
+        opacity: _fade,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+              .animate(_slide),
+          child: child,
+        ),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, scrollCtrl) => ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xEEF8F9FA),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: kGlassEdge, width: 1)),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...shown.map((ev) {
-            final title = ev['title'] as String? ?? 'กิจกรรม';
-            final startMs = ev['startTime'] as int?;
-            final timeStr = startMs != null
-                ? DateFormat('HH:mm')
-                    .format(DateTime.fromMillisecondsSinceEpoch(startMs))
-                : '--:--';
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
+              child: Column(
                 children: [
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: kFg3,
-                      fontWeight: FontWeight.w500,
+                  // drag handle
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 8),
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: kFg3.withAlpha(60),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  // header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_month_outlined, size: 18, color: kFg1),
+                        const SizedBox(width: 8),
+                        const Text('ตารางงาน 3 วัน',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kFg1)),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: kFg3.withAlpha(20),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 16, color: kFg2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // event list
                   Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(fontSize: 12, color: kFg1),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      itemCount: 3,
+                      itemBuilder: (_, dayIdx) {
+                        final dayEvents = widget.threeDayEvents[dayIdx];
+                        final date = now.add(Duration(days: dayIdx));
+                        final dateStr = DateFormat('d MMM', 'th').format(date);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // day header
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, bottom: 10),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: dayIdx == 0
+                                          ? kCrystal400.withAlpha(30)
+                                          : kFg3.withAlpha(15),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      _dayLabels[dayIdx],
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: dayIdx == 0 ? kCrystal600 : kFg2,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(dateStr,
+                                      style: const TextStyle(fontSize: 12, color: kFg3)),
+                                ],
+                              ),
+                            ),
+                            // events or empty
+                            if (dayEvents.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: Row(
+                                  children: [
+                                    Container(width: 3, height: 36,
+                                        decoration: BoxDecoration(
+                                          color: kFg3.withAlpha(40),
+                                          borderRadius: BorderRadius.circular(2),
+                                        )),
+                                    const SizedBox(width: 12),
+                                    const Text('ไม่มีนัด',
+                                        style: TextStyle(fontSize: 14, color: kFg3)),
+                                  ],
+                                ),
+                              )
+                            else
+                              ...dayEvents.map((ev) {
+                                final title = ev['title'] as String? ?? 'กิจกรรม';
+                                final loc   = ev['location'] as String?;
+                                final startMs = ev['startTime'] as int?;
+                                final endMs   = ev['endTime']   as int?;
+                                final timeStr = startMs != null
+                                    ? DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(startMs))
+                                    : '--:--';
+                                final endStr = endMs != null
+                                    ? DateFormat('HH:mm').format(DateTime.fromMillisecondsSinceEpoch(endMs))
+                                    : null;
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withAlpha(200),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: kGlassStroke),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withAlpha(8),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // color bar
+                                      Container(
+                                        width: 3,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          color: dayIdx == 0 ? kCrystal400 : kOrbLime,
+                                          borderRadius: const BorderRadius.horizontal(
+                                              left: Radius.circular(14)),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // time
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(timeStr,
+                                              style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: kFg1)),
+                                          if (endStr != null)
+                                            Text(endStr,
+                                                style: const TextStyle(fontSize: 11, color: kFg3)),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // title + location
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(title,
+                                                  style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: kFg1),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis),
+                                              if (loc != null && loc.isNotEmpty)
+                                                Row(
+                                                  children: [
+                                                    const Icon(Icons.location_on_outlined,
+                                                        size: 11, color: kFg3),
+                                                    const SizedBox(width: 3),
+                                                    Expanded(
+                                                      child: Text(loc,
+                                                          style: const TextStyle(
+                                                              fontSize: 12, color: kFg3),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis),
+                                                    ),
+                                                  ],
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            if (dayIdx < 2)
+                              Divider(color: kFg1.withAlpha(10), height: 20),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
-            );
-          }),
-          if (events.length > 2)
-            Text(
-              '+${events.length - 2} อื่น',
-              style: const TextStyle(fontSize: 11, color: kFg3),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

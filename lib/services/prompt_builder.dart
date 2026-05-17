@@ -142,25 +142,35 @@ Output:''';
 
   /// ☁️ Stage 1: THE FACE — Cloud LLM (OpenRouter, Gemini, Claude, OpenAI)
   /// ไม่ใช้ Gemma template tokens เพราะ cloud models ไม่ต้องการ
+  ///
+  /// [systemExtra] — resume + scheduleBlock ที่ปกติ bake เข้า on-device KV cache
+  /// ส่งมาตรงๆ ใน cloud prompt เพื่อให้ context เท่ากัน
   static String buildCloudPrompt({
     required String userMessage,
     String? context,
+    String? systemExtra,
   }) {
     final timeContext = 'Current DateTime: $_currentDateTime';
+
+    final system = (systemExtra != null && systemExtra.isNotEmpty)
+        ? '$hakuFacePrompt\n\n$systemExtra'
+        : hakuFacePrompt;
 
     final contextSection = context != null && context.isNotEmpty
         ? '\n\nContext:\n$context'
         : '';
 
-    return '$hakuFacePrompt\n$timeContext$contextSection\n\nUser: $userMessage\nHaku:';
+    return '$system\n$timeContext$contextSection\n\nUser: $userMessage\nHaku:';
   }
 
-  /// 🧹 Strip Gemma template tokens + hallucinated dialogue จาก response
+  /// 🧹 Strip Gemma template tokens + hallucinated dialogue + think blocks จาก response
   static String cleanResponse(String raw) {
     var result = raw
         .replaceAll('</start_of_turn>', '')
         .replaceAll('<end_of_turn>', '')
         .replaceAll(RegExp(r'<start_of_turn>\w*'), '')
+        // strip <think>/<thinking> blocks (DeepSeek-R1 / THaLLE style reasoning)
+        .replaceAll(RegExp(r'<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>', caseSensitive: false), '')
         .trim();
 
     // ถ้า model echo "Haku:" นำหน้า → ตัดออกทั้งหมด (อาจซ้ำหลายครั้ง)

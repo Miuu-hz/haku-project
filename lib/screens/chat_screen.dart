@@ -21,6 +21,7 @@ import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/secret_chat_service.dart';
+import '../services/device_command_intent_detector.dart';
 import '../services/smart_preprocessor.dart';
 import '../services/place_feedback_service.dart';
 import '../services/place_service.dart';
@@ -46,8 +47,18 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   static const String _historyKey = 'chat_history_v1';
   static const int _maxMessages = 50;
 
+  // System context (resume + schedule) สำหรับ cloud prompt — on-device ใช้ KV cache แทน
+  String _resume = '';
+  String _scheduleBlock = '';
+
   ChatNotifier() : super([ChatMessage.welcome()]) {
     _loadHistory();
+  }
+
+  /// อัปเดต resume + schedule ที่ใช้ inject เข้า cloud prompt (เรียกจาก _startNewLiteRTSession)
+  void updateSystemContext(String resume, String scheduleBlock) {
+    _resume = resume;
+    _scheduleBlock = scheduleBlock;
   }
 
   /// 📂 โหลด chat history จาก SharedPreferences ตอน startup
@@ -162,6 +173,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
         debugPrint('⚡ Quick action: ${quickAction.type.name}');
         state = state.where((m) => !m.isLoading).toList();
         addMessage(ChatMessage.assistant(quickAction.response));
+        return;
+      }
+
+      // ──────────────────────────────────────────────────────
+      // 0.5 Device Command (rule-based, 0 LLM, async execute)
+      // ──────────────────────────────────────────────────────
+      final deviceCmd = await DeviceCommandIntentDetector.detectAndExecute(userMessage);
+      if (deviceCmd != null) {
+        debugPrint('📱 Device command: ${deviceCmd.action} → success=${deviceCmd.success}');
+        state = state.where((m) => !m.isLoading).toList();
+        addMessage(ChatMessage.assistant(deviceCmd.reply));
         return;
       }
 
@@ -315,6 +337,19 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           debugPrint('📅 Calendar context injected (${calCtx.length} chars)');
         }
 
+        // 1.7. RAG Context — semantic vector search diary entries
+        if (useContext && RAGService().isInitialized) {
+          try {
+            final ragCtx = await RAGService().buildContext(userMessage, topK: 3);
+            if (ragCtx.isNotEmpty && !ragCtx.startsWith('No related')) {
+              contextStr = ragCtx + (contextStr.isNotEmpty ? '\n$contextStr' : '');
+              debugPrint('🔍 RAG context injected (${ragCtx.length} chars)');
+            }
+          } catch (e) {
+            debugPrint('⚠️ RAG context failed (non-fatal): $e');
+          }
+        }
+
         // 2. Face LLM — Stage 1 (The Face)
         debugPrint('🎭 Stage 1 (The Face): generating natural response...');
 
@@ -324,17 +359,22 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             final ctx = contextStr.isNotEmpty ? contextStr : null;
 
             if (isCloud) {
-              // Cloud: stateless full prompt
+              // Cloud: stateless full prompt — inject resume + schedule (same context as on-device)
+              final systemExtra = [
+                if (_resume.isNotEmpty) _resume,
+                if (_scheduleBlock.isNotEmpty) _scheduleBlock,
+              ].join('\n\n');
               final prompt = PromptBuilder.buildCloudPrompt(
                 userMessage: userMessage,
                 context: ctx,
+                systemExtra: systemExtra.isNotEmpty ? systemExtra : null,
               );
               response = await llm.generate(prompt).timeout(
                 const Duration(seconds: 30),
                 onTimeout: () { debugPrint('⏱️ Cloud LLM timeout'); return ''; },
               );
             } else {
-              // On-device: stateful conversation — send only user turn, KV cache handles history
+              // On-device: stateful conversation — KV cache carries system instruction + history
               final liteRT = llm as LiteRTLLMProvider;
               final turn = PromptBuilder.buildUserTurn(userMessage: userMessage, context: ctx);
               response = await liteRT.generateTurn(turn).timeout(
@@ -486,24 +526,20 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
     });
   }
 
-  /// 🔨 สร้าง prompt สำหรับสรุปผลค้นหาให้ผู้ใช้
+  /// 🔨 สร้าง prompt สำหรับสรุปผลค้นหา — universal format (cloud + on-device)
   String _buildSearchFollowUpPrompt(
-          String originalQuestion, String searchResult) =>
-      '''<start_of_turn>user
-You are Haku, a helpful Thai-speaking AI assistant.
+      String originalQuestion, String searchResult) {
+    final core = 'You are Haku, a helpful Thai-speaking AI assistant.\n\n'
+        'User asked: "$originalQuestion"\n\n'
+        'Search Results:\n$searchResult\n\n'
+        'Task: Answer the user\'s question naturally in Thai based on the search results above. '
+        'Be helpful, concise, and friendly. Use emoji if appropriate.\n\n'
+        'Reply in Thai (1-2 sentences):';
 
-User asked: "$originalQuestion"
-
-Search Results:
-$searchResult
-
-Task: Answer the user's question naturally in Thai based on the search results above.
-Be helpful, concise, and friendly. Use emoji if appropriate.
-
-Reply in Thai (1-2 sentences):
-<end_of_turn>
-<start_of_turn>model
-''';
+    final isCloud = LLMProviderManager().activeType != ProviderType.onDevice;
+    if (isCloud) return core;
+    return '<start_of_turn>user\n$core\n<end_of_turn>\n<start_of_turn>model\n';
+  }
 
   /// 🔔 ตอบกลับ Trigger Event (Proactive)
   Future<void> respondToTrigger(TriggerEvent trigger) async {
@@ -547,18 +583,34 @@ Reply in Thai (1-2 sentences):
     }
   }
 
-  /// 📝 สร้าง Prompt สำหรับ Trigger (Gemma-3 format)
+  /// 📝 สร้าง Prompt สำหรับ Trigger — universal (cloud + on-device)
   Future<String> _buildTriggerPrompt(TriggerEvent trigger) async {
-    final triggerContextStr = ContextRetriever().buildContextString(trigger.context);
+    final isCloud = LLMProviderManager().activeType != ProviderType.onDevice;
 
-    // ดึง context เพิ่มเติมจาก ContextRetriever
+    if (isCloud) {
+      // Cloud: plain prompt — ไม่ inject ContextRetriever dump
+      // (English log entries ใน context ทำให้ cloud LLM echo กลับแทน Thai greeting)
+      final suggestion = trigger.suggestedMessage ?? 'สวัสดีค่ะ';
+      return 'You are Haku, a warm Thai AI life companion.\n\n'
+          'Task: Respond naturally in Thai (1-2 sentences, friendly, with emoji).\n'
+          'Based on: $suggestion\n\n'
+          'Reply in Thai only:';
+    }
+
+    // On-device: Gemma format + full context
+    final triggerContextStr = ContextRetriever().buildContextString(trigger.context);
     final fullContextData = await ContextRetriever().retrieveFullContext();
     final fullContextStr = ContextRetriever().buildContextString(fullContextData);
+    final ragContext = trigger.payloadJson?['ragContext'] as String?;
+    final combinedContext = [
+      if (fullContextStr.isNotEmpty) fullContextStr,
+      if (ragContext != null && ragContext.isNotEmpty) 'Recent diary:\n$ragContext',
+    ].join('\n\n');
 
     return PromptBuilder.buildProactivePrompt(
       triggerContext: triggerContextStr,
       suggestedMessage: trigger.suggestedMessage ?? 'สวัสดีค่ะ',
-      context: fullContextStr.isNotEmpty ? fullContextStr : null,
+      context: combinedContext.isNotEmpty ? combinedContext : null,
     );
   }
 
@@ -911,6 +963,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isTyping = false;
   bool _contextEnabled = true;
   Timer? _midnightTimer;
+  StreamSubscription<TriggerEvent>? _triggerStreamSub;
 
   final List<QuickQuestion> _quickQuestions = [
     QuickQuestion(icon: Icons.calendar_today_outlined, text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
@@ -959,6 +1012,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .join('\n\n');
 
     provider.setSystemInstruction(full);
+
+    // ส่ง resume + schedule ไปเก็บใน ChatNotifier ด้วย — ใช้ inject เข้า cloud prompt
+    ref.read(chatHistoryProvider.notifier).updateSystemContext(resume, scheduleBlock);
+
     debugPrint('🔄 LiteRT session ใหม่ — resume: ${resume.length} chars, events: ${events.length}');
 
     // ตั้ง timer รีเฟรช session เมื่อเที่ยงคืน (วันใหม่ → ตารางใหม่)
@@ -1018,17 +1075,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _handleTrigger(event);
       };
 
-      // Initialize MVP Trigger Service
-      debugPrint('🔄 Initializing Trigger Service...');
-      final triggerService = MVPTriggerService();
-      await triggerService.initialize();
-
-      // ตั้ง callback เมื่อมี trigger - แสดงทั้งในแอพและ notification
-      triggerService.onTrigger = (event) {
-        _handleTrigger(event);
-        notificationService.showTriggerNotification(event);
-      };
-      debugPrint('✅ All services initialized');
+      // Trigger wiring ย้ายไปที่ AppEntryPoint (main.dart) แล้ว
+      // ChatScreen รอรับ trigger events ผ่าน NotificationService.onNotificationTap
+      debugPrint('✅ All chat services initialized');
 
       // 📍 เริ่ม Geofence + DwellTracker monitoring (foreground เท่านั้น)
       debugPrint('🔄 Starting Geofence monitoring...');
@@ -1074,6 +1123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _midnightTimer?.cancel();
+    _triggerStreamSub?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1275,7 +1325,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'โหมดออฟไลน์: วางไฟล์ .gguf ในโฟลเดอร์ Downloads/ หรือเลือกผ่านการตั้งค่า',
+                          'โหมดออฟไลน์: วางไฟล์ .litertlm ในโฟลเดอร์ Downloads/ หรือเลือกผ่านการตั้งค่า',
                           style: TextStyle(fontSize: 12, color: kFg3),
                         ),
                       ),
@@ -1411,9 +1461,9 @@ class _ChatBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: const Border(
                   top: BorderSide(color: kGlassEdge, width: 1),
-                  left: BorderSide(color: kGlassStroke, width: 0.5),
-                  right: BorderSide(color: kGlassStroke, width: 0.5),
-                  bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                  left: BorderSide(color: kGlassEdge, width: 0.5),
+                  right: BorderSide(color: kGlassEdge, width: 0.5),
+                  bottom: BorderSide(color: kGlassEdge, width: 0.5),
                 ),
               ),
               child: Row(
@@ -1485,16 +1535,17 @@ class _ChatBubble extends StatelessWidget {
                     ? null
                     : const Border(
                         top: BorderSide(color: kGlassEdge, width: 1),
-                        left: BorderSide(color: kGlassStroke, width: 0.5),
-                        right: BorderSide(color: kGlassStroke, width: 0.5),
-                        bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                        left: BorderSide(color: kGlassEdge, width: 0.5),
+                        right: BorderSide(color: kGlassEdge, width: 0.5),
+                        bottom: BorderSide(color: kGlassEdge, width: 0.5),
                       ),
               ),
               child: Builder(builder: (context) {
-                // Parse <thinking>...</thinking> block from model response
+                // Parse <think>...</think> or <thinking>...</thinking> block
+                // THaLLE / DeepSeek-R1 style models use <think>, Gemma 4 uses <thinking>
                 final raw = message.content;
                 final thinkMatch = RegExp(
-                  r'<thinking>([\s\S]*?)<\/thinking>',
+                  r'<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>',
                   caseSensitive: false,
                 ).firstMatch(raw);
                 final thinking = thinkMatch?.group(1)?.trim();
@@ -1589,9 +1640,9 @@ class _ChatBubble extends StatelessWidget {
                 ),
                 border: Border(
                   top: BorderSide(color: kGlassEdge, width: 1),
-                  left: BorderSide(color: kGlassStroke, width: 0.5),
-                  right: BorderSide(color: kGlassStroke, width: 0.5),
-                  bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                  left: BorderSide(color: kGlassEdge, width: 0.5),
+                  right: BorderSide(color: kGlassEdge, width: 0.5),
+                  bottom: BorderSide(color: kGlassEdge, width: 0.5),
                 ),
               ),
               child: Column(

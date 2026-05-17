@@ -6,12 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../battery_aware_service.dart';
 import '../deferred_task_service.dart';
+import '../llm_service.dart';
+import '../rag_service.dart';
 import '../scheduler_service.dart';
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
+import '../wiki_service.dart';
 import '../worker_service.dart';
 import 'manager_summary_strategy.dart';
-import 'timer_trigger.dart';
 
 /// 🔌 Charging Trigger - ประมวลผลเมื่อชาร์จ (จบวัน)
 ///
@@ -25,15 +27,17 @@ import 'timer_trigger.dart';
 /// - ตั้ง triggers สำหรับวันถัดไป
 
 class ChargingTrigger {
-  final BatteryAwareService batteryService;
+  final BatteryAwareService? batteryService;
   final UnifiedVectorService vectorService;
   final UserProfileService userProfile;
+  final RAGService? ragService;
   final void Function(ChargingTriggerEvent) onTrigger;
 
   ChargingTrigger({
-    required this.batteryService,
+    this.batteryService,
     required this.vectorService,
     required this.userProfile,
+    this.ragService,
     required this.onTrigger,
   });
 
@@ -48,6 +52,12 @@ class ChargingTrigger {
 
   /// 🔌 Called when charging starts
   Future<void> onChargingStarted() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('proactive_charging_enabled') ?? true)) {
+      debugPrint('🔌 ChargingTrigger: disabled in settings');
+      return;
+    }
+
     await _loadState();
 
     // ตรวจสอบว่าควรประมวลผลหรือไม่
@@ -141,33 +151,62 @@ class ChargingTrigger {
   // ============================================================
 
   /// 📊 Process end of day
-  Future<void> processEndOfDay() async {
+  /// [llmService] — ถ้าระบุ จะใช้ SLM (On-device LLM) วิเคราะห์ patterns + สร้าง insight
+  Future<void> processEndOfDay({LLMService? llmService}) async {
     if (_isProcessing) return;
 
     _isProcessing = true;
     debugPrint('🌙 Starting end-of-day processing...');
 
+    bool slmLoaded = false;
     try {
       final now = DateTime.now();
 
-      // 2. Run ManagerSummaryStrategy (NEW - Orchestrator Pattern)
+      // 🔒 ถ้ามี SLM → เริ่ม background session (โหลดโมเดล + ยกเลิก auto-unload)
+      if (llmService != null) {
+        slmLoaded = await llmService.beginBackgroundSession();
+        debugPrint(slmLoaded ? '🧠 SLM loaded for background processing' : '⚠️ SLM not available, using rule-based only');
+      }
+
+      // 1. Run ManagerSummaryStrategy (with optional SLM)
       debugPrint('📊 Running ManagerSummaryStrategy...');
       final managerStrategy = ManagerSummaryStrategy(
         vectorService: vectorService,
         userProfile: userProfile,
       );
-      final managerResult = await managerStrategy.analyze();
+      final managerResult = await managerStrategy.analyze(
+        llmService: slmLoaded ? llmService : null,
+      );
       
-      // 3. Execute worker tasks from ManagerSummaryStrategy
-      await _executeWorkerTasks(managerResult.workerTasks);
+      // 2. Execute worker tasks from ManagerSummaryStrategy (background-safe)
+      await _executeWorkerTasks(managerResult.workerTasks, llmService: llmService);
 
-      // 4. Analyze health flags (legacy support)
+      // 3. Analyze health flags (legacy support)
       final healthAnalysis = await _analyzeHealth();
 
-      // 5. Extract facts learned today
+      // 4. Extract facts learned today
       final factsLearned = await _extractDailyFacts();
 
-      // 6. Create daily summary
+      // 4.3 Update pending Wiki summaries (LLM synthesis + link extraction)
+      if (slmLoaded) {
+        debugPrint('📚 Updating pending Wiki summaries...');
+        await WikiService().updatePendingSummaries(batchSize: 10);
+      }
+
+      // 4.5 Query RAGService for today's relevant diary context
+      String? ragContext;
+      if (ragService != null) {
+        try {
+          final topics = managerResult.insights.map((i) => i.title).join(' ');
+          final query = topics.isNotEmpty ? topics : 'today activities summary';
+          ragContext = await ragService!.buildContext(query, topK: 5);
+          debugPrint('📚 RAG context: ${ragContext.length} chars');
+        } catch (e) {
+          debugPrint('⚠️ RAG context failed (non-fatal): $e');
+        }
+      }
+
+      // 5. Create daily summary
       final dailySummary = DailySummary(
         date: now,
         sessionSummary: 'No conversations today',
@@ -178,19 +217,18 @@ class ChargingTrigger {
       );
 
       _dailySummaries.add(dailySummary);
-
-      // 7. Schedule tomorrow's triggers
-      await _scheduleTomorrowTriggers(dailySummary);
-
-      // 8. Save state
+      // 6. Save state
       _lastProcessedTime = now;
       await _saveState();
 
-      // 9. Notify with ManagerSummary insights
-      final insightsSummary = managerResult.insights.map((i) => i.title).join(', ');
+      // 8. Generate Thai summary message (with SLM + RAG context if available)
+      final thaiSummary = await _generateThaiSummary(managerResult, dailySummary, llmService, ragContext: ragContext);
+
+      // 9. Notify
       onTrigger(ChargingTriggerEvent(
         type: ChargingTriggerType.endOfDaySummary,
-        message: 'สรุปวันนี้: ${insightsSummary.isNotEmpty ? insightsSummary : dailySummary.topics.take(3).join(", ")}',
+        message: thaiSummary,
+        ragContext: ragContext,
         data: {
           ...dailySummary.toJson(),
           'managerInsights': managerResult.insights.map((i) => i.toJson()).toList(),
@@ -202,12 +240,57 @@ class ChargingTrigger {
     } catch (e) {
       debugPrint('⚠️ End-of-day processing failed: $e');
     } finally {
+      // 🔓 ปิด SLM background session
+      if (slmLoaded && llmService != null) {
+        await llmService.endBackgroundSession();
+      }
       _isProcessing = false;
     }
   }
 
+  /// 📝 สร้างข้อความสรุปภาษาไทย (ใช้ SLM ถ้ามี)
+  Future<String> _generateThaiSummary(
+    ManagerSummaryResult managerResult,
+    DailySummary dailySummary,
+    LLMService? llmService, {
+    String? ragContext,
+  }) async {
+    // ถ้ามี SLM และ insights มีข้อมูล → ใช้ SLM สร้างสรุปภาษาไทย
+    if (llmService != null && llmService.isInitialized && managerResult.insights.isNotEmpty) {
+      try {
+        final insightsText = managerResult.insights
+            .take(5)
+            .map((i) => '- ${i.title}: ${i.description}')
+            .join('\n');
+
+        final ragSection = (ragContext != null && ragContext.isNotEmpty)
+            ? '\nบันทึกวันนี้:\n$ragContext\n'
+            : '';
+
+        final prompt = '''
+สรุปวันนี้ของผู้ใช้จากข้อมูลต่อไปนี้ ให้กระชับ เป็นกันเอง มี emoji 1-2 ตัว:
+
+Insights:
+$insightsText$ragSection
+สรุป (1-2 ประโยค):''';
+
+        final summary = await llmService.generate(prompt, maxTokens: 150);
+        if (summary.trim().isNotEmpty) {
+          return summary.trim();
+        }
+      } catch (e) {
+        debugPrint('⚠️ SLM summary generation failed: $e');
+      }
+    }
+
+    // Fallback: ใช้ rule-based summary
+    final insightsSummary = managerResult.insights.map((i) => i.title).join(', ');
+    return 'สรุปวันนี้: ${insightsSummary.isNotEmpty ? insightsSummary : dailySummary.topics.take(3).join(", ")}';
+  }
+
   /// 🔧 Execute worker tasks from ManagerSummaryStrategy
-  Future<void> _executeWorkerTasks(List<WorkerTask> tasks) async {
+  /// [llmService] — ส่งต่อให้ WorkerService ใช้ SLM ใน batch process
+  Future<void> _executeWorkerTasks(List<WorkerTask> tasks, {LLMService? llmService}) async {
     if (tasks.isEmpty) return;
     
     debugPrint('🔧 Executing ${tasks.length} worker tasks via WorkerService...');
@@ -265,7 +348,7 @@ class ChargingTrigger {
     
     // Also run WorkerService batch process for comprehensive background tasks
     debugPrint('🔧 Running WorkerService batch process...');
-    await workerService.runBatchProcess();
+    await workerService.runBatchProcess(backgroundMode: true);
   }
 
   /// 💊 Analyze health from vector store
@@ -304,43 +387,6 @@ class ChargingTrigger {
     }
 
     return facts;
-  }
-
-  /// 📅 Schedule tomorrow's triggers
-  Future<void> _scheduleTomorrowTriggers(DailySummary summary) async {
-    // Schedule morning notification
-    final morningTrigger = TimerTrigger(
-      batteryService: batteryService,
-      onTrigger: (_) {}, // Will be handled by TriggerService
-    );
-
-    // Build morning message
-    String morningMessage = 'สวัสดีตอนเช้าค่ะ';
-    final userName = userProfile.name;
-    if (userName.isNotEmpty) {
-      morningMessage += ' คุณ$userName';
-    }
-    morningMessage += '!';
-
-    // Add health follow-up if needed
-    if (summary.healthFlags['period'] == true) {
-      morningMessage += '\nวันนี้อาการเป็นไงบ้างคะ?';
-
-      // Schedule health check for next 5 days
-      for (var i = 1; i <= 5; i++) {
-        await morningTrigger.scheduleHealthCheck(
-          delay: Duration(days: i),
-          message: 'วันนี้อาการเป็นไงบ้างคะ? 🩺',
-          condition: 'period_followup',
-        );
-      }
-    }
-
-    await morningTrigger.scheduleMorningTrigger(
-      hour: 6,
-      minute: 0,
-      customMessage: morningMessage,
-    );
   }
 
   // ============================================================
@@ -443,12 +489,14 @@ class ChargingTriggerEvent {
   final ChargingTriggerType type;
   final String message;
   final Map<String, dynamic>? data;
+  final String? ragContext;
   final DateTime timestamp;
 
   ChargingTriggerEvent({
     required this.type,
     required this.message,
     this.data,
+    this.ragContext,
   }) : timestamp = DateTime.now();
 }
 

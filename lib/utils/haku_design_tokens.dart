@@ -285,9 +285,9 @@ class HakuGlassCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(radius),
               border: const Border(
                 top: BorderSide(color: kGlassEdge, width: 1),
-                left: BorderSide(color: kGlassStroke, width: 0.5),
-                right: BorderSide(color: kGlassStroke, width: 0.5),
-                bottom: BorderSide(color: kGlassStroke, width: 0.5),
+                left: BorderSide(color: kGlassEdge, width: 0.5),
+                right: BorderSide(color: kGlassEdge, width: 0.5),
+                bottom: BorderSide(color: kGlassEdge, width: 0.5),
               ),
             ),
             child: child,

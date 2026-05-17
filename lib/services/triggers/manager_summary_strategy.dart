@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../llm_service.dart';
 import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 
@@ -30,14 +31,15 @@ class ManagerSummaryStrategy {
   // ============================================================
 
   /// 📊 Run full analysis
-  Future<ManagerSummaryResult> analyze() async {
+  /// [llmService] — ถ้าระบุ จะใช้ SLM วิเคราะห์ patterns ที่ซับซ้อน + สร้าง insight ภาษาไทย
+  Future<ManagerSummaryResult> analyze({LLMService? llmService}) async {
     debugPrint('📊 ManagerSummaryStrategy: Starting analysis...');
 
     final insights = <Insight>[];
     final recommendations = <Recommendation>[];
     final workerTasks = <WorkerTask>[];
 
-    // 1. Analyze health patterns
+    // 1. Analyze health patterns (rule-based + optional SLM)
     final healthResult = await _analyzeHealth();
     insights.addAll(healthResult.insights);
     recommendations.addAll(healthResult.recommendations);
@@ -53,7 +55,17 @@ class ManagerSummaryStrategy {
     insights.addAll(prefResult.insights);
     workerTasks.addAll(prefResult.tasks);
 
-    // 4. Generate summary
+    // 4. SLM-powered deep analysis (ถ้ามี LLM)
+    if (llmService != null && llmService.isInitialized) {
+      try {
+        final slmInsights = await _analyzeWithSLM(llmService, insights);
+        insights.addAll(slmInsights);
+      } catch (e) {
+        debugPrint('⚠️ SLM analysis failed: $e');
+      }
+    }
+
+    // 5. Generate summary
     final summary = _generateSummary(insights);
 
     debugPrint('✅ Analysis complete: ${insights.length} insights, ${recommendations.length} recommendations');
@@ -65,6 +77,84 @@ class ManagerSummaryStrategy {
       workerTasks: workerTasks,
       analyzedAt: DateTime.now(),
     );
+  }
+
+  /// 🧠 SLM-powered analysis — ใช้ On-device LLM วิเคราะห์ patterns ที่ซับซ้อน
+  Future<List<Insight>> _analyzeWithSLM(LLMService llmService, List<Insight> existingInsights) async {
+    final insights = <Insight>[];
+
+    // รวม facts จากหลาย category เป็น context
+    final healthFacts = vectorService.getByCategory('health_log');
+    final preferenceFacts = vectorService.getByCategory('preference');
+    final allFacts = [...healthFacts, ...preferenceFacts];
+
+    if (allFacts.isEmpty) return insights;
+
+    // สร้าง prompt ให้ SLM วิเคราะห์
+    final factsText = allFacts
+        .take(20)
+        .map((f) => '- ${f.content} (${f.createdAt.toIso8601String().substring(0, 10)})')
+        .join('\n');
+
+    final prompt = '''
+You are a personal life analyzer. Analyze these user facts and identify 1-2 meaningful patterns.
+
+Facts:
+$factsText
+
+Output JSON ONLY:
+{
+  "patterns": [
+    {
+      "title": "Short title in Thai",
+      "description": "1 sentence insight in Thai",
+      "severity": "info|low|medium|high"
+    }
+  ]
+}
+JSON:'''; 
+
+    final result = await llmService.generate(prompt, maxTokens: 300);
+    if (result.isEmpty) return insights;
+
+    // พยายาม parse JSON
+    try {
+      final jsonStart = result.indexOf('{');
+      final jsonEnd = result.lastIndexOf('}');
+      if (jsonStart >= 0 && jsonEnd > jsonStart) {
+        final jsonStr = result.substring(jsonStart, jsonEnd + 1);
+        // ใช้ simple parsing แทน dart:convert เพราะอาจมี trailing text
+        final patternMatches = RegExp(r'"title"\s*:\s*"([^"]+)"').allMatches(jsonStr);
+        final descMatches = RegExp(r'"description"\s*:\s*"([^"]+)"').allMatches(jsonStr);
+        final sevMatches = RegExp(r'"severity"\s*:\s*"([^"]+)"').allMatches(jsonStr);
+
+        for (var i = 0; i < patternMatches.length; i++) {
+          final title = patternMatches.elementAt(i).group(1) ?? 'Pattern';
+          final desc = i < descMatches.length ? descMatches.elementAt(i).group(1) ?? '' : '';
+          final sev = i < sevMatches.length ? sevMatches.elementAt(i).group(1) ?? 'info' : 'info';
+
+          insights.add(Insight(
+            type: InsightType.pattern,
+            title: title,
+            description: desc,
+            severity: _parseSeverity(sev),
+          ));
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ SLM insight parse failed: $e');
+    }
+
+    return insights;
+  }
+
+  InsightSeverity _parseSeverity(String s) {
+    switch (s.toLowerCase()) {
+      case 'high': return InsightSeverity.high;
+      case 'medium': return InsightSeverity.medium;
+      case 'low': return InsightSeverity.low;
+      default: return InsightSeverity.info;
+    }
   }
 
   // ============================================================

@@ -1,236 +1,316 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           HAKU AI SYSTEM (current)                           │
 │                     Model: Gemma 4 E2B/E4B via LiteRT-LM                    │
-│                     Context: 4K–8K tokens (no lean syntax needed)            │
+│                     Context: 8K–128K tokens (no lean syntax needed)          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      REAL-TIME LAYER (ขณะแชท)                          │ │
+│  │                 REAL-TIME LAYER — sendToAI() flow                       │ │
 │  │                                                                         │ │
 │  │  ① SmartPreprocessor (rule-based, 0 LLM tokens)                        │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
 │  │  │ User message (Thai/EN)                                           │   │ │
-│  │  │  → FactWorker / CalendarWorker / HealthDoctor (0 tok, regex)    │   │ │
-│  │  │  → PATH A: rule matched → handle directly (search/calendar/…)  │   │ │
-│  │  │  → PATH B: intent=general → ไปขั้นถัดไป                          │   │ │
+│  │  │  Workers (parallel, 0 tok, regex):                              │   │ │
+│  │  │    FactWorker / CalendarWorker / HealthDoctor /                 │   │ │
+│  │  │    ReminderWorker / GoalWorker                                  │   │ │
+│  │  │  Inline services (0 tok):                                       │   │ │
+│  │  │    WeatherService (Open-Meteo) — weather keywords               │   │ │
+│  │  │  PATH A: rule matched → handle directly (calendar/remind/…)    │   │ │
+│  │  │  PATH B: intent=general → ไปขั้นถัดไป                            │   │ │
+│  │  │  WEB SEARCH: ^ค้นหา / ^วิธี / ^(.+)คืออะไร (^ anchor)           │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │ (PATH B only)                            │ │
-│  │  ② TagContextService (0 LLM — keyword + SQL search)                    │ │
+│  │  ② Context Retrieval (0 LLM — parallel reads)                          │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ keyword extraction จาก userMessage                              │   │ │
-│  │  │ → SQL search บน english_chat_log + diary entries               │   │ │
-│  │  │ → ถ้าเจอ → prepend "Past related:\n[d/m] @loc ..." ใน context  │   │ │
+│  │  │ a. TagContextService.searchChatFTS()                            │   │ │
+│  │  │    FTS5 BM25 บน secret_chat_log → "Past related:\n[d/m]..."    │   │ │
+│  │  │ b. WikiService.query(userMessage)                               │   │ │
+│  │  │    knowledge_pages → formatForContext() → entity facts          │   │ │
+│  │  │ c. RAGService.buildContext(userMessage, topK:3)                 │   │ │
+│  │  │    TF-IDF cosine → entries + facts tables                       │   │ │
+│  │  │ d. _isScheduleQuery → Google Calendar events (today/tomorrow)  │   │ │
+│  │  │ e. SessionResumeService.buildResume()                           │   │ │
+│  │  │    top facts + calendar → inject ใน system instruction          │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ③ Calendar Context (0 LLM — keyword-based)                            │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ _isScheduleQuery(userMessage) → keyword check                   │   │ │
-│  │  │ ถ้า true → inject today's events จาก Google Calendar            │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                              │                                          │ │
-│  │  ④ Stage 1: The Face (ตอบ user ทันที)                                  │ │
+│  │  ③ Stage 1: The Face (ตอบ user ทันที)                                  │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
 │  │  │ Gemma 4 E2B/E4B (LiteRT-LM) — ตอบภาษาไทยธรรมชาติ               │   │ │
-│  │  │ Input: context (tag history + calendar) + user message          │   │ │
-│  │  │ Output: Thai response → แสดง user ทันที                         │   │ │
-│  │  │ Context budget: 1,500–3,000 chars (4K–8K token window)          │   │ │
+│  │  │ Input: [system: resume] + [wiki] + [RAG] + [FTS5] + [cal]      │   │ │
+│  │  │        + user message                                            │   │ │
+│  │  │ ContextBudgetService: hard cap 3900 tokens input / 2000 resp    │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ⑤ Secret Chat (async หลัง Face ตอบ — ไม่ block UI)                    │ │
+│  │  ④ Secret Chat (async — ไม่ block UI)                                   │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Input: Thai exchange (user msg + AI response)                   │   │ │
-│  │  │ LLM: buildWorkerExtractPrompt() → JSON extraction               │   │ │
-│  │  │ Output: EnglishLogEntry {                                       │   │ │
-│  │  │   summaryEn: "User went to beach with partner"                  │   │ │
-│  │  │   intent: log | schedule | query | chat                        │   │ │
-│  │  │   tags: ["beach", "partner"]                                    │   │ │
-│  │  │   location: "beach", mood: 8                                    │   │ │
-│  │  │ }                                                               │   │ │
-│  │  │ → Store in SharedPreferences (english_chat_log, 50 entries)    │   │ │
-│  │  │ → TagContextService.saveTagsToRecentEntry() → merge to SQLite  │   │ │
+│  │  │ LLM: buildWorkerExtractPrompt() → EnglishLogEntry {             │   │ │
+│  │  │   summaryEn, intent, tags[], location, mood }                   │   │ │
+│  │  │                                                                  │   │ │
+│  │  │ WRITE PATH (fire-and-forget):                                   │   │ │
+│  │  │   → SharedPrefs + SQLite secret_chat_log + chat_fts (FTS5)     │   │ │
+│  │  │   → _indexToRAG(): RAGService().indexEntry(entry)               │   │ │
+│  │  │   → wiki.onNewFact(category:'topic', key:tag, content:summaryEn)│   │ │
+│  │  │     for each tag in entry.tags                                  │   │ │
+│  │  │   → wiki.onNewFact(category:'place', key:location)              │   │ │
+│  │  │     if location != null                                         │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  │                              │                                          │ │
-│  │  ⑥ Big Manager (async — dispatch from English log)                      │ │
+│  │  ⑤ Big Manager (async — 0 LLM)                                          │ │
 │  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ Reads EnglishLogEntry (no LLM call — intent already extracted)  │   │ │
-│  │  │ dispatch:                                                        │   │ │
-│  │  │   intent=schedule → CalendarWorker.addEvent()                   │   │ │
-│  │  │   intent=log      → FactWorker.extractFacts()                   │   │ │
-│  │  │   intent=search   → WebSearchService.search()                   │   │ │
-│  │  │   intent=chat     → (no action, logged only)                    │   │ │
+│  │  │ Reads EnglishLogEntry.intent (already extracted):               │   │ │
+│  │  │   schedule → CalendarWorker.addEvent()                          │   │ │
+│  │  │   log      → FactWorker.extractFacts()                          │   │ │
+│  │  │   search   → WebSearchService.search()                          │   │ │
+│  │  │   chat     → (logged only, no action)                           │   │ │
 │  │  └─────────────────────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
-│  TOKEN BUDGET (per exchange):                                                │
-│  ④ Face LLM:     1 call  (ตอบ user)                                         │
-│  ⑤ Secret Chat:  1 call  (extract → English log, async)                     │
-│  ⑥ Big Manager:  0 calls (อ่าน intent จาก Secret Chat โดยตรง)               │
-│  ─────────────────────────────────────────────────────                      │
-│  Total: 2 calls/exchange (ลดจาก 2-3 เพราะลบ PreClassify ออกแล้ว)            │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      SEARCH STRATEGY                                    │ │
-│  │                                                                         │ │
-│  │  Fast Path (ทันที, 0 LLM):                                              │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ SmartPreprocessor → keyword extraction (regex)                  │   │ │
-│  │  │ → SQL LIKE search on raw Thai entries                           │   │ │
-│  │  │ → ถ้าเจอ → เพิ่มใน context ก่อนส่ง Face                         │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                         │ │
-│  │  Tag Context (0 LLM — TagContextService):                               │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ keyword → search english_chat_log + SQLite entries              │   │ │
-│  │  │ → "Past related:\n[5/1] @beach User went to beach"              │   │ │
-│  │  │ → prepend ใน context window (Gemma 4 รองรับ 4K+ token)          │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                         │ │
-│  │  Slow Path (future, LLM-assisted):                                      │ │
-│  │  ┌─────────────────────────────────────────────────────────────────┐   │ │
-│  │  │ ถ้า Fast Path ไม่เจอ → Vector search English DB (sqlite-vec)    │   │ │
-│  │  │ → ส่ง context ให้ Face ตอบ                                       │   │ │
-│  │  └─────────────────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                      TRIGGER LAYER (Event-based)                        │ │
-│  │                                                                         │ │
-│  │   ⏰ TimerTrigger              📍 LocationTrigger                       │ │
-│  │   • 30 นาทีหลังถึงร้าน          • ถึงที่ทำงาน                            │ │
-│  │   • "ร้านนี้เป็นไงบ้าง?"        • ถึงบ้าน                                │ │
-│  │                                                                         │ │
-│  │   🔋 ChargingTrigger           🌅 MorningTrigger (6:00)                 │ │
-│  │   • เสียบชาร์จ = จบวัน          • แจ้งเตือนเช้า                          │ │
-│  │   • เริ่ม ManagerSummary       • สุขภาพ + ตารางวัน                       │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                 BACKGROUND LAYER (จบวัน/ตอนชาร์จ)                       │ │
-│  │                                                                         │ │
-│  │   Input: English chat logs (from Secret Chat) +                         │ │
-│  │          English diary translations (from TranslatorWorker)             │ │
-│  │                                                                         │ │
-│  │   ┌─────────────────────────────────────────────────────────────────┐  │ │
-│  │   │              ManagerSummaryStrategy (Orchestrator)              │  │ │
-│  │   │                                                                  │  │ │
-│  │   │  1. รวม English logs ทั้งวัน                                     │  │ │
-│  │   │  2. วิเคราะห์ pattern + extract insights (จาก VectorService)    │  │ │
-│  │   │  3. Dispatch ไปยัง Specialists                                   │  │ │
-│  │   └─────────────────────────────────────────────────────────────────┘  │ │
-│  │                              │                                          │ │
-│  │           ┌──────────────────┼──────────────────┐                       │ │
-│  │           ▼                  ▼                  ▼                       │ │
-│  │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │ │
-│  │   │HealthDoctor │   │FactWorker   │   │CalendarWork │                  │ │
-│  │   │             │   │             │   │             │                  │ │
-│  │   │ • period    │   │ • fav place │   │ • predict   │                  │ │
-│  │   │ • symptoms  │   │ • habits    │   │   events    │                  │ │
-│  │   │ • track 2-5d│   │ • facts     │   │   2-5 days  │                  │ │
-│  │   └─────────────┘   └─────────────┘   └─────────────┘                  │ │
-│  │          │                 │                  │                         │ │
-│  │          ▼                 ▼                  ▼                         │ │
-│  │   ┌─────────────────────────────────────────────────┐                  │ │
-│  │   │           💾 RAG Storage (SQLite, English)       │                  │ │
-│  │   │  • health_facts    • favorite_places             │                  │ │
-│  │   │  • preferences     • scheduled_reminders         │                  │ │
-│  │   │  • english_chat_log (from Secret Chat)           │                  │ │
-│  │   └─────────────────────────────────────────────────┘                  │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
+│  TOKEN BUDGET (Gemma 4 4B / 8192 ctx):                                      │
+│  System + persona   :  300 tokens                                            │
+│  Session resume     :  300 tokens  (SessionResumeService)                    │
+│  Working memory     :  800 tokens  (last 8 turns, KV cache)                  │
+│  Episodic FTS5      : 1000 tokens  (BM25 top-3)                              │
+│  Wiki pages         : 1200 tokens  (top-2 entities)                          │
+│  User message       :  300 tokens                                            │
+│  ─────────────────────────────────                                           │
+│  Total input        : 3900 tokens  (safety margin ~2300 for response 2000)  │
+│  LLM calls/exchange : 2 (Face + Secret Chat)                                 │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 
-─────────────────────────────────────────────────────────────┐
-│                   SmartPreprocessor (PATH B)                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   User Message: "นัดหมอพรุ่งนี้ ฉันเป็นเมนด้วย"                │
-│                         │                                    │
-│        ┌────────────────┼────────────────┐                  │
-│        │                │                │                  │
-│        ▼                ▼                ▼                  │
-│   ┌─────────┐    ┌───────────┐    ┌────────────┐           │
-│   │FactWork │    │CalendarWk │    │HealthDoc   │           │
-│   │ 0 tok   │    │ 0 tok     │    │ 0 tok      │           │
-│   └─────────┘    └───────────┘    └────────────┘           │
-│        │                │                │                  │
-│        ▼                ▼                ▼                  │
-│   ┌─────────────────────────────────────────────────────┐  │
-│   │              WorkerResults                          │  │
-│   │ facts: [], events: [หมอ], health: [period]          │  │
-│   └─────────────────────────────────────────────────────┘  │
-│                         │                                    │
-│        ┌────────────────┘                                    │
-│        ▼                                                     │
-│   [TagContextService] keyword search on english_chat_log    │
-│   → "Past related:\n[3/1] @clinic User visited doctor..."   │
-│                         │                                    │
-│   [Calendar Context] _isScheduleQuery("นัดหมอ") → true       │
-│   → inject today/tomorrow events from Google Calendar       │
-│                         │                                    │
-│                         ▼                                    │
-│   ┌─────────────────────────────────────────────────────┐  │
-│   │              Context Window (Gemma 4)                │  │
-│   │ [Profile: name=ฟุกิ][Health:Period][Cal:หมอ,พรุ่งนี้] │  │
-│   │ [Past related] 3/1 @clinic "ไปหาหมอ 3 เดือนก่อน"     │  │
-│   │ [Calendar] พรุ่งนี้: หมอ 09:00                        │  │
-│   └─────────────────────────────────────────────────────┘  │
-│                         │                                    │
-│                         ▼                                    │
-│             Gemma 4 E2B/E4B (Face) — LiteRT-LM              │
-│                         │                                    │
-│                         ▼ (async, หลังตอบ user)              │
-│               Secret Chat → EnglishLogEntry                  │
-│               → Big Manager dispatch (0 LLM)                │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              DATA FLOW: Chat → RAG → Wiki → Chat → Trigger                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ══ WRITE PATH (หลัง Face ตอบ, async) ══                                    │
+│                                                                              │
+│  User↔Face exchange                                                          │
+│       │                                                                      │
+│       ▼                                                                      │
+│  SecretChatService.logExchange()                                             │
+│       ├─→ SQLite: secret_chat_log + chat_fts (FTS5)  [episodic memory]      │
+│       ├─→ SharedPrefs: english_chat_log (50 entries) [working memory]       │
+│       ├─→ RAGService().indexEntry(entry)              [semantic, entries]   │
+│       ├─→ WikiService.onNewFact(topic, tag, summaryEn) per tag              │
+│       └─→ WikiService.onNewFact(place, location, summaryEn)                 │
+│                                                                              │
+│  ══ READ PATH (ก่อน Face ตอบ, ทุก message) ══                               │
+│                                                                              │
+│  sendToAI(userMessage)                                                       │
+│       ├─→ TagContextService.searchChatFTS()  ← secret_chat_log FTS5         │
+│       ├─→ WikiService.query(msg)             ← knowledge_pages              │
+│       ├─→ RAGService.buildContext(msg, topK:3) ← entries + facts            │
+│       ├─→ _isScheduleQuery → Calendar API                                   │
+│       └─→ SessionResumeService.buildResume() ← facts + calendar snapshot   │
+│       ↓ ContextBudgetService ตัดให้พอดี 3900 tokens                         │
+│       → Face LLM                                                             │
+│                                                                              │
+│  ══ TRIGGER PATH (เมื่อ Charging / Alarm) ══                                │
+│                                                                              │
+│  ChargingTrigger.processEndOfDay() [background Dart isolate]                │
+│       ├─→ ManagerSummaryStrategy.analyze(logs)                              │
+│       ├─→ WikiService.updatePendingSummaries(batchSize:10)                  │
+│       │     LLM synthesis → knowledge_pages.summary updated                 │
+│       ├─→ BackgroundTaskHandlers.handleMemoryConsolidation()                │
+│       │     episodic >7d → LLM 1 call → fact, prune >30d                   │
+│       ├─→ RAGService.buildContext(topics, topK:5) → ragContext              │
+│       ├─→ _generateThaiSummary(managerResult, ragContext) → Thai msg        │
+│       └─→ ChargingTriggerEvent(message, ragContext)                         │
+│                ↓                                                             │
+│       _showBgNotification()                                                  │
+│         → SharedPrefs: 'pending_charging_rag_context' = ragContext          │
+│         → FlutterLocalNotifications.show() payload='charging:...'           │
+│                                                                              │
+│  ══ NOTIFICATION TAP → Chat ══                                              │
+│                                                                              │
+│  User taps notification                                                      │
+│       ↓                                                                      │
+│  NotificationService.handleNotificationResponse()                           │
+│       ├─ payload.startsWith('charging:')                                    │
+│       │    → prefs.getString('pending_charging_rag_context')                │
+│       │    → TriggerEvent(payloadJson: {'ragContext': ragContext})           │
+│       └─→ onNotificationTap?.call(triggerEvent)                             │
+│                ↓                                                             │
+│  chat_screen.respondToTrigger(triggerEvent)                                  │
+│       ↓                                                                      │
+│  _buildTriggerPrompt(trigger)                                                │
+│       ├─ cloud:     plain Thai prompt (ป้องกัน echo)                        │
+│       └─ on-device: trigger.payloadJson['ragContext'] → "Recent diary:\n..." │
+│                   + ContextRetriever.retrieveFullContext()                   │
+│                   → Gemma format → Face LLM                                 │
+│                                                                              │
+│  ⚠️ GAP: MVPTriggerService (time/location triggers) fires WITHOUT RAG       │
+│     payloadJson = null → respondToTrigger ใช้แค่ ContextRetriever          │
+│     (SharedPrefs context data) ไม่ใช่ RAGService database จริงๆ            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 
 
-┌─────────────────────────────────────────────────────────────────┐
-│                         TriggerService                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
-│   │TimerTrigger │    │ChargingTrig │    │ManagerSummaryStrat  │ │
-│   │             │    │             │    │                     │ │
-│   │ • 30m ถึงร้าน │    │ • จบวัน     │    │ • วิเคราะห์ pattern │ │
-│   │ • เช้า 6 โมง  │    │ • Morning   │    │ • Health insights  │ │
-│   │ • Health    │    │ • Health    │    │ • Dispatch workers  │ │
-│   └─────────────┘    └─────────────┘    └─────────────────────┘ │
-│                             │                                    │
-│                             ▼                                    │
-│                   ┌─────────────────────┐                       │
-│                   │  UnifiedVectorService│                       │
-│                   │  + UserProfileService│                       │
-│                   │  (no LeanContext)    │                       │
-│                   └─────────────────────┘                       │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      3-TIER MEMORY (Long-Term Memory)                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Working Memory (RAM, ~800 tokens)                                           │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ LiteRT-LM stateful KV cache — last 8 turns in active session         │  │
+│  │ ล้างเมื่อ clearHistory() หรือ session timeout (KV cache reset)        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                              ↓ dual-write ทุก exchange                       │
+│  Episodic Memory (SQLite FTS5, ~1000 tokens retrieved)                       │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ secret_chat_log table + chat_fts (FTS5 virtual table, 3 sync triggers)│  │
+│  │ ← SecretChatService.logExchange() writes every exchange               │  │
+│  │ BM25 retrieval ← TagContextService.searchChatFTS()                    │  │
+│  │ clearHistory() ลบแค่ UI + KV cache — SQLite preserved (ลบแชท ≠ ลืม) │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                              ↓ nightly consolidation (charging)              │
+│  Semantic Memory (facts + Wiki, ~1200 tokens retrieved)                      │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ WikiService: KnowledgePage per entity (person/place/topic/goal/habit) │  │
+│  │   rawFacts[] → contradiction detection → confidence scoring            │  │
+│  │   supersession chain + knowledge_links (graph, co-occurrence)          │  │
+│  │   ← onNewFact() called from SecretChatService (every exchange)         │  │
+│  │   ← updatePendingSummaries() called from ChargingTrigger              │  │
+│  │ UnifiedVectorService: TF-IDF embedding + Cosine Similarity             │  │
+│  │ BackgroundTaskHandlers.handleMemoryConsolidation():                    │  │
+│  │   episodic >7d → LLM 1 call → compact fact, prune entries >30d        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 
 
-┌─────────────────────────────────────────────────────────────────┐
-│                  REMOVED (migration to Gemma 4)                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ✂️ LeanContextService     — lean syntax ไม่จำเป็นแล้ว           │
-│     (lean Thai ~50 chars/msg → English ~15 chars/msg)           │
-│     เหตุผล: Gemma 4 รองรับ 4K-8K token window                    │
-│                                                                  │
-│  ✂️ PreClassify step       — LLM call ก่อน Face                  │
-│     (detect intent: schedule/query/search/log/chat)             │
-│     เหตุผล: Gemma 4 เข้าใจ intent ได้เองโดยตรง                  │
-│     แทนที่ด้วย: _isScheduleQuery() keyword check (0 LLM)         │
-│                                                                  │
-│  ✂️ PreClassifyResult class — ผล intent+summary จาก PreClassify  │
-│  ✂️ buildPreClassifyPrompt() — prompt สำหรับ classify            │
-│                                                                  │
-│  Before: 2-3 LLM calls/exchange (PreClassify + Face + Secret)   │
-│  After:  2 LLM calls/exchange   (Face + Secret)                 │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      WEB SEARCH FLOW (on trigger)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  User: "^วิธีทำข้าวมันไก่" / "^ค้นหา..." / "^(.+)คืออะไร"                  │
+│               ↓ SmartPreprocessor._searchPatterns (^ anchored regex)        │
+│               ↓                                                              │
+│  WebSearchService.search(query)                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  _detectQueryLanguage(query)                                         │   │
+│  │    Thai codeUnits 0x0E00–0x0E7F → 'th' else 'auto'                  │   │
+│  │                                                                      │   │
+│  │  Step 1: _searchWikipedia(query)  [langs: th → en fallback]         │   │
+│  │    /api/rest_v1/search/page?q=QUERY&limit=3 (6s timeout)            │   │
+│  │    /api/rest_v1/page/summary/{key} ถ้า excerpt < 80 chars           │   │
+│  │    → ฟรี, 200 req/s, no key ✅ → RETURN ถ้ามีผล                     │   │
+│  │                                                                      │   │
+│  │  Step 2: _searchSearXNGParallel(query)  [if wiki empty]             │   │
+│  │    Future.wait(4 instances, 5s timeout each)                        │   │
+│  │    เอา instance แรกที่ตอบกลับมา (parallel race)                     │   │
+│  │    → RETURN ถ้ามีผล                                                  │   │
+│  │                                                                      │   │
+│  │  Step 3: _searchGoogle(query)  [fallback]                           │   │
+│  │    _parseGoogleHtml(html, query, maxResults)                        │   │
+│  │                                                                      │   │
+│  │  Cache: 6h | Rate limit: 2s                                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│               ↓                                                              │
+│  _buildSearchFollowUpPrompt(question, searchResult)                          │
+│    isCloud → plain text prompt  (ป้องกัน cloud echo context)                │
+│    on-device → Gemma <start_of_turn> format                                  │
+│               ↓                                                              │
+│  Face LLM → Thai natural reply → ChatScreen bubble                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│               TRIGGER LAYER (4-Layer Architecture)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Layer 0 — App Startup                                                       │
+│  BackgroundTaskService.scheduleDailyTriggers() [idempotent]                  │
+│    → AlarmManager: 09:00 daily + 20:00 daily                                 │
+│    → BootReceiver.kt reschedules after device reboot                         │
+│                                                                              │
+│  Layer 1 — Background (แม้แอพปิด)                                           │
+│  ┌─────────────────────────────┐  ┌──────────────────────────────────────┐  │
+│  │ AlarmManager (Android OS)   │  │ ChargingBroadcastReceiver            │  │
+│  │ → NotificationAlarmReceiver │  │ → HakuForegroundService.kt           │  │
+│  │ → haku_proactive_triggers   │  │   spawn FlutterEngine → Dart isolate │  │
+│  │   channel                   │  │ → chargingBackgroundMain()           │  │
+│  └─────────────────────────────┘  └──────────────────────────────────────┘  │
+│                                                                              │
+│  Layer 2 — Foreground (แอพเปิด)                                              │
+│  MVPTriggerService (5-min poll + GPS)                                        │
+│    TimerTrigger: 09:00 / 12:00 / 17:00 / 20:00 / 22:00                      │
+│    LocationTrigger: revisit 200m, 2hr gap → PlaceFeedback                   │
+│    ⚠️ ไม่มี RAG pre-fetch — payloadJson = null                              │
+│                                                                              │
+│  Layer 3 — Notification                                                      │
+│  Channel: haku_proactive_triggers (unified)                                  │
+│    → charging notification: payload='charging:...'                           │
+│      → tap → NotificationService reads 'pending_charging_rag_context'       │
+│      → TriggerEvent(payloadJson: {'ragContext': ...})                        │
+│    → MVP notification: tap → TriggerEvent (no ragContext)                   │
+│                                                                              │
+│  User toggles (Settings > Proactive AI):                                     │
+│  proactive_morning / proactive_evening / proactive_location / proactive_charging│
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  BACKGROUND PROCESSING (Charging-Deferred)                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Input: SQLite secret_chat_log (English, from SecretChat)                    │
+│                                                                              │
+│  ManagerSummaryStrategy.analyze(recentLogs)                                  │
+│       │                                                                      │
+│       ├─→ WorkerService: CalendarWorker / HealthDoctor / FactWorker         │
+│       │   (rule-based, 0 LLM)                                               │
+│       │                                                                      │
+│       ├─→ WikiService.updatePendingSummaries(batchSize:10)                  │
+│       │   LLM synthesis → knowledge_pages.summary                           │
+│       │   _ruleBasedLinks() → knowledge_links (co-occurrence graph)         │
+│       │                                                                      │
+│       ├─→ BackgroundTaskHandlers.handleMemoryConsolidation()                │
+│       │   episodic >7d → LLM 1 call → compact fact                          │
+│       │   prune entries >30d                                                 │
+│       │                                                                      │
+│       └─→ RAGService.buildContext(topics, topK:5) → ragContext              │
+│                                                                              │
+│  Specialists:                                                                │
+│  ┌─────────────┐   ┌─────────────┐   ┌───────────────────────────────────┐  │
+│  │HealthDoctor │   │ FactWorker  │   │ CalendarWorker                    │  │
+│  │ period/sympt│   │ fav/habits  │   │ predict events 2-5 days           │  │
+│  └─────────────┘   └─────────────┘   └───────────────────────────────────┘  │
+│          ↓                ↓                      ↓                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  💾 SQLite (all encrypted via SQLCipher)                             │    │
+│  │  secret_chat_log + chat_fts │ knowledge_pages + knowledge_links      │    │
+│  │  entries (diary) + facts    │ health_facts + preferences              │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  REMOVED / NOT IMPLEMENTED (อย่าเพิ่มกลับ)                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ✂️ LeanContextService        — lean syntax ไม่จำเป็นแล้ว (8K+ ctx)         │
+│  ✂️ PreClassify LLM step      — Gemma 4 จับ intent ได้เอง                  │
+│  ✂️ PreClassifyResult class   — ผล intent จาก PreClassify                   │
+│  ✂️ buildPreClassifyPrompt()  — prompt สำหรับ classify                      │
+│  ✂️ TriggerService (triggers/trigger_service.dart) — ซ้ำกับ MVPTrigger      │
+│  ✂️ TimerTrigger (triggers/timer_trigger.dart)     — ซ้ำกับ MVPTrigger      │
+│  ✂️ _searchSearXNG (sequential waterfall)          — แทนด้วย parallel race  │
+│                                                                              │
+│  ❌ NOT IMPLEMENTED (อยู่ใน roadmap แต่ไม่มีไฟล์):                          │
+│  • TranslatorWorker — Thai→EN batch translation (ใน FEATURES_ROADMAP 2.4)   │
+│    ปัจจุบัน: ไม่มี batch translation, English มาจาก Secret Chat inline      │
+│  • WeatherWorker    — ไม่มีแยก, WeatherService ใช้ inline ใน SmartPreprocessor│
+│  • MVPTriggerService RAG pre-fetch                                           │
+│    ปัจจุบัน: time/location triggers ไม่ query RAG ก่อน fire                  │
+│    เพิ่มได้: MVPTriggerService._fireTrigger() → RAGService.buildContext()    │
+│              → payloadJson: {'ragContext': result}                           │
+│                                                                              │
+│  Before: 2-3 LLM calls/exchange (PreClassify + Face + Secret)               │
+│  After:  2 LLM calls/exchange   (Face + Secret Chat)                        │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘

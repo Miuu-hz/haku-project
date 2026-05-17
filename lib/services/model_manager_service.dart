@@ -5,11 +5,14 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/constants.dart';
+
 /// 📦 Model Manager Service
 ///
-/// จัดการโมเดล llama.cpp (.gguf files):
+/// จัดการโมเดล LiteRT (.litertlm / .task / .tflite):
 /// - ค้นหาโมเดลในเครื่อง (Downloads + app docs)
 /// - บันทึก/อ่าน active model path ใน SharedPreferences
+/// - copy ไฟล์จาก file_picker cache → permanent models dir อัตโนมัติ
 /// - ดาวน์โหลดโมเดล
 /// - ลบโมเดลที่ไม่ต้องการ
 
@@ -18,7 +21,10 @@ class ModelManagerService {
   factory ModelManagerService() => _instance;
   ModelManagerService._internal();
 
-  static const String _prefModelPath = 'llama_model_path';
+  // ใช้ key เดียวกับ LLMService เพื่อให้ sync กัน
+  static const String _prefModelPath = StorageKeys.customLlmModelPath;
+
+  static const List<String> _supportedExtensions = ['.litertlm', '.task', '.tflite'];
 
   // ── Path helpers ──
 
@@ -33,10 +39,25 @@ class ModelManagerService {
   // ── Active model path ──
 
   /// บันทึก path ของโมเดลที่เลือก
+  /// ถ้าไฟล์อยู่นอก models dir (เช่น file_picker cache) → copy ไปที่ถาวรก่อน
   Future<void> setActiveModelPath(String path) async {
+    final modelsDir = await _modelsDir;
+    String permanentPath = path;
+
+    if (!path.startsWith(modelsDir.path)) {
+      final fileName = path.split('/').last;
+      permanentPath = '${modelsDir.path}/$fileName';
+      final dest = File(permanentPath);
+      if (!await dest.exists()) {
+        debugPrint('📋 Copying model to permanent storage: $fileName');
+        await File(path).copy(permanentPath);
+        debugPrint('✅ Model copied: $permanentPath');
+      }
+    }
+
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefModelPath, path);
-    debugPrint('💾 Active model set: $path');
+    await prefs.setString(_prefModelPath, permanentPath);
+    debugPrint('💾 Active model set: $permanentPath');
   }
 
   /// อ่าน path ของโมเดลที่เลือกไว้
@@ -54,7 +75,7 @@ class ModelManagerService {
 
   // ── Scan local models ──
 
-  /// ค้นหาไฟล์ .gguf ใน Downloads + app docs
+  /// ค้นหาไฟล์โมเดล LiteRT ใน Downloads + app docs
   Future<List<LocalModel>> getLocalModels() async {
     final models = <LocalModel>[];
     final scanDirs = await _getScanDirs();
@@ -62,15 +83,18 @@ class ModelManagerService {
     for (final dir in scanDirs) {
       if (!await dir.exists()) continue;
       await for (final entity in dir.list(recursive: false)) {
-        if (entity is File && entity.path.endsWith('.gguf')) {
-          final stat = await entity.stat();
-          models.add(LocalModel(
-            name: entity.uri.pathSegments.last.replaceAll('.gguf', ''),
-            path: entity.path,
-            sizeBytes: stat.size,
-            modifiedAt: stat.modified,
-          ));
-        }
+        if (entity is! File) continue;
+        final hasSupported = _supportedExtensions.any((ext) => entity.path.endsWith(ext));
+        if (!hasSupported) continue;
+        final stat = await entity.stat();
+        final fileName = entity.uri.pathSegments.last;
+        final displayName = _supportedExtensions.fold(fileName, (n, ext) => n.replaceAll(ext, ''));
+        models.add(LocalModel(
+          name: displayName,
+          path: entity.path,
+          sizeBytes: stat.size,
+          modifiedAt: stat.modified,
+        ));
       }
     }
 

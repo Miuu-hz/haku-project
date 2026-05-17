@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'context_retriever.dart';
 import 'mvp_trigger_service.dart';
@@ -30,6 +32,12 @@ class NotificationService {
   /// 🚀 เริ่มต้น service
   Future<void> initialize() async {
     if (_isInitialized) return;
+
+    // Android 13+: ขอ POST_NOTIFICATIONS ที่ runtime
+    final status = await Permission.notification.status;
+    if (status.isDenied) {
+      await Permission.notification.request();
+    }
 
     // Android settings
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -61,8 +69,8 @@ class NotificationService {
   /// 📢 สร้าง Notification Channel (Android)
   Future<void> _createNotificationChannel() async {
     const androidChannel = AndroidNotificationChannel(
-      'haku_trigger_channel', // id
-      'Haku Triggers', // name
+      'haku_proactive_triggers', // id
+      'Haku Proactive', // name
       description: 'การแจ้งเตือนจาก Haku AI',
       importance: Importance.high,
       enableVibration: true,
@@ -100,8 +108,8 @@ class NotificationService {
     );
 
     final androidDetails = AndroidNotificationDetails(
-      'haku_trigger_channel',
-      'Haku Triggers',
+      'haku_proactive_triggers',
+      'Haku Proactive',
       channelDescription: 'การแจ้งเตือนจาก Haku AI',
       importance: Importance.high,
       priority: Priority.high,
@@ -148,8 +156,26 @@ class NotificationService {
     debugPrint('📱 Notification response: action=$actionId, payload=$payload');
 
     if (actionId == null || actionId == 'open_app') {
-      // เปิดแอพ
       final context = await ContextRetriever().retrieveFullContext();
+
+      // charging notification → ดึง ragContext ที่ background process เก็บไว้
+      if (payload != null && payload.startsWith('charging:')) {
+        final prefs = await SharedPreferences.getInstance();
+        final ragContext = prefs.getString('pending_charging_rag_context');
+        await prefs.remove('pending_charging_rag_context');
+
+        onNotificationTap?.call(
+          TriggerEvent(
+            type: TriggerType.eveningSummary,
+            timestamp: DateTime.now(),
+            context: context,
+            quickReplyOptions: const ['สรุปวันนี้', 'วันดีมาก', 'เหนื่อยหน่อย'],
+            payloadJson: ragContext != null ? {'ragContext': ragContext} : null,
+          ),
+        );
+        return;
+      }
+
       onNotificationTap?.call(
         TriggerEvent(
           type: TriggerType.morningStart,

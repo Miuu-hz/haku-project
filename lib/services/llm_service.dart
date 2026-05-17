@@ -224,6 +224,23 @@ class LLMService {
     if (kDebugMode) print('⏰ Auto-unload timer cancelled');
   }
 
+  /// 🔒 เริ่ม background session — โหลดโมเดล + ยกเลิก auto-unload
+  /// ใช้ก่อนรัน heavy background task (charging-time processing)
+  Future<bool> beginBackgroundSession() async {
+    final loaded = await ensureLoaded();
+    if (loaded) {
+      cancelAutoUnload();
+      if (kDebugMode) print('🔒 LLM background session started');
+    }
+    return loaded;
+  }
+
+  /// 🔓 จบ background session — คืน auto-unload ปกติ
+  Future<void> endBackgroundSession() async {
+    _resetAutoUnloadTimer();
+    if (kDebugMode) print('🔓 LLM background session ended, auto-unload resumed');
+  }
+
   /// 💬 ส่งข้อความไปให้ LLM
   ///
   /// [autoLoad] — ถ้า true จะโหลดโมเดลอัตโนมัติ (default: true)

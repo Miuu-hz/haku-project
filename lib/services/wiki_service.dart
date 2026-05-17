@@ -10,8 +10,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
+import '../models/entry.dart';
 import 'database_helper.dart';
 import 'llm_provider_manager.dart';
+import 'rag_service.dart';
 import 'unified_vector_service.dart';
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -298,6 +300,8 @@ class WikiService {
           for (final link in result.$2) {
             await _writeLink(page.id, link.toId, link.relation);
           }
+          // Index summary เข้า RAGService เพื่อให้ semantic search เจอ Wiki knowledge
+          unawaited(_indexSummaryIntoRag(page.title, page.entityType, result.$1!));
         }
       }
     } catch (e) {
@@ -383,6 +387,24 @@ class WikiService {
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
+
+  /// Index Wiki summary เข้า RAGService เพื่อให้ semantic search เจอได้
+  Future<void> _indexSummaryIntoRag(String title, String entityType, String summary) async {
+    try {
+      final entry = Entry(
+        content: '[WIKI:$title] $summary',
+        createdAt: DateTime.now(),
+        tags: [entityType, title],
+      );
+      final entryId = await DatabaseHelper.instance.createEntry(entry);
+      final rag = RAGService();
+      await rag.initialize();
+      await rag.indexEntry(entry.copyWith(id: entryId));
+      debugPrint('📚 Wiki "$title" indexed into RAG');
+    } catch (e) {
+      debugPrint('⚠️ WikiService RAG index failed (non-fatal): $e');
+    }
+  }
 
   Future<void> _upsert(KnowledgePage page) async {
     final db = await _db.database;

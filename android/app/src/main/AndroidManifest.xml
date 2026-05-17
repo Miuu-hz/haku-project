@@ -14,13 +14,27 @@
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     
     <!-- 📤 Permissions สำหรับ Export/Share -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     
     <!-- 🔔 Permissions สำหรับ Notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- API 32 และต่ำกว่า: ต้อง user grant ใน Settings -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <!-- API 33+ (Android 13+): auto-granted สำหรับ scheduler/calendar apps -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- ⚙️ Permissions สำหรับ Background Service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     
     <!-- 🌐 Internet (optional - สำหรับ map tiles) -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -73,6 +87,8 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+
+
         <!-- 🔄 Boot Receiver -->
         <receiver
             android:name=".receiver.BootReceiver"
@@ -93,6 +109,12 @@
                 <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
             </intent-filter>
         </receiver>
+
+        <!-- 🔔 Notification Alarm Receiver (scheduleReminder) -->
+        <receiver
+            android:name=".receiver.NotificationAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <!-- 🔧 Flutter Plugin Registrant -->
         <meta-data

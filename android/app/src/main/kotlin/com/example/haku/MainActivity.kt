@@ -3,11 +3,19 @@ package com.example.haku
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.util.Log
+import com.example.haku.receiver.NotificationAlarmReceiver
 import kotlinx.coroutines.*
 
 /**
@@ -25,6 +33,9 @@ class MainActivity: FlutterFragmentActivity() {
         private const val WIDGET_CHANNEL = "com.example.haku/widget"
         private const val LLM_CHANNEL = "com.example.haku/llm"
         private const val SCHEDULER_CHANNEL = "com.example.haku/scheduler"
+        private const val BATTERY_CHANNEL = "com.example.haku/battery"
+        private const val DEVICE_CHANNEL = "com.example.haku/device"
+        private const val REQUEST_BATTERY_OPTIMIZATION = 1001
     }
     
     private var pendingWidgetAction: Map<String, String>? = null
@@ -35,6 +46,8 @@ class MainActivity: FlutterFragmentActivity() {
         setupWidgetChannel(flutterEngine)
         setupLLMChannel(flutterEngine)
         setupSchedulerChannel(flutterEngine)
+        setupBatteryChannel(flutterEngine)
+        setupDeviceCommandChannel(flutterEngine)
     }
 
     /**
@@ -145,6 +158,30 @@ class MainActivity: FlutterFragmentActivity() {
                         result.success(success)
                     }
                     
+                    "scheduleReminder" -> {
+                        val title = call.argument<String>("title") ?: "Haku"
+                        val body = call.argument<String>("body") ?: ""
+                        val triggerMinutes = call.argument<Int>("triggerMinutes") ?: 15
+
+                        val triggerMs = System.currentTimeMillis() + (triggerMinutes * 60 * 1000L)
+                        val alarmIntent = Intent(this, NotificationAlarmReceiver::class.java).apply {
+                            putExtra(NotificationAlarmReceiver.EXTRA_TITLE, title)
+                            putExtra(NotificationAlarmReceiver.EXTRA_BODY, body)
+                        }
+                        val pendingIntent = PendingIntent.getBroadcast(
+                            this,
+                            triggerMs.toInt(),
+                            alarmIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                        )
+                        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent
+                        )
+                        Log.i(TAG, "⏰ Reminder scheduled in $triggerMinutes min: $title")
+                        result.success(true)
+                    }
+
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -306,6 +343,76 @@ class MainActivity: FlutterFragmentActivity() {
         }
     }
 
+    /**
+     * 🔋 Setup Battery Optimization MethodChannel
+     */
+    private fun setupBatteryChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BATTERY_CHANNEL).setMethodCallHandler {
+            call, result ->
+            try {
+                when (call.method) {
+                    "checkStatus" -> {
+                        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+                        val isIgnoring = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            powerManager.isIgnoringBatteryOptimizations(packageName)
+                        } else {
+                            true // API < 23 ไม่มี battery optimization
+                        }
+                        val canRequest = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+
+                        result.success(mapOf(
+                            "isIgnoringBatteryOptimizations" to isIgnoring,
+                            "canRequest" to canRequest,
+                            "manufacturer" to Build.MANUFACTURER
+                        ))
+                    }
+
+                    "requestPermission" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivityForResult(intent, REQUEST_BATTERY_OPTIMIZATION)
+                            // จริงๆ ควรรอ onActivityResult แต่เพื่อความง่าย return true แล้วให้ Dart ตรวจสอบเอง
+                            result.success(true)
+                        } else {
+                            result.success(true)
+                        }
+                    }
+
+                    "openBatterySettings" -> {
+                        try {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            // Fallback ถ้า settings ไม่รองรับ
+                            val fallbackIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(fallbackIntent)
+                            result.success(true)
+                        }
+                    }
+
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error in battery method ${call.method}: ${e.message}")
+                result.error("BATTERY_ERROR", e.message, e.stackTraceToString())
+            }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_BATTERY_OPTIMIZATION) {
+            // User กลับมาจาก system dialog
+            // Dart จะตรวจสอบสถานะเองผ่าน checkStatus()
+            Log.i(TAG, "🔋 Battery optimization dialog returned: resultCode=$resultCode")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleWidgetIntent(intent)
@@ -314,6 +421,37 @@ class MainActivity: FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleWidgetIntent(intent)
+    }
+
+    /**
+     * 🔧 Setup Device Command MethodChannel
+     *
+     * ให้ Flutter สั่งงาน smartphone ได้: flashlight, open app, dial, SMS, settings, etc.
+     */
+    private fun setupDeviceCommandChannel(flutterEngine: FlutterEngine) {
+        val handler = DeviceCommandHandler(this)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL).setMethodCallHandler {
+            call, result ->
+            try {
+                when (call.method) {
+                    "execute" -> {
+                        val command = call.argument<String>("command")
+                        val params = call.argument<Map<String, Any>>("params")
+                        if (command != null) {
+                            val outcome = handler.execute(command, params ?: emptyMap())
+                            result.success(outcome)
+                        } else {
+                            result.error("INVALID", "Missing command", null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error in device command ${call.method}: ${e.message}")
+                result.error("DEVICE_ERROR", e.message, e.stackTraceToString())
+            }
+        }
     }
 
     /**

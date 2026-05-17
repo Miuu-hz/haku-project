@@ -55,22 +55,22 @@ class SmartPreprocessor {
 
   /// คำที่บ่งบอกว่าต้องการค้นหาข้อมูลจากเว็บ (ไม่รวม weather → ใช้ Open-Meteo แทน)
   static final List<RegExp> _searchPatterns = [
-    // ภาษาไทย
-    RegExp(r'ค้นหา(.+)', caseSensitive: false),
-    RegExp(r'หา(.+)ให้หน่อย', caseSensitive: false),
-    RegExp(r'หา(.+)ให้ที', caseSensitive: false),
-    RegExp(r'(.+)คืออะไร', caseSensitive: false),
-    RegExp(r'(.+)หมายความว่าอะไร', caseSensitive: false),
-    RegExp(r'ข่าว(.+)', caseSensitive: false),
-    RegExp(r'ราคา(.+)', caseSensitive: false),
-    RegExp(r'วิธี(.+)', caseSensitive: false),
-    RegExp(r'สูตร(.+)', caseSensitive: false),
+    // ภาษาไทย — ใช้ ^ เพื่อป้องกัน false positive ("มีวิธี...", "รู้สูตร...")
+    RegExp(r'^ค้นหา\s*(.+)', caseSensitive: false),
+    RegExp(r'^หา(.+)ให้หน่อย', caseSensitive: false),
+    RegExp(r'^หา(.+)ให้ที', caseSensitive: false),
+    RegExp(r'^(.+)คืออะไร', caseSensitive: false),
+    RegExp(r'^(.+)หมายความว่าอะไร', caseSensitive: false),
+    RegExp(r'^ข่าว\s*(.+)', caseSensitive: false),
+    RegExp(r'^ราคา\s*(.+)', caseSensitive: false),
+    RegExp(r'^วิธี\s*(.+)', caseSensitive: false),
+    RegExp(r'^สูตร\s*(.+)', caseSensitive: false),
     // English patterns
-    RegExp(r'(?:search|find|look up|look for|search for)\s+(.+)', caseSensitive: false),
-    RegExp(r'what\s+is\s+(.+)', caseSensitive: false),
-    RegExp(r'how\s+(?:to|do)\s+(.+)', caseSensitive: false),
-    RegExp(r'where\s+(?:is|are|can\s+i\s+find)\s+(.+)', caseSensitive: false),
-    RegExp(r'(.+)\s+near(?:by|\s+me)\b', caseSensitive: false),
+    RegExp(r'(?:^|\b)(?:search|find|look up|look for|search for)\s+(.+)', caseSensitive: false),
+    RegExp(r'(?:^|\b)what\s+is\s+(.+)', caseSensitive: false),
+    RegExp(r'(?:^|\b)how\s+(?:to|do)\s+(.+)', caseSensitive: false),
+    RegExp(r'(?:^|\b)where\s+(?:is|are|can\s+i\s+find)\s+(.+)', caseSensitive: false),
+    RegExp(r'^(.+)\s+near(?:by|\s+me)\b', caseSensitive: false),
   ];
 
   /// คำที่บ่งบอกว่าถามเรื่องอากาศ → ใช้ WeatherService (Open-Meteo) แทน web search

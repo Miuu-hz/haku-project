@@ -1,6 +1,6 @@
 # Haku — Private Life OS: Features Roadmap
 
-> อัปเดตล่าสุด: 2026-05-13 (Business Roadmap depa + Haku OS Vision Q&A)
+> อัปเดตล่าสุด: 2026-05-22 (Proactive Trigger consolidation + SLM background service + user toggles + Web Search overhaul)
 > เรียงตามวัตถุประสงค์และที่มาของโปรเจกต์
 
 ---
@@ -509,12 +509,23 @@ User msg
 
 ### 2.8 Proactive Triggers ✅
 
+**Architecture: 4-Layer Trigger Flow**
+```
+App Startup  →  Background  →  Foreground  →  Notification
+     ↓              ↓              ↓              ↓
+scheduleDaily   AlarmManager   MVPTriggerService  unified channel
++HakuBgService  + ChargingBR   (5-min poll+GPS)   haku_proactive_triggers
+```
+
 - [x] Time-based (09:00 เช้า, 12:00 เที่ยง, 17:00 เย็น, 22:00 ก่อนนอน)
 - [x] Location-based (revisit 200m, 2+ hr gap)
 - [x] No-entry reminder
 - [x] Battery-optimized: เช็คทุก 5 นาที
 - [x] Notification Service + Quick Reply จาก notification
 - [x] Deep link เข้าแอปพร้อม context
+- [x] **Dead code cleanup** — ลบ `TriggerService` + `TimerTrigger` (ไม่มีใครใช้)
+- [x] **Channel unification** — ทุก notification ใช้ `haku_proactive_triggers` channel
+- [x] **User toggles** — Settings > Proactive AI: ปิด/เปิด morning, evening, GPS location, charging AI แยกกัน
 - [ ] Proactive Voice Alert (TTS) — ยังไม่ implement
 
 ---
@@ -526,6 +537,12 @@ User msg
 - [x] `ManagerSummaryStrategy` — วิเคราะห์ health, behavior, preferences
 - [x] `BackgroundTaskHandlers` — wire ManagerSummary + reindex vectors
 - [x] Energy Profile (ultraSaver / batterySaver / balanced / performance)
+- [x] **`flutter_background_service`** — foreground service ทำงานได้แม้แอพปิด (Dart isolate)
+- [x] **`HakuForegroundService.kt`** — native Android service spawn FlutterEngine ตอนชาร์จ → รัน Dart callback
+- [x] **`BootReceiver.kt`** — reschedule daily alarm หลัง reboot
+- [x] **SLM in background** — `ChargingTrigger.processEndOfDay()` เรียก `LLMService.generate()` ผ่าน `beginBackgroundSession()` (ป้องกัน auto-unload)
+- [x] **`BatteryOptimizationService`** — ขอ `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` + คู่มือตั้งค่าแบรนด์ (Xiaomi/Samsung/OPPO)
+- [x] **Charging toggle guard** — `proactive_charging_enabled` ปิดได้จาก Settings
 
 ---
 
@@ -537,6 +554,17 @@ User msg
 - [x] Location-aware Search (Google Places API, BYOK)
 - [x] No-results fix — return `''` แทน Thai string (ป้องกัน hallucinate)
 - [x] 6h cache + 2s rate limit
+
+**อัปเดต 22/5/2026 — Web Search Overhaul (Gemma 4 4B LiteRT)**
+
+- [x] **Wikipedia REST API (th/en)** — primary search tier ใหม่, ฟรี, 200 req/s, clean text extract, ไม่ต้อง API key; ค้น th ก่อน → fallback en อัตโนมัติ (22/5/2026)
+- [x] **SearXNG parallel race** — `Future.wait()` ยิงทุก instance พร้อมกัน เอาตัวแรกที่มีผล (แทน sequential waterfall ที่ช้าสูงสุด 30s) (22/5/2026)
+- [x] **Search priority: Wikipedia → SearXNG parallel → Google scraping** — encyclopedic queries ได้ Wikipedia ก่อนเสมอ (22/5/2026)
+- [x] **`_detectQueryLanguage()`** — ตรวจ Thai Unicode range `0x0E00–0x0E7F` → ส่ง `'th'` / `'auto'` ให้ SearXNG โดยอัตโนมัติ (22/5/2026)
+- [x] **Universal search prompts** — `_buildSearchFollowUpPrompt` + `_buildTriggerPrompt` ตรวจ cloud vs on-device; cloud ใช้ plain text prompt, on-device ใช้ Gemma `<start_of_turn>` format (แก้ปัญหา cloud echo context) (22/5/2026)
+- [x] **`^` anchor บน search patterns** — ป้องกัน false positive เช่น "ฉันมีวิธีแก้" → trigger web search โดยไม่ตั้งใจ (22/5/2026)
+- [x] **`_parseGoogleHtml` query param fix** — แก้ signature ให้รับ `query` เพื่อ fallback title เมื่อ selector ไม่ match (22/5/2026)
+- [x] **Gemma 4 4B context window** — token budget ไม่ใช่ข้อจำกัดอีกต่อไป ส่ง Wikipedia full extract ได้โดยไม่ต้อง truncate (22/5/2026)
 
 ---
 
@@ -1165,7 +1193,9 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 ## Pre-MVP Checklist (ก่อน Public Launch)
 
 ### Background Processing
-- ❌ **WorkManager batch** — defer post-MVP (LLM tasks ทำ background ไม่ได้ใน Flutter isolate)
+- [x] **`flutter_background_service`** — foreground Dart isolate ทำงานตอนชาร์จ + periodic 15 min ✅
+- [x] **AlarmManager daily triggers** — 09:00 morning + 20:00 evening ยิงแม้แอพปิด ✅
+- **ข้อจำกัด:** WorkManager batch (post-MVP) — ยังไม่รองรับ heavy LLM tasks ผ่าน WorkManager
 
 ### Focus Timer
 - [x] Break reminder notification ✅
@@ -1174,6 +1204,65 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 ### GPS / Location
 - [x] `GeofenceService` + `MVPTriggerService` (foreground only) ✅
 - **ข้อจำกัด:** DwellTracker ทำงานได้เฉพาะแอพเปิดอยู่ — Phase 5.3 จะแก้
+
+### Trigger-RAG Context Pipeline (Next — 2026-05-18)
+> แก้ไขจุดที่ Trigger → ChatScreen ไม่มี context จริงจาก RAG
+
+| Priority | งาน | ไฟล์ | ผลกระทบ |
+|---|---|---|---|
+| 🔴 1 | `logExchange()` → index เข้า RAG | `secret_chat_service.dart` | บทสนทนาไม่ถูก index → trigger search ไม่เจอ |
+| 🔴 2 | `chargingBackgroundMain()` → init `RAGService` | `main.dart` | ChargingTrigger ประมวลผลโดยไม่รู้เนื้อหา diary |
+| 🔴 3 | `ChargingTriggerEvent` → เพิ่ม `context: ContextData?` | `charging_trigger.dart` | notification tap → ChatScreen ไม่มี context |
+| 🟡 4 | Unify สอง vector index | `rag_service.dart` + `unified_vector_service.dart` | ChargingTrigger เห็นแค่ facts / ContextRetriever เห็นแค่ entries |
+| 🟡 5 | `respondToTrigger()` → re-query RAG ด้วย trigger context | `chat_screen.dart` | ตอบ trigger ด้วย context ที่อาจ stale |
+| 🟢 6 | Notification tap → deep link พร้อม `triggerPayload` | `notification_service.dart` | user tap → ChatScreen เปิดเปล่า ไม่ auto-respond |
+
+**สรุปสถานะปัจจุบัน:**
+```
+Chat → RAG → Chat      ✅ (foreground, MVPTrigger path ทำงานครบ)
+Charging → RAG → Notif ❌ (สาย charging ใช้แค่ facts, ไม่ใช่ diary entries)
+logExchange → RAG index ❌ (root cause — ไม่มีอะไรถูก index จริง)
+```
+
+### Wiki Service Integration (Next — 2026-05-19 → 05-21)
+> แก้ไขจุดที่ Wiki ไม่ถูกประมวลผล + ไม่ถูก index โดย RAGService
+
+**ปัญหาหลัก 2 ข้อ:**
+
+| # | ปัญหา | ผลกระทบ |
+|---|---|---|
+| 1 | **Summaries เป็น placeholder ตลอด** — `onNewFact(runLLM: false)` เก็บแค่ `content` ดิบ | Wiki pages ไม่มี LLM synthesis |
+| 2 | **Wiki กับ RAGService แยกกันสมบูรณ์** — `RAGService.buildContext()` ค้นแค่ entries table | RAG ไม่เห็น Wiki knowledge เลย |
+
+**WRITE PATH ปัจจุบัน:**
+```
+Chat → logExchange() → WikiService.onNewFact()
+  ├─► rawFacts.add()         ✅
+  ├── summary = content       ⚠️ placeholder (ยังไม่ใช่ LLM summary)
+  ├─► _ruleBasedLinks()       ✅ GraphRAG co-occurrence
+  └─► SQLite upsert           ✅
+
+MISSING: Charging → WikiService.updatePendingSummaries() ❌
+```
+
+**READ PATH ปัจจุบัน:**
+```
+sendToAI() → WikiService.query()
+  ├─► UnifiedVectorService.search()  ✅ (facts)
+  ├─► _titleSearch()                 ✅
+  ├─► 1-hop graph expansion          ✅
+  └─► formatForContext()             ✅
+
+MISSING: Wiki pages → RAGService.indexEntry() ❌
+```
+
+**Fixes (3 วัน):**
+
+| วัน | Fix | ไฟล์ | รายละเอียด |
+|---|---|---|---|
+| 🔴 19/05 | **Fix A** — Charging เรียก `updatePendingSummaries()` | `charging_trigger.dart` | หลัง `ManagerSummaryStrategy.analyze()` → `await WikiService().updatePendingSummaries(batchSize: 10)` |
+| 🔴 20/05 | **Fix B** — Index Wiki summaries เข้า RAGService | `wiki_service.dart` | หลัง `_upsert(page.copyWith(summary:))` → สร้าง `Entry(content: page.summary, tags: [type, title])` → `RAGService().indexEntry(entry)` |
+| 🟢 21/05 | **Integration** — Verify read/write paths | ทุกไฟล์ | ทดสอบ: Chat→Wiki→RAG→Chat วนกลับมาครบทุก path |
 
 ### UI / UX
 - [x] Haku Crystal Design System — ครบทุก screen (13 screens) ✅

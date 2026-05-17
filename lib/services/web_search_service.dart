@@ -9,11 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// 🔍 Web Search Service - ค้นหาเว็บให้ AI ฉลาดขึ้น
 ///
-/// Features:
-/// - ค้นหาผ่าน SearXNG JSON API (primary, ไม่โดน block, ไม่ต้อง key)
-/// - Fallback ไป Google scraping
-/// - อ่านเนื้อหาผ่าน Jina AI Reader (r.jina.ai) — clean markdown
-/// - Cache ผลลัพธ์เพื่อประหยัด requests
+/// Search priority:
+/// 1. Wikipedia REST API  — free, 200 req/s, clean JSON, ไม่ต้อง key
+/// 2. SearXNG (parallel)  — realtime / news ที่ Wiki ไม่มี
+/// 3. Google scraping     — fallback สุดท้าย
 
 class WebSearchService {
   static final WebSearchService _instance = WebSearchService._internal();
@@ -105,6 +104,8 @@ class WebSearchService {
   // ============================================================
 
   /// 🔍 ค้นหาเว็บ (main method)
+  ///
+  /// Priority: Wikipedia → SearXNG (parallel) → Google scraping
   Future<SearchResult> search(
     String query, {
     int maxResults = 5,
@@ -132,10 +133,16 @@ class WebSearchService {
 
     debugPrint('🔍 Searching: $query');
 
-    // ลอง SearXNG ก่อน (JSON API, ไม่โดน block)
-    var result = await _searchSearXNG(query, maxResults: maxResults);
+    // 1. Wikipedia (encyclopedic, reliable, free, no DNS issues)
+    var result = await _searchWikipedia(query, maxResults: maxResults);
 
-    // Fallback to Google if SearXNG fails
+    // 2. SearXNG parallel (realtime: news, prices, current events)
+    if (result.items.isEmpty) {
+      debugPrint('📖 Wiki empty, trying SearXNG...');
+      result = await _searchSearXNGParallel(query, maxResults: maxResults);
+    }
+
+    // 3. Google scraping (final fallback)
     if (result.items.isEmpty) {
       debugPrint('⚠️ SearXNG failed, trying Google...');
       result = await _searchGoogle(query, maxResults: maxResults);
@@ -153,57 +160,144 @@ class WebSearchService {
     return result;
   }
 
-  /// 🔍 ค้นหาผ่าน SearXNG JSON API (ลอง instance ทีละตัว)
-  Future<SearchResult> _searchSearXNG(
+  /// 📖 Wikipedia REST API — free, 200 req/s, clean JSON
+  ///
+  /// ลอง th.wikipedia ก่อน (ถ้า query มีภาษาไทย) แล้ว en.wikipedia
+  /// Summary endpoint ให้ clean text ~500 chars ต่อบทความ
+  Future<SearchResult> _searchWikipedia(
+    String query, {
+    int maxResults = 3,
+  }) async {
+    final isThai = _detectQueryLanguage(query) == 'th';
+    // ลำดับภาษา: Thai query → th ก่อน, อื่น → en ก่อน
+    final langs = isThai ? ['th', 'en'] : ['en', 'th'];
+
+    for (final lang in langs) {
+      try {
+        final searchUri = Uri.https(
+          '$lang.wikipedia.org',
+          '/api/rest_v1/search/page',
+          {'q': query, 'limit': '$maxResults'},
+        );
+
+        final searchResp = await http.get(
+          searchUri,
+          headers: {'User-Agent': 'HakuApp/1.0 (haikihake@gmail.com)'},
+        ).timeout(const Duration(seconds: 6));
+
+        if (searchResp.statusCode != 200) continue;
+
+        final data = jsonDecode(searchResp.body) as Map<String, dynamic>;
+        final pages = (data['pages'] as List?) ?? [];
+        if (pages.isEmpty) continue;
+
+        // ดึง summary ของแต่ละหน้าแบบ parallel
+        final summaryFutures = pages.take(maxResults).map((p) {
+          final key = (p as Map<String, dynamic>)['key'] as String? ?? '';
+          final title = p['title'] as String? ?? key;
+          final excerpt = (p['excerpt'] as String? ?? '')
+              .replaceAll(RegExp(r'<[^>]+>'), ''); // strip HTML tags
+          final url = 'https://$lang.wikipedia.org/wiki/${Uri.encodeComponent(key)}';
+          // ถ้า excerpt ยาวพอแล้ว ไม่ต้อง fetch summary อีก
+          if (excerpt.length >= 80) {
+            return Future.value(SearchItem(
+              title: title,
+              url: url,
+              snippet: excerpt,
+              source: 'Wikipedia ($lang)',
+            ));
+          }
+          // ดึง summary เพิ่มจาก summary endpoint
+          return _fetchWikiSummary(lang, key, title, url);
+        });
+
+        final items = (await Future.wait(summaryFutures))
+            .whereType<SearchItem>()
+            .toList();
+
+        if (items.isNotEmpty) {
+          debugPrint('📖 Wikipedia ($lang): ${items.length} results');
+          return SearchResult(query: query, items: items, source: 'wikipedia');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Wikipedia ($lang) failed: $e');
+      }
+    }
+
+    return SearchResult(query: query, items: [], source: 'wikipedia');
+  }
+
+  /// ดึง summary จาก Wikipedia summary endpoint (clean text ~500 chars)
+  Future<SearchItem?> _fetchWikiSummary(
+      String lang, String key, String title, String url) async {
+    try {
+      final uri = Uri.https(
+          '$lang.wikipedia.org', '/api/rest_v1/page/summary/$key');
+      final resp = await http
+          .get(uri, headers: {'User-Agent': 'HakuApp/1.0'})
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final d = jsonDecode(resp.body) as Map<String, dynamic>;
+        final extract = (d['extract'] as String? ?? '').trim();
+        if (extract.isNotEmpty) {
+          return SearchItem(
+            title: title,
+            url: url,
+            snippet: extract.length > 600
+                ? '${extract.substring(0, 600)}...'
+                : extract,
+            source: 'Wikipedia ($lang)',
+          );
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 🔍 SearXNG parallel — ยิงทุก instance พร้อมกัน เอาตัวแรกที่ตอบ
+  Future<SearchResult> _searchSearXNGParallel(
     String query, {
     int maxResults = 5,
   }) async {
-    for (final instance in _searxInstances) {
+    final futures = _searxInstances.map((instance) async {
       try {
         final uri = Uri.https(instance, '/search', {
           'q': query,
           'format': 'json',
-          'language': 'th',
+          'language': _detectQueryLanguage(query),
           'categories': 'general',
         });
-
-        final response = await http.get(
+        final resp = await http.get(
           uri,
-          headers: {
-            'User-Agent': _currentUserAgent,
-            'Accept': 'application/json',
-          },
-        ).timeout(const Duration(seconds: 10));
+          headers: {'User-Agent': _currentUserAgent, 'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body) as Map<String, dynamic>;
-          final rawResults = (data['results'] as List?) ?? [];
-
-          final items = rawResults
-              .take(maxResults)
-              .map((r) {
-                final m = r as Map<String, dynamic>;
-                return SearchItem(
-                  title: (m['title'] as String?) ?? '',
-                  url: (m['url'] as String?) ?? '',
-                  snippet: (m['content'] as String?) ?? '',
-                  source: 'SearXNG',
-                );
-              })
-              .where((i) => i.title.isNotEmpty && i.url.isNotEmpty)
-              .toList();
-
-          if (items.isNotEmpty) {
-            debugPrint('✅ SearXNG ($instance): ${items.length} results');
-            return SearchResult(query: query, items: items, source: 'searxng');
-          }
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          final raw = (data['results'] as List?) ?? [];
+          final items = raw.take(maxResults).map((r) {
+            final m = r as Map<String, dynamic>;
+            return SearchItem(
+              title: (m['title'] as String?) ?? '',
+              url: (m['url'] as String?) ?? '',
+              snippet: (m['content'] as String?) ?? '',
+              source: 'SearXNG',
+            );
+          }).where((i) => i.title.isNotEmpty && i.url.isNotEmpty).toList();
+          if (items.isNotEmpty) return SearchResult(query: query, items: items, source: 'searxng');
         }
-      } catch (e) {
-        debugPrint('⚠️ SearXNG ($instance) failed: $e');
-      }
-    }
+      } catch (_) {}
+      return SearchResult(query: query, items: [], source: 'searxng');
+    });
 
-    return SearchResult(query: query, items: [], source: 'searxng');
+    // เอาตัวแรกที่มีผล (race)
+    final results = await Future.wait(futures);
+    final first = results.firstWhere((r) => r.items.isNotEmpty,
+        orElse: () => SearchResult(query: query, items: [], source: 'searxng'));
+    if (first.items.isNotEmpty) {
+      debugPrint('✅ SearXNG parallel: ${first.items.length} results');
+    }
+    return first;
   }
 
   /// 🔍 ค้นหาผ่าน Google (scraping)
@@ -228,7 +322,7 @@ class WebSearchService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        return _parseGoogleHtml(response.body, maxResults);
+        return _parseGoogleHtml(response.body, query, maxResults);
       } else if (response.statusCode == 429) {
         debugPrint('⚠️ Google rate limited (429)');
       }
@@ -240,7 +334,7 @@ class WebSearchService {
   }
 
   /// 📝 Parse Google HTML
-  SearchResult _parseGoogleHtml(String html, int maxResults) {
+  SearchResult _parseGoogleHtml(String html, String query, int maxResults) {
     final items = <SearchItem>[];
 
     try {
@@ -288,7 +382,7 @@ class WebSearchService {
     }
 
     return SearchResult(
-      query: '',
+      query: query,
       items: items,
       source: 'google',
     );
@@ -410,6 +504,11 @@ class WebSearchService {
       debugPrint('⚠️ Google Places error: $e');
     }
     return SearchResult(query: query, items: [], source: 'google_places');
+  }
+
+  /// 🌐 ตรวจภาษาของ query — ถ้ามีอักษรไทย → 'th', ไม่งั้น → 'auto'
+  String _detectQueryLanguage(String query) {
+    return query.codeUnits.any((c) => c >= 0x0E00 && c <= 0x0E7F) ? 'th' : 'auto';
   }
 
   /// 📐 Haversine distance (เมตร) ระหว่าง 2 จุด
