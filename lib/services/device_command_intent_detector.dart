@@ -1,4 +1,11 @@
+import 'dart:math' as math;
+
+import '../models/entry.dart';
+import 'database_helper.dart';
 import 'device_command_service.dart';
+import 'location_service.dart';
+import 'nominatim_service.dart';
+import 'place_service.dart';
 
 /// 🎯 DeviceCommandIntentDetector
 ///
@@ -110,6 +117,12 @@ class DeviceCommandIntentDetector {
   );
   static final _networkPattern = RegExp(
     r'เน็ต(ติด|ใช้ได้|ไหม|เร็วไหม|ช้าไหม)|wifi(ติด|ใช้ได้|ไหม)|network status|check (network|internet|wifi)',
+    caseSensitive: false,
+  );
+
+  // ─── Check-in ───
+  static final _checkInPattern = RegExp(
+    r'เช็คอิน|check[-\s]?in|บันทึกที่นี่|อยู่ที่นี่แล้ว|mark location',
     caseSensitive: false,
   );
 
@@ -367,6 +380,79 @@ class DeviceCommandIntentDetector {
       );
     }
 
+    // ─── Check-in ───
+    if (_checkInPattern.hasMatch(msg)) {
+      return DeviceCommand(
+        action: 'check_in',
+        execute: () async {
+          final position = await LocationService.getCurrentPosition();
+          if (position == null) {
+            return {'success': false, 'error': 'no_gps'};
+          }
+          final lat = position.latitude;
+          final lng = position.longitude;
+
+          // Tier 1: SavedPlaces ที่อยู่ในรัศมี 300m
+          String placeName = '';
+          final saved = PlaceService().savedPlaces;
+          double nearestDist = double.infinity;
+          String nearestName = '';
+          for (final p in saved) {
+            final d = _haversineMeters(lat, lng, p.latitude, p.longitude);
+            if (d < nearestDist) {
+              nearestDist = d;
+              nearestName = p.name;
+            }
+          }
+          if (nearestDist < 300) placeName = nearestName;
+
+          // Tier 2: Nominatim reverse geocode
+          if (placeName.isEmpty) {
+            final addr = await NominatimService().reverseGeocode(lat, lng);
+            placeName = addr?.toSearchSuffix() ?? '';
+          }
+
+          // Tier 3: coordinates fallback
+          if (placeName.isEmpty) {
+            placeName =
+                '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
+          }
+
+          final now = DateTime.now();
+          final entry = Entry(
+            content: '📍 เช็คอิน @ $placeName',
+            createdAt: now,
+            latitude: lat,
+            longitude: lng,
+            locationName: placeName,
+            tags: const ['check_in', 'location'],
+          );
+          final id = await DatabaseHelper.instance.createEntry(entry);
+          final timeStr =
+              '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+          return {
+            'success': id > 0,
+            'placeName': placeName,
+            'time': timeStr,
+            'isNewPlace': nearestDist >= 300,
+          };
+        },
+        replyTemplate: '',
+        postExecuteReply: (r) {
+          if (r['success'] != true) {
+            return '❌ เช็คอินไม่สำเร็จค่ะ (ตรวจสอบสิทธิ์ตำแหน่ง)';
+          }
+          final place = r['placeName'] as String? ?? 'ที่นี่';
+          final time = r['time'] as String? ?? '';
+          final isNew = r['isNewPlace'] == true;
+          final suffix =
+              isNew ? '\n💡 ตั้งชื่อที่นี่ได้ใน SavedPlaces นะคะ' : '';
+          return '📍 เช็คอิน @ $place · $time$suffix';
+        },
+      );
+    }
+
     return null; // ไม่ match คำสั่งใด — ส่งให้ LLM ตอบตามปกติ
   }
 
@@ -459,6 +545,22 @@ class DeviceCommandIntentDetector {
       if (s > 0 && h == 0) '$s วินาที',
     ];
     return parts.join(' ');
+  }
+
+  /// ระยะทาง Haversine (เมตร) ระหว่าง 2 พิกัด
+  static double _haversineMeters(
+      double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371000.0;
+    final phi1 = lat1 * math.pi / 180;
+    final phi2 = lat2 * math.pi / 180;
+    final dPhi = (lat2 - lat1) * math.pi / 180;
+    final dLambda = (lng2 - lng1) * math.pi / 180;
+    final a = math.sin(dPhi / 2) * math.sin(dPhi / 2) +
+        math.cos(phi1) *
+            math.cos(phi2) *
+            math.sin(dLambda / 2) *
+            math.sin(dLambda / 2);
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
   /// 🚀 ตรวจจับแล้ว execute ทันที พร้อม return ข้อความตอบกลับ

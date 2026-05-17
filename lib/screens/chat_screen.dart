@@ -247,10 +247,14 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           final isNearby = lowerQuery.contains('ใกล้ฉัน') ||
               lowerQuery.contains('ใกล้ที่นี่') ||
               lowerQuery.contains('ใกล้บ้าน') ||
+              lowerQuery.contains('ใกล้ๆ') ||
               lowerQuery.contains('แถวนี้') ||
               lowerQuery.contains('ในละแวก') ||
+              lowerQuery.contains('ร้านใกล้') ||
+              lowerQuery.contains('หาร้าน') ||
               lowerQuery.contains('nearby') ||
-              lowerQuery.contains('near me');
+              lowerQuery.contains('near me') ||
+              lowerQuery.contains('near here');
 
           double? lat, lng;
           String? placesKey;

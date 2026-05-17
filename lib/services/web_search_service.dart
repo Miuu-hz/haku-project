@@ -7,6 +7,8 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'nominatim_service.dart';
+
 /// 🔍 Web Search Service - ค้นหาเว็บให้ AI ฉลาดขึ้น
 ///
 /// Search priority:
@@ -548,6 +550,9 @@ class WebSearchService {
         debugPrint('⚠️ Google Places no results, falling back to SearXNG...');
         result = await search(query, maxResults: 3);
       }
+    } else if (lat != null && lng != null) {
+      // มี GPS แต่ไม่มี Google key → Nominatim + web search
+      result = await searchNearby(query, lat: lat, lng: lng, maxResults: 5);
     } else {
       result = await search(query, maxResults: 3);
     }
@@ -600,6 +605,60 @@ class WebSearchService {
       buffer.writeln();
     }
 
+    return buffer.toString();
+  }
+
+  /// 📍 ค้นหาสถานที่ใกล้เคียงโดยไม่ต้องใช้ Google Places API
+  ///
+  /// Flow: GPS → Nominatim reverse → ชื่อพื้นที่ → WebSearch "$amenity $suburb $county"
+  /// GPS ออกนอกเครื่องแค่ครั้งเดียว (Nominatim) หลังจากนั้น query เป็นแค่ชื่อพื้นที่
+  ///
+  /// [amenity] เช่น "คาเฟ่", "ร้านอาหาร", "ปั๊มน้ำมัน"
+  /// [lat], [lng] ตำแหน่งปัจจุบัน
+  Future<SearchResult> searchNearby(
+    String amenity, {
+    required double lat,
+    required double lng,
+    int maxResults = 5,
+  }) async {
+    final address = await NominatimService().reverseGeocode(lat, lng);
+
+    final locationSuffix = address?.toSearchSuffix() ?? '';
+    final query = locationSuffix.isNotEmpty
+        ? '$amenity $locationSuffix'
+        : amenity;
+
+    debugPrint('📍 searchNearby: "$query"');
+    return search(query, maxResults: maxResults);
+  }
+
+  /// 🤖 searchNearby สำหรับ AI — คืน string พร้อม context ที่อยู่
+  Future<String> searchNearbyForAI(
+    String amenity, {
+    required double lat,
+    required double lng,
+  }) async {
+    final address = await NominatimService().reverseGeocode(lat, lng);
+    final locationSuffix = address?.toSearchSuffix() ?? '';
+    final query = locationSuffix.isNotEmpty ? '$amenity $locationSuffix' : amenity;
+
+    final result = await search(query, maxResults: 5);
+    if (result.items.isEmpty) return '';
+
+    final buffer = StringBuffer();
+    if (locationSuffix.isNotEmpty) {
+      buffer.writeln('📍 $amenity ใกล้ $locationSuffix:');
+    } else {
+      buffer.writeln('📍 $amenity ใกล้คุณ:');
+    }
+    buffer.writeln();
+    for (int i = 0; i < result.items.length; i++) {
+      final item = result.items[i];
+      buffer.writeln('${i + 1}. ${item.title}');
+      if (item.snippet.isNotEmpty) buffer.writeln('   ${item.snippet}');
+      buffer.writeln('   🔗 ${item.url}');
+      buffer.writeln();
+    }
     return buffer.toString();
   }
 

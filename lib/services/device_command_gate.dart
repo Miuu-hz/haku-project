@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'device_command_audit.dart';
-
 /// 🛡️ DeviceCommandGate — 4 ระดับความปลอดภัยสำหรับคำสั่ง smartphone
 ///
 /// แบ่งคำสั่งตามความ sensitive ก่อนส่งไป DeviceCommandService.execute()
@@ -151,7 +149,7 @@ class DeviceCommandGate {
         content: details != null
             ? Text(
                 details,
-                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 15),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 15),
               )
             : null,
         actions: [
@@ -159,7 +157,7 @@ class DeviceCommandGate {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'ยกเลิก',
-              style: TextStyle(color: Colors.white.withOpacity(0.6)),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
             ),
           ),
           ElevatedButton(
@@ -183,9 +181,7 @@ class DeviceCommandGate {
   static Future<bool> requestBiometric(BuildContext context, {
     required String reason,
   }) async {
-    // Note: ต้องใช้ร่วมกับ BiometricService ที่มีอยู่แล้ว
-    // ตอนนี้ return false เป็น placeholder — จะ implement จริงตอนมี command ระดับนี้
-    // TODO: integrate with local_auth / BiometricService
+    // placeholder — implement จริงเมื่อมี biometric-tier command
     return false;
   }
 
