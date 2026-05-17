@@ -1,8 +1,10 @@
 package com.example.haku
 
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.hardware.camera2.CameraManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -72,6 +74,17 @@ class DeviceCommandHandler(private val context: Context) {
                 "open_display_settings" -> openSettings(mapOf("type" to "display"))
                 "open_security_settings" -> openSettings(mapOf("type" to "security"))
                 "open_developer_settings" -> openSettings(mapOf("type" to "developer"))
+
+                // ─── Alarm / Timer ───
+                "set_alarm" -> setAlarm(params)
+                "set_timer" -> setTimer(params)
+
+                // ─── Ringer / Volume ───
+                "set_silent" -> setRingerMode(AudioManager.RINGER_MODE_SILENT)
+                "set_vibrate" -> setRingerMode(AudioManager.RINGER_MODE_VIBRATE)
+                "set_sound_on" -> setRingerMode(AudioManager.RINGER_MODE_NORMAL)
+                "volume_up" -> adjustVolume(AudioManager.ADJUST_RAISE)
+                "volume_down" -> adjustVolume(AudioManager.ADJUST_LOWER)
 
                 // ─── System Apps ───
                 "open_calendar" -> openCalendar()
@@ -327,6 +340,76 @@ class DeviceCommandHandler(private val context: Context) {
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
+        return mapOf("success" to true)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  E2. Alarm / Timer
+    // ═══════════════════════════════════════════════════════════════════
+
+    private fun setAlarm(params: Map<String, Any?>): Map<String, Any?> {
+        val hour = (params["hour"] as? Number)?.toInt()
+            ?: return mapOf("success" to false, "error" to "Missing hour")
+        val minute = (params["minute"] as? Number)?.toInt() ?: 0
+        val message = params["message"] as? String ?: ""
+
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (message.isNotEmpty()) putExtra(AlarmClock.EXTRA_MESSAGE, message)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        return mapOf("success" to true, "hour" to hour, "minute" to minute)
+    }
+
+    private fun setTimer(params: Map<String, Any?>): Map<String, Any?> {
+        val seconds = (params["seconds"] as? Number)?.toInt()
+            ?: return mapOf("success" to false, "error" to "Missing seconds")
+        val message = params["message"] as? String ?: ""
+
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (message.isNotEmpty()) putExtra(AlarmClock.EXTRA_MESSAGE, message)
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        return mapOf("success" to true, "seconds" to seconds)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  E3. Ringer / Volume
+    // ═══════════════════════════════════════════════════════════════════
+
+    private fun setRingerMode(mode: Int): Map<String, Any?> {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return mapOf("success" to false, "error" to "AudioManager unavailable")
+
+        // Android 6+: SILENT ต้องมี DND permission
+        if (mode == AudioManager.RINGER_MODE_SILENT && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            if (nm?.isNotificationPolicyAccessGranted == false) {
+                // Fallback: vibrate แทน silent ถ้าไม่มี DND permission
+                audio.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                return mapOf("success" to true, "mode" to "vibrate", "note" to "DND not granted, set vibrate instead")
+            }
+        }
+
+        audio.ringerMode = mode
+        val modeName = when (mode) {
+            AudioManager.RINGER_MODE_SILENT -> "silent"
+            AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+            else -> "normal"
+        }
+        return mapOf("success" to true, "mode" to modeName)
+    }
+
+    private fun adjustVolume(direction: Int): Map<String, Any?> {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            ?: return mapOf("success" to false, "error" to "AudioManager unavailable")
+        audio.adjustStreamVolume(AudioManager.STREAM_RING, direction, AudioManager.FLAG_SHOW_UI)
         return mapOf("success" to true)
     }
 
