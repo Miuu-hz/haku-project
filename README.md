@@ -1,36 +1,64 @@
-# Haku (箱) — Private Life OS
+# 📦 Haku (箱) — Proactive OS & Sovereign AI Life Logger
 
-> Your AI companion that knows you deeply — and never tells anyone else.
+> **"Redefining personal intelligence with Sovereign AI Architecture."**
+>
+> เรากำลังสร้างอินเทอร์เฟซแห่งอนาคตที่จะเปลี่ยนสมาร์ทโฟนแบบเดิมๆ ให้กลายเป็น **"Intelligent Phone"**
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)](https://flutter.dev)
-[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-green)](https://haku.bbpillow.com)
-[![Version](https://img.shields.io/badge/Version-0.1.0-orange)](https://haku.bbpillow.com)
-
----
-
-## What is Haku?
-
-**Haku** is a privacy-first AI personal life logger that runs entirely on your device. No cloud. No subscriptions. No data leaks.
-
-It is a personal AI that genuinely knows you — your schedule, your patterns, your context — and proactively helps before you even have to ask. Every thought, plan, and memory stays encrypted on your phone, owned entirely by you.
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?logo=apple)](https://haku.bbpillow.com)
+[![AI](https://img.shields.io/badge/AI-100%25%20On--Device-brightgreen)](https://haku.bbpillow.com)
+[![License](https://img.shields.io/badge/License-Proprietary-red)](LICENSE)
 
 ---
 
-## The Problem We Solve
+Haku (箱) คือ **"ระบบปฏิบัติการชีวิตส่วนตัว" (Private Life OS)** ที่ทำงานเป็นเสมือนสมองที่สองของคุณ เราสร้าง Haku ขึ้นมาเพื่อแก้ปัญหา AI ในตลาดปัจจุบันที่ต้องแลกความสะดวกสบายมาด้วยความลับส่วนตัว Haku ขับเคลื่อนด้วยระบบ **Proactive AI** ที่ทำงานแบบ **On-Device 100%** — ปลอดภัย ไร้รอยต่อ และเคารพความเป็นส่วนตัวขั้นสูงสุด
+
+---
+
+## 🎯 Vision & Purpose — วิสัยทัศน์และจุดประสงค์
+
+เป้าหมายหลักของ Haku คือการคืน **อธิปไตยทางข้อมูล (Data Sovereignty)** ให้กับผู้ใช้งาน
 
 | # | Problem | Why It Matters |
 |---|---------|----------------|
-| 1 | **Privacy Leaks from Cloud AI** | ChatGPT and Gemini send your personal data to remote servers — you have no control over where it goes |
-| 2 | **Passive AI (Prompt Burden)** | AI waits for commands. You always have to know what to ask. Real assistance means AI acts first |
-| 3 | **Data Sovereignty** | Big Tech monopolizes your life data. There is no genuinely privacy-first alternative |
+| 1 | **Privacy Leaks from Cloud AI** | ChatGPT, Gemini ส่งข้อมูลส่วนตัวออก server — ผู้ใช้ไม่รู้ว่าข้อมูลไปไหน |
+| 2 | **Passive AI (Prompt Burden)** | AI รอรับ prompt — ผู้ใช้ต้องรู้จักถามเองตลอด แทนที่จะให้ AI ช่วยก่อน |
+| 3 | **Data Sovereignty** | Big Tech ผูกขาดข้อมูลชีวิตผู้ใช้ ไม่มีทางเลือกที่ privacy-first จริงๆ |
+
+- เราต้องการ AI ที่แก้ปัญหาความปลอดภัยและการถูกแอบฟัง — ข้อมูลทุกอย่างจบในมือถือ ไม่มีการส่งออกเพื่อเทรนโมเดล
+- เรามุ่งแก้ไข **Prompt Burden** โดยเปลี่ยนจากระบบที่ต้องรอรับคำสั่ง (Passive) มาเป็นระบบที่ "ทักก่อน (Proactive)"
+- ระบบช่วยจัดสรรภาระงาน ลดงานซ้ำซ้อน และลดภาวะหมดไฟ (Burnout) ทั้งในระดับบุคคลและองค์กร
 
 ---
 
-## How Haku Works
+## ✨ Core Features & Innovations — จุดเด่นและนวัตกรรม
+
+- **100% On-Device Sovereign AI** — ทำงานบนชิป NPU โดยไม่มีการส่งข้อมูลออกไปประมวลผลบน Cloud ภายนอก (Zero Data Leakage)
+- **Proactive Intelligence** — อาศัยเซนเซอร์ในโทรศัพท์ (พิกัด, การเคลื่อนไหว, เวลา, แบตเตอรี่) เป็น Trigger เพื่อประเมินและทำงานแทนผู้ใช้โดยอัตโนมัติ
+- **Zero-Token Workers** — ผลักภาระงานพื้นฐาน (ปฏิทิน, เตือนความจำ) ให้ Rule-based Workers จัดการ เพื่อสงวนทรัพยากร SLM ไว้สำหรับงานที่ซับซ้อนจริงๆ
+- **3-Tier Memory System** — Working Memory (RAM) + Episodic Memory (SQLite FTS5 + BM25) + Semantic Memory (sqlite-vec) — Haku จำได้แม้หลังจากที่ลบแชทแล้ว
+- **Asynchronous Batch Processing** — ประหยัดแบตเตอรี่โดยประมวลผลงานหนักเฉพาะตอนอุปกรณ์เสียบชาร์จและปิดหน้าจอ
+- **Agent-to-Agent Protocol (A2A)** — โปรโตคอล E2E Encrypted ให้ Haku ของผู้ใช้สองคนประสานงานกันโดยตรง ไม่ผ่าน Central Server
+
+---
+
+## 🏗️ System Architecture & Tech Stack
+
+ระบบ Haku ถูกออกแบบภายใต้สถาปัตยกรรม 4 เลเยอร์หลัก:
+
+```
+┌────────────────────────────────────────────────────┐
+│  Real-Time Layer    — User Input & Chat Interface  │
+├────────────────────────────────────────────────────┤
+│  Trigger Layer      — Sensors, Calendar, Location  │
+├────────────────────────────────────────────────────┤
+│  Background Layer   — Memory Consolidation, RAG    │
+├────────────────────────────────────────────────────┤
+│  Notification Layer — Proactive Alerts & Briefs    │
+└────────────────────────────────────────────────────┘
+```
 
 ### On-Device AI Pipeline
-
-Haku runs a Small Language Model (SLM) directly on your device's Neural Processing Unit (NPU) — no internet connection required for AI inference.
 
 ```
 User Input
@@ -41,32 +69,56 @@ SmartPreprocessor  (rule-based, zero LLM cost)
 ├── ReminderWorker     → reminder intents
 └── WebSearchWorker    → search intents
     │
-    ▼
-Face LLM  (on-device, stateful KV cache)
-├── Gemma 3 1B   — fast, low memory footprint
-├── Gemma 4 E2B  — balanced  (4K context window)
-└── Gemma 4 E4B  — most capable  (8K context window)
+    ▼  (unmatched → general inference path)
+    │
+Face LLM  (LiteRT-LM, stateful KV cache on NPU)
+├── Gemma 3 1B   — fast, low memory    (~1K context)
+├── Gemma 4 E2B  — balanced            (4K context)
+└── Gemma 4 E4B  — most capable        (8K context)
     │
     ▼
 3-Tier Memory System
 ├── Working Memory   — last 8 turns in RAM  (~800 tokens)
 ├── Episodic Memory  — SQLite FTS5 + BM25 retrieval
-└── Semantic Memory  — entity facts + wiki pages, vector search
+└── Semantic Memory  — entity wiki pages + sqlite-vec
 ```
 
-### 3-Tier Memory Architecture
+### Tech Stack
 
-Haku never forgets — even when you clear your chat history:
+| Layer | Technology | Rationale |
+|-------|------------|-----------|
+| **Frontend & UI** | Flutter (Dart) + Impeller | Native-grade performance, single codebase for iOS & Android, 120 Hz rendering |
+| **Core Database** | SQLite via sqflite FFI | Stable, standard SQL, natively supports sqlite-vec extension |
+| **Full-text Search** | SQLite FTS5 (BM25) | In-process episodic memory retrieval, zero dependency overhead |
+| **Vector Engine** | sqlite-vec | Zero-dependency C extension, runs in the same process as the app |
+| **AI Runtime** | LiteRT-LM v0.10.0 (Google) | Stateful KV cache, direct NPU access — replaces deprecated MediaPipe |
+| **AI Models** | Gemma 3 1B / Gemma 4 E2B / E4B | 4-bit quantized SLMs: best balance of reasoning and memory on mobile |
+| **Location / Sensors** | Native Platform Channels | Fine-grained battery control (Significant Change on iOS, Fused Provider on Android) |
+| **Encryption** | SQLCipher | All user data encrypted at rest |
+
+### Android GPU Strategy
+
+| GPU | Inference Backend | Note |
+|-----|-------------------|------|
+| **Adreno 700+** | ✅ OpenCL | Best performance on Qualcomm chipsets |
+| **Mali** | ✅ CPU-only | Safe, consistent performance |
+| **Vulkan (mobile)** | ❌ Disabled | 15–16× slower than CPU on Mali — never use |
+
+---
+
+## 🧠 3-Tier Memory Architecture
+
+> Haku never forgets — even when you clear your chat history.
 
 | Tier | Storage | Purpose |
 |------|---------|---------|
-| **Working Memory** | RAM | Current conversation context |
-| **Episodic Memory** | SQLite FTS5 | Compressed logs, BM25 full-text retrieval |
-| **Semantic Memory** | sqlite-vec | Distilled facts per entity, contradiction detection, confidence scoring |
+| **Working Memory** | RAM (~800 tokens) | Active conversation context, last 8 turns |
+| **Episodic Memory** | SQLite FTS5 | Compressed chat logs, BM25 semantic retrieval |
+| **Semantic Memory** | sqlite-vec + Wiki pages | Distilled facts per entity, contradiction detection, confidence scoring |
 
-Memory consolidation runs nightly, only when your device is plugged in and charging.
+Memory consolidation runs nightly via WorkManager (Android) / BGProcessingTask (iOS) — only when plugged in and charging.
 
-**Token Budget (Gemma 4 4B / 8 192-token context):**
+**Token Budget — Gemma 4 E4B (8 192-token context):**
 
 ```
 System + persona    :   300 tokens
@@ -82,117 +134,100 @@ Response budget     : 2 000 tokens
 
 ---
 
-## Features & Roadmap
+## 🗺️ Roadmap — แผนการดำเนินงาน
 
-### ✅ Phase 1 — Privacy Core (Complete)
+### Product Phase Map
 
-- **Life Logging** — log daily entries, activities, mood, and location
-- **Timeline View** — scroll your personal history with full context
-- **Daily AI Summary** — on-device digest of your day, no cloud needed
-- **Encrypted Storage** — SQLCipher for all user data at rest
-- **Location Tracking** — Significant Change API only; no continuous GPS drain
+| Phase | Name | Goal | Status |
+|-------|------|------|--------|
+| **1** | Privacy Core | Privacy-first foundation, encrypted life logging | ✅ Complete |
+| **2** | Proactive Intelligence | Proactive triggers, Meeting Pre-Flight, SLM background service | 🟡 ~90% |
+| **3** | B2C Monetization | AI Personas, Skill Modules (IAP) | 🔴 Planned |
+| **4** | Analytics & Deep Personalization | RAG search, pattern recognition, Cognitive Guardrails | 🟡 ~45% |
+| **5** | B2B Agent Protocol | A2A identity, Meeting Negotiation, Task Delegation | 🔴 Planned |
+| **6** | Haku OS Vision | Sovereign AI national infrastructure | 💡 Concept |
 
-### 🟡 Phase 2 — Proactive Intelligence (~90% Complete)
+### 18-Month Execution Plan (depa Grant)
 
-- **Proactive Triggers** — Haku acts before you ask: meeting prep, schedule conflicts, contextual reminders
-- **Meeting Pre-Flight** — 15-minute RAG briefing before every calendar event
-- **Persistent SLM Service** — background model loaded for instant, zero-latency responses
-- **User-Controlled Toggles** — full control over what Haku monitors
-
-### 🔴 Phase 3 — B2C Monetization (Planned)
-
-- **AI Personas** — customizable AI personalities (In-App Purchase)
-- **Skill Modules** — domain-specific skill packs: cooking, fitness, finance
-
-### 🟡 Phase 4 — Analytics & Deep Personalization (~45% Complete)
-
-- **Semantic Search (RAG)** — ask questions about your own past, answered from your own data
-- **Pattern Recognition** — weekly habit and behavior analysis
-- **Cognitive Guardrails** — anomaly detection to protect high-stakes decisions (e.g. unusual transfers, out-of-character choices)
-
-### 🔴 Phase 5 — B2B Agent-to-Agent Protocol (Planned)
-
-- **A2A Identity Layer** — keypair on Android Keystore + E2E encrypted message bundles
-- **Meeting Negotiation Protocol** — coordinate schedules between Haku instances sharing only availability, never raw calendar content
-- **Task Delegation** — assign tasks between AI agents without a central server
-
-### 💡 Phase 6 — Haku OS (Vision)
-
-- **Haku as National Infrastructure** — a sovereign AI platform for Thailand, owned by its citizens
+| Period | Phase | Key Deliverables |
+|--------|-------|-----------------|
+| **Month 1–6** | Sovereign Core & Context Awareness | Voice input (Whisper-Tiny, on-device), Meeting Pre-Flight RAG, A2A identity foundation (Android Keystore), Privacy Transparency Screen |
+| **Month 7–12** | A2A Network & B2B MVP | Haku-to-Haku peer pairing, WiFi Direct transport, E2E encrypted relay, SME beta — Kalasin Chamber of Commerce |
+| **Month 13–18** | Proactive Guardrails & Commercialization | Cognitive Guardrails, B2B commercial release, AI Personas (B2C), national expansion |
 
 ---
 
-## Tech Stack
+## 🚀 Getting Started
 
-| Layer | Technology | Notes |
-|-------|------------|-------|
-| **Framework** | Flutter (Dart) | Cross-platform iOS + Android |
-| **UI Engine** | Impeller | 120 Hz smooth rendering |
-| **Database** | SQLite + sqflite FFI | Industry standard, extensible |
-| **Full-text Search** | SQLite FTS5 (BM25) | Episodic memory retrieval |
-| **Vector Search** | sqlite-vec | On-device RAG, zero server dependency |
-| **AI Runtime** | LiteRT-LM v0.10.0 (Google) | Replaces deprecated MediaPipe |
-| **AI Models** | Gemma 3 1B / Gemma 4 E2B / E4B | 4-bit quantized, NPU-optimized |
-| **Location** | Significant Change / Fused Provider | Battery-efficient, not continuous |
-| **Encryption** | SQLCipher | All user data encrypted at rest |
+> **Prerequisites:** Flutter 3.x · Android SDK · Xcode (for iOS builds)
 
-### Android GPU Rules
+```bash
+# Clone the repository
+git clone https://github.com/Miuu-hz/haku-project.git
+cd haku-project
 
-| GPU | Inference Backend |
-|-----|-------------------|
-| Adreno 700+ | ✅ OpenCL |
-| Mali | ✅ CPU-only |
-| Vulkan (mobile) | ❌ Never — 15–16× slower than CPU on Mali |
+# Install dependencies
+flutter pub get
+
+# Run on a physical device
+# (on-device AI inference requires real hardware — simulator not supported)
+flutter run
+```
+
+**AI Model Setup**
+
+Haku downloads models on first launch from HuggingFace. To set up manually, place `.litertlm` files under `assets/models/`:
+
+```
+assets/models/
+├── gemma3-1b-it-int4.litertlm      ← fast, low memory
+├── gemma4-e2b-it-int4.litertlm     ← balanced
+└── gemma4-e4b-it-int4.litertlm     ← most capable
+```
+
+> **Note:** Cloud providers (Gemini / Claude / OpenAI / OpenRouter) are available as fallback in developer settings for testing purposes only. All production user data is processed entirely on-device.
 
 ---
 
-## Privacy Principles
+## 🔒 Privacy Principles
 
-These are non-negotiable:
+These are non-negotiable and verified in every release:
 
 1. **Zero network calls** for user data — everything stays on device
 2. **No analytics SDKs** that transmit data externally
 3. **No hardcoded secrets** — Keychain (iOS) / Android Keystore
 4. **Data minimization** — only store what is strictly necessary
-5. **Encryption at rest** — SQLCipher, always, for all user data
+5. **Encryption at rest** — SQLCipher for all user data, always
 
 ---
 
-## Business Model
+## ⚡ Battery & Performance
+
+| Rule | Target |
+|------|--------|
+| AI inference | On user request only, or idle + charging |
+| Location tracking | Significant Change API — never continuous GPS |
+| Heavy processing | WorkManager (Android) / BGProcessingTask (iOS) |
+| Daily background drain | **< 10%** battery per day |
+| Thermal guard | Pause inference if battery < 20% or device overheating |
+
+---
+
+## 💼 Business Model
 
 ```
 Freemium  (Core free — grow the user base)
     ↓
 B2C: AI Personas + Skill Modules  (In-App Purchase)
     ↓
-B2B: Team Delegation Protocol  (Subscription)
+B2B: Team Delegation Protocol     (Subscription)
     ↓
-Vision: Haku OS  (National Infrastructure)
+Vision: Haku OS                   (National Sovereign AI Infrastructure)
 ```
 
 ---
 
-## 18-Month Roadmap (depa Grant Plan)
-
-| Period | Phase | Key Deliverables |
-|--------|-------|-----------------|
-| Month 1–6 | Sovereign Core & Context Awareness | Voice input (Whisper-Tiny on-device), Meeting Pre-Flight RAG, A2A identity foundation, Privacy Transparency Screen |
-| Month 7–12 | A2A Network & B2B MVP | Haku-to-Haku pairing, WiFi Direct transport, SME beta with Kalasin Chamber of Commerce |
-| Month 13–18 | Proactive Guardrails & Commercialization | Cognitive Guardrails, B2B commercial release, national expansion |
-
----
-
-## Battery & Performance
-
-- AI inference: only on user request, or when idle and charging
-- Location: Significant Change only — never continuous GPS polling
-- Heavy tasks: WorkManager (Android) / BGProcessingTask (iOS)
-- Target: **< 10% battery drain per day** from all background tasks
-- Thermal guard: pause inference when battery < 20% or device is overheating
-
----
-
-## Website
+## 🌐 Website
 
 [haku.bbpillow.com](https://haku.bbpillow.com)
 
