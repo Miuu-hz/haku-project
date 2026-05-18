@@ -2,7 +2,7 @@
 
 > **"Redefining personal intelligence with Sovereign AI Architecture."**
 >
-> เรากำลังสร้างอินเทอร์เฟซแห่งอนาคตที่จะเปลี่ยนสมาร์ทโฟนแบบเดิมๆ ให้กลายเป็น **"Intelligent Phone"**
+> Building the interface of the future — turning ordinary smartphones into **Intelligent Phones**.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20Android-lightgrey?logo=apple)](https://haku.bbpillow.com)
@@ -11,7 +11,7 @@
 
 ---
 
-Haku (箱) คือ **"ระบบปฏิบัติการชีวิตส่วนตัว" (Private Life OS)** ที่ทำงานเป็นเสมือนสมองที่สองของคุณ เราสร้าง Haku ขึ้นมาเพื่อแก้ปัญหา AI ในตลาดปัจจุบันที่ต้องแลกความสะดวกสบายมาด้วยความลับส่วนตัว Haku ขับเคลื่อนด้วยระบบ **Proactive AI** ที่ทำงานแบบ **On-Device 100%** — ปลอดภัย ไร้รอยต่อ และเคารพความเป็นส่วนตัวขั้นสูงสุด
+Haku (箱) is a **Private Life OS** — your second brain, running entirely on your device. Built to solve the fundamental tradeoff of modern AI: you should never have to choose between convenience and privacy. Powered by **Proactive AI** that works **100% on-device** — secure, seamless, and privacy-first.
 
 ---
 
@@ -27,20 +27,20 @@ Haku's core mission is to return **Data Sovereignty** to the individual — your
 
 ---
 
-## ✨ Core Features & Innovations — จุดเด่นและนวัตกรรม
+## ✨ Core Features & Innovations
 
-- **100% On-Device Sovereign AI** — ทำงานบนชิป NPU โดยไม่มีการส่งข้อมูลออกไปประมวลผลบน Cloud ภายนอก (Zero Data Leakage)
-- **Proactive Intelligence** — อาศัยเซนเซอร์ในโทรศัพท์ (พิกัด, การเคลื่อนไหว, เวลา, แบตเตอรี่) เป็น Trigger เพื่อประเมินและทำงานแทนผู้ใช้โดยอัตโนมัติ
-- **Zero-Token Workers** — ผลักภาระงานพื้นฐาน (ปฏิทิน, เตือนความจำ) ให้ Rule-based Workers จัดการ เพื่อสงวนทรัพยากร SLM ไว้สำหรับงานที่ซับซ้อนจริงๆ
-- **3-Tier Memory System** — Working Memory (RAM) + Episodic Memory (SQLite FTS5 + BM25) + Semantic Memory (sqlite-vec) — Haku จำได้แม้หลังจากที่ลบแชทแล้ว
-- **Asynchronous Batch Processing** — ประหยัดแบตเตอรี่โดยประมวลผลงานหนักเฉพาะตอนอุปกรณ์เสียบชาร์จและปิดหน้าจอ
-- **Agent-to-Agent Protocol (A2A)** — โปรโตคอล E2E Encrypted ให้ Haku ของผู้ใช้สองคนประสานงานกันโดยตรง ไม่ผ่าน Central Server
+- **100% On-Device Sovereign AI** — Runs entirely on the device's NPU with zero data sent to external cloud (Zero Data Leakage)
+- **Proactive Intelligence** — Uses on-device sensors (location, motion, time, battery) as triggers to act on your behalf automatically
+- **Zero-Token Workers** — Routes routine tasks (calendar, reminders) to rule-based workers, reserving SLM capacity for tasks that actually need reasoning
+- **3-Tier Memory System** — Working Memory (RAM) + Episodic Memory (SQLite FTS5 + BM25) + Semantic Memory (sqlite-vec) — Haku remembers even after you clear chat history
+- **Asynchronous Batch Processing** — Heavy processing runs only when the device is plugged in and the screen is off, preserving battery and thermals
+- **Agent-to-Agent Protocol (A2A)** — E2E encrypted protocol allowing two Haku instances to coordinate directly, with no central server involved
 
 ---
 
 ## 🏗️ System Architecture & Tech Stack
 
-ระบบ Haku ถูกออกแบบภายใต้สถาปัตยกรรม 4 เลเยอร์หลัก:
+Haku is built on a 4-layer architecture:
 
 ```
 ┌────────────────────────────────────────────────────┐
@@ -130,7 +130,7 @@ Response budget     : 2 000 tokens
 
 ---
 
-## 🗺️ Roadmap — แผนการดำเนินงาน
+## 🗺️ Roadmap
 
 ### Product Phase Map
 
