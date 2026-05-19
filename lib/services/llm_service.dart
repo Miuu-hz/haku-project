@@ -161,10 +161,15 @@ class LLMService {
         accelerator = legacyGpu ? 'GPU' : 'CPU';
       }
 
+      // Gemma 4 E2B/E4B รองรับ vision — เปิด visionBackend=GPU อัตโนมัติ
+      final supportImage = _modelConfig.modelId.contains('gemma-4') ||
+          _modelConfig.modelId.contains('gemma4');
+
       final result = await _channel.invokeMethod('loadModel', {
         'modelPath': modelPath,
         'maxTokens': effectiveMaxTokens,
         'accelerator': accelerator,
+        'supportImage': supportImage,
         if (systemInstruction != null && systemInstruction.isNotEmpty)
           'systemInstruction': systemInstruction,
       });
@@ -452,7 +457,20 @@ class LLMService {
       }
 
       final fileName = customName ?? basename(sourcePath);
+      // 🛡️ Prevent path traversal: reject filenames with path separators or parent dir refs
+      if (fileName.contains('..') || fileName.contains('/') || fileName.contains('\\')) {
+        if (kDebugMode) print('❌ Invalid model filename: $fileName');
+        return false;
+      }
+
       final destPath = join(modelDir.path, fileName);
+      // 🛡️ Double-check the resolved path stays inside modelDir
+      final resolvedDir = normalize(modelDir.path);
+      final resolvedDest = normalize(destPath);
+      if (!resolvedDest.startsWith(resolvedDir)) {
+        if (kDebugMode) print('❌ Path traversal detected: $resolvedDest');
+        return false;
+      }
 
       await File(sourcePath).copy(destPath);
       if (kDebugMode) print('✅ Imported model to: $destPath');
@@ -586,6 +604,43 @@ class LLMService {
       return '';
     } catch (e) {
       if (kDebugMode) print('❌ generateTurn ล้มเหลว: $e');
+      return '';
+    }
+  }
+
+  /// 🖼️ Generate แบบ stateful พร้อม image input — ใช้ KV cache ต่อ session
+  ///
+  /// images — PNG bytes ของแต่ละรูป (image_picker ส่ง Uint8List มา)
+  /// ถ้าโมเดลไม่รองรับ vision หรือ images ว่าง → fallback ไป generateTurn
+  Future<String> generateTurnWithImages(
+    String userMessage,
+    List<Uint8List> images, {
+    double? temperature,
+  }) async {
+    if (!_isInitialized) {
+      final loaded = await ensureLoaded();
+      if (!loaded) return '';
+    }
+
+    _lastUsedTime = DateTime.now();
+    _resetAutoUnloadTimer();
+
+    final effectiveTemp = temperature ?? _modelConfig.defaultTemperature;
+
+    try {
+      final result = await _channel.invokeMethod('generateTurnWithImages', {
+        'prompt': userMessage,
+        'images': images,
+        'temperature': effectiveTemp,
+        'topK': _modelConfig.defaultTopK,
+        'topP': _modelConfig.defaultTopP,
+      });
+      return result?.toString() ?? '';
+    } on PlatformException catch (e) {
+      if (kDebugMode) print('❌ generateTurnWithImages PlatformException: ${e.message}');
+      return '';
+    } catch (e) {
+      if (kDebugMode) print('❌ generateTurnWithImages ล้มเหลว: $e');
       return '';
     }
   }

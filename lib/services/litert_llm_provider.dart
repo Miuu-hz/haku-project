@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../models/llm_model_config.dart';
 import 'llm_provider.dart';
 import 'llm_service.dart';
@@ -70,4 +72,13 @@ class LiteRTLLMProvider implements LLMProvider {
 
   /// รีเซ็ต Conversation — เรียกเมื่อเริ่ม chat session ใหม่
   Future<void> resetConversation() => _service.resetConversation();
+
+  /// Generate พร้อม image input — Gemma 4 E2B/E4B vision mode
+  /// images คือ PNG bytes ของแต่ละรูป (จาก image_picker หรือ camera)
+  /// ถ้าโมเดลไม่รองรับ vision → fallback ไป text-only อัตโนมัติ
+  Future<String> generateTurnWithImages(
+    String userMessage,
+    List<Uint8List> images, {
+    double? temperature,
+  }) => _service.generateTurnWithImages(userMessage, images, temperature: temperature);
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -28,6 +29,10 @@ class NotificationService {
   // Callback เมื่อผู้ใช้ตอบกลับจาก notification
   void Function(String triggerId, String response)? onQuickReply;
   void Function(TriggerEvent)? onNotificationTap;
+
+  // Callbacks สำหรับยืนยัน/ปฏิเสธคำสั่งจาก notification
+  void Function(String command, Map<String, dynamic> params)? onCommandConfirm;
+  void Function(String command, Map<String, dynamic> params)? onCommandDeny;
 
   /// 🚀 เริ่มต้น service
   Future<void> initialize() async {
@@ -194,7 +199,102 @@ class NotificationService {
       
       // แสดง toast ยืนยัน
       debugPrint('💬 Quick reply: $reply');
+      return;
     }
+
+    // Command Confirmation (Confirm/Deny)
+    if (actionId == 'confirm_cmd' || actionId == 'deny_cmd') {
+      if (payload != null && payload.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(payload) as Map<String, dynamic>;
+          if (decoded['type'] == 'cmd_confirm') {
+            final command = decoded['command'] as String? ?? '';
+            final params = Map<String, dynamic>.from(decoded['params'] as Map? ?? {});
+            if (actionId == 'confirm_cmd') {
+              onCommandConfirm?.call(command, params);
+              debugPrint('✅ Command confirmed from notification: $command');
+            } else {
+              onCommandDeny?.call(command, params);
+              debugPrint('❌ Command denied from notification: $command');
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ Failed to parse command confirmation payload: $e');
+        }
+      }
+      return;
+    }
+  }
+
+  /// 🛡️ แสดง Notification ขออนุมัติคำสั่ง (Confirm/Deny)
+  ///
+  /// ใช้สำหรับ sensitive commands (dial_phone, send_sms, ฯลฯ)
+  /// ที่ถูก trigger จาก background หรือ proactive AI
+  Future<void> showCommandConfirmationNotification({
+    required String command,
+    required Map<String, dynamic> params,
+    required String title,
+    required String body,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('⚠️ NotificationService not initialized');
+      return;
+    }
+
+    final payload = jsonEncode({
+      'type': 'cmd_confirm',
+      'command': command,
+      'params': params,
+    });
+
+    const confirmAction = AndroidNotificationAction(
+      'confirm_cmd',
+      'ยืนยัน',
+      showsUserInterface: false,
+    );
+    const denyAction = AndroidNotificationAction(
+      'deny_cmd',
+      'ยกเลิก',
+      showsUserInterface: false,
+    );
+
+    final androidDetails = AndroidNotificationDetails(
+      'haku_proactive_triggers',
+      'Haku Proactive',
+      channelDescription: 'การแจ้งเตือนจาก Haku AI',
+      importance: Importance.high,
+      priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      category: AndroidNotificationCategory.message,
+      actions: [confirmAction, denyAction],
+      styleInformation: BigTextStyleInformation(body),
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      categoryIdentifier: 'cmd_confirm_category',
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    final id = DateTime.now().millisecondsSinceEpoch % 100000;
+
+    await _notifications.show(
+      id,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+
+    debugPrint('🔔 Showed command confirmation: $command');
   }
 
   /// 🧹 ยกเลิกการแจ้งเตือนทั้งหมด

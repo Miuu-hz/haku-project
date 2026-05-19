@@ -35,7 +35,7 @@ class NominatimService {
       });
 
       final resp = await http.get(uri, headers: {
-        'User-Agent': 'HakuApp/1.0 (haikihake@gmail.com)',
+        'User-Agent': 'HakuApp/1.0 (contact@haku.app)',
         'Accept': 'application/json',
       }).timeout(const Duration(seconds: 6));
 

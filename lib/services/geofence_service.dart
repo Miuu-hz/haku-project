@@ -56,6 +56,7 @@ class GeofenceService {
   GeofenceZone? get currentZone =>
       _currentZoneId != null ? _zones.firstWhere((z) => z.id == _currentZoneId, orElse: () => _zones.first) : null;
   bool get isMonitoring => _isMonitoring;
+  Position? get lastKnownPosition => _lastKnownPosition;
 
   /// 🚀 Initialize service
   Future<void> initialize() async {

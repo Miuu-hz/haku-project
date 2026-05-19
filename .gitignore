@@ -19,7 +19,7 @@ android/key.properties
 *.aab
 *.ipa
 
-# IDE
+# IDE & local tooling configs
 .idea/
 .vscode/
 *.iml
@@ -29,6 +29,7 @@ android/key.properties
 *.swo
 .claude/
 .github/
+.kimi/
 *~
 
 # OS
@@ -52,9 +53,12 @@ hive/
 # Large model files (LLM weights)
 *.onnx
 *.tflite
+*.litertlm
+*.task
 *.pt
 *.pth
 /models/
+assets/models/
 
 # Logs
 *.log
@@ -78,6 +82,8 @@ bin/test_cli.dart
 !**/debug.keystore
 .kotlin/
 *.hprof
+android/local.properties
+android/captures/
 
 # Node (ถ้ามี scripts)
 node_modules/
@@ -87,6 +93,11 @@ package-lock.json
 
 # Native libraries (prebuilt — re-downloadable จาก LiteRT)
 android/app/src/main/jniLibs/
+
+# iOS generated
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/App.framework/
 
 # Firebase
 android/app/google-services.json

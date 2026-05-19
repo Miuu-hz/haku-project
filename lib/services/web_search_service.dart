@@ -184,7 +184,7 @@ class WebSearchService {
 
         final searchResp = await http.get(
           searchUri,
-          headers: {'User-Agent': 'HakuApp/1.0 (haikihake@gmail.com)'},
+          headers: {'User-Agent': 'HakuApp/1.0 (contact@haku.app)'},
         ).timeout(const Duration(seconds: 6));
 
         if (searchResp.statusCode != 200) continue;

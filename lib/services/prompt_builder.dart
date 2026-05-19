@@ -2,19 +2,19 @@
 //
 // 🎭 THE FACE (Realtime): ตอบสนทนาไทยธรรมชาติ (ไม่ใช่ JSON!)
 // 👷 THE WORKER (Batch): สร้าง structured data สำหรับ RAG
+//
+// Model compatibility:
+//   hakuFacePrompt + buildGemmaPrompt/buildUserTurn  → Gemma 3 1B (2048 ctx, lean)
+//   hakuFace4Prompt + buildGemma4*                   → Gemma 4 2B/4B (12.8k ctx, full)
 
 import 'llm_service.dart';
 
 class PromptBuilder {
   // ═══════════════════════════════════════════════════════════
-  // 🎭 THE FACE - Realtime Chat (ตอบเป็นภาษาไทยธรรมชาติ)
-  // ═══════════════════════════════════════════════════════════
-  
-  // ═══════════════════════════════════════════════════════════
-  // 🎭 Stage 1: THE FACE — ตอบสนทนาภาษาไทยธรรมชาติ (ไม่มี actions)
+  // 🎭 Gemma 3 1B — System Prompt (lean, 2048 ctx limit)
   // ═══════════════════════════════════════════════════════════
 
-  /// 🧬 System Prompt สำหรับตอบกลับผู้ใช้ (language-agnostic, ไม่มี ACTION tags)
+  /// System prompt สำหรับ Gemma 3 1B — intentionally short เพราะ context จำกัด
   static const String hakuFacePrompt = r'''
 You are Haku (箱), a warm personal AI assistant.
 
@@ -28,6 +28,39 @@ How to respond:
 2. When user shares a future appointment or plan, confirm it was noted with the place/time.
 3. When user asks about their schedule, use the Context section to answer.
 ''';
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎭 Gemma 4 2B/4B — System Prompt (full, 12.8k ctx)
+  // ═══════════════════════════════════════════════════════════
+
+  /// System prompt สำหรับ Gemma 4 — สมบูรณ์กว่า ไม่ต้อง compress
+  /// ใช้กับ LiteRT-LM Conversation API (setSystemInstruction) หรือ
+  /// raw template ผ่าน <start_of_turn>system role
+  static const String hakuFace4Prompt = r'''
+You are Haku (箱), a warm and caring personal AI companion.
+
+Personality:
+- Warm, genuine, supportive — like a close friend who remembers everything
+- Concise: 1–3 sentences per reply, never longer
+- Add one relevant emoji naturally (not forced)
+- Thai-first: reply in the same language the user uses
+
+Response rules:
+- Answer exactly what was asked — stay on that topic
+- For appointments/future plans: confirm with place + time
+- For schedule queries: answer from [Context]; if not found, say "ไม่เห็นนัดนะคะ"
+- For location/place queries: use [Search Results] if provided
+- For check-in entries: acknowledge warmly, note the place
+- Never generate "User:" or continue the dialogue yourself
+- Never say "I cannot access" — if info isn't in context, just say you don't know
+
+You have access to:
+- [Context]: recent memories, diary entries, wiki facts, schedule
+- [Search Results]: web search results (when user asks about nearby places or news)
+- Current date/time (always provided)
+''';
+
+  // ─────────────────────────────────────────────────────────
 
   // ═══════════════════════════════════════════════════════════
   // 🧠 Stage 2: BIG MANAGER — Lean classification (ไม่มี RAG/context)
@@ -85,13 +118,68 @@ Output:''';
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 💬 Stateful LiteRT-LM — แยก System Instruction ออกจาก User Turn
+  // 💬 Gemma 3 1B — Stateful LiteRT-LM (Conversation API)
   // ═══════════════════════════════════════════════════════════
 
-  /// System Instruction สำหรับ Stateful Conversation (ตั้งครั้งเดียวต่อ session)
-  ///
-  /// Conversation API จัดการ template tokens เอง → ไม่ต้องใส่ <start_of_turn>
+  /// System Instruction สำหรับ Gemma 3 1B stateful session
   static String buildSystemInstruction() => hakuFacePrompt;
+
+  // ═══════════════════════════════════════════════════════════
+  // 🚀 Gemma 4 2B/4B — Stateful LiteRT-LM (Conversation API)
+  //    ไม่ต้อง lean syntax / context limit เหมือน Gemma 3 1B
+  // ═══════════════════════════════════════════════════════════
+
+  /// System Instruction สำหรับ Gemma 4 stateful session
+  ///
+  /// [scheduleBlock] — ตารางนัด inject เข้า system ครั้งเดียว (ไม่ต้องส่งซ้ำทุก turn)
+  /// [resumeContext] — resume snippet จาก LiteRT session ก่อนหน้า
+  static String buildGemma4SystemInstruction({
+    String? scheduleBlock,
+    String? resumeContext,
+  }) {
+    final buf = StringBuffer(hakuFace4Prompt);
+    if (scheduleBlock != null && scheduleBlock.isNotEmpty) {
+      buf.write('\n$scheduleBlock');
+    }
+    if (resumeContext != null && resumeContext.isNotEmpty) {
+      buf.write('\n\nRecent memory:\n$resumeContext');
+    }
+    return buf.toString();
+  }
+
+  /// User Turn สำหรับ Gemma 4 stateful session
+  ///
+  /// ไม่มี lean syntax — ส่ง context เต็มได้ (12.8k tokens)
+  /// ไม่บังคับภาษา — Gemma 4 ทำตาม "same language" rule ได้เอง
+  static String buildGemma4UserTurn({
+    required String userMessage,
+    String? context,
+  }) {
+    final timeContext = 'Current DateTime: $_currentDateTime';
+    final contextSection = context != null && context.isNotEmpty
+        ? '\n\n[Context]\n$context'
+        : '';
+    return '$timeContext$contextSection\n\nUser: $userMessage';
+  }
+
+  /// Full single-string prompt สำหรับ Gemma 4 (non-Conversation API / cloud fallback)
+  ///
+  /// ใช้ <start_of_turn>system — รองรับ Gemma 4 chat template
+  static String buildGemma4Prompt({
+    required String userMessage,
+    String? context,
+    String? scheduleBlock,
+    String? resumeContext,
+  }) {
+    final system = buildGemma4SystemInstruction(
+      scheduleBlock: scheduleBlock,
+      resumeContext: resumeContext,
+    );
+    final userTurn = buildGemma4UserTurn(userMessage: userMessage, context: context);
+    return '<start_of_turn>system\n$system<end_of_turn>\n'
+        '<start_of_turn>user\n$userTurn<end_of_turn>\n'
+        '<start_of_turn>model\n';
+  }
 
   /// 📅 สร้าง schedule block สำหรับ inject เข้า system instruction
   ///

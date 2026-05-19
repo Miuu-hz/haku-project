@@ -18,6 +18,7 @@ enum ChatMessageType {
   welcome,
   searching,
   workerSummary, // Brain-Dump summary card
+  confirmationCard, // 🛡️ Device command confirmation card
 }
 
 class ChatMessage {
@@ -27,7 +28,12 @@ class ChatMessage {
   final DateTime timestamp;
   final List<String>? sources;
   final String? triggerTitle;
-  final List<String>? actions; // 🆕 Actions ที่ AI ทำ
+  final List<String>? actions;
+  final List<String>? imagePaths; // file paths สำหรับแสดง thumbnail ในบับเบิล
+
+  // 🛡️ Fields สำหรับ confirmation card
+  final String? command;
+  final Map<String, dynamic>? params;
 
   ChatMessage({
     String? id,
@@ -37,6 +43,9 @@ class ChatMessage {
     this.sources,
     this.triggerTitle,
     this.actions,
+    this.imagePaths,
+    this.command,
+    this.params,
   })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         timestamp = timestamp ?? DateTime.now();
 
@@ -49,12 +58,14 @@ class ChatMessage {
   bool get isWelcome => type == ChatMessageType.welcome;
   bool get isSearching => type == ChatMessageType.searching;
   bool get isWorkerSummary => type == ChatMessageType.workerSummary;
+  bool get isConfirmationCard => type == ChatMessageType.confirmationCard;
   bool get hasActions => actions != null && actions!.isNotEmpty;
 
   // Factory constructors
-  factory ChatMessage.user(String content) => ChatMessage(
+  factory ChatMessage.user(String content, {List<String>? imagePaths}) => ChatMessage(
         type: ChatMessageType.user,
         content: content,
+        imagePaths: imagePaths,
       );
 
   factory ChatMessage.assistant(
@@ -99,6 +110,17 @@ class ChatMessage {
         content: summary,
       );
 
+  factory ChatMessage.confirmationCard({
+    required String content,
+    required String command,
+    Map<String, dynamic>? params,
+  }) => ChatMessage(
+        type: ChatMessageType.confirmationCard,
+        content: content,
+        command: command,
+        params: params,
+      );
+
   factory ChatMessage.welcome() => ChatMessage(
         type: ChatMessageType.welcome,
         content: 'สวัสดีค่ะ! ฉันคือ Haku (箱) ผู้ช่วยส่วนตัวของคุณ\n\n'
@@ -133,7 +155,8 @@ class ChatMessage {
   /// ประเภทที่ควรบันทึก (ข้ามสถานะชั่วคราว)
   bool get isPersistable =>
       type != ChatMessageType.loading &&
-      type != ChatMessageType.searching;
+      type != ChatMessageType.searching &&
+      type != ChatMessageType.confirmationCard;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -143,6 +166,8 @@ class ChatMessage {
         if (sources != null) 'sources': sources,
         if (triggerTitle != null) 'triggerTitle': triggerTitle,
         if (actions != null) 'actions': actions,
+        if (command != null) 'command': command,
+        if (params != null) 'params': params,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -156,6 +181,8 @@ class ChatMessage {
         sources: (json['sources'] as List<dynamic>?)?.cast<String>(),
         triggerTitle: json['triggerTitle'] as String?,
         actions: (json['actions'] as List<dynamic>?)?.cast<String>(),
+        command: json['command'] as String?,
+        params: (json['params'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
       );
 
   /// Encode list → JSON string สำหรับ SharedPreferences

@@ -51,11 +51,12 @@ android {
 
     buildTypes {
         release {
+            // NOTE: Replace with your release keystore before publishing
+            // signingConfig signingConfigs.release
             signingConfig signingConfigs.debug
-            // TODO: Re-enable minification after fixing ProGuard rules
-            minifyEnabled false
-            shrinkResources false
-            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             signingConfig signingConfigs.debug
@@ -64,6 +65,12 @@ android {
 
     androidResources {
         noCompress 'tflite', 'task', 'litertlm'
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
     }
 
 }

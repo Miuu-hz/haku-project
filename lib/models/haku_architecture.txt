@@ -1,7 +1,7 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           HAKU AI SYSTEM (current)                           │
 │                     Model: Gemma 4 E2B/E4B via LiteRT-LM                    │
-│                     Context: 8K–128K tokens (no lean syntax needed)          │
+│                     Context: 8K–128K tokens (budget=8192, LeanSyntax ปรับรูปแบบ)│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -293,10 +293,13 @@
 │                  REMOVED / NOT IMPLEMENTED (อย่าเพิ่มกลับ)                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ✂️ LeanContextService        — lean syntax ไม่จำเป็นแล้ว (8K+ ctx)         │
-│  ✂️ PreClassify LLM step      — Gemma 4 จับ intent ได้เอง                  │
-│  ✂️ PreClassifyResult class   — ผล intent จาก PreClassify                   │
-│  ✂️ buildPreClassifyPrompt()  — prompt สำหรับ classify                      │
+│  ✂️ LeanContextService        — extreme compression ไม่จำเป็น แต่ LeanSyntax │
+│                                 concept ยังใช้อยู่ในรูปแบบที่ปรับลด          │
+│                                 ContextBudgetService จัดการ budget แทน      │
+│  ✂️ PreClassify LLM step      — ยังคงไว้เพื่อประหยัดแบต (ไม่ใช่เรื่อง ctx) │
+│                                 small LLM classify → ไม่ต้องส่ง Face ทุก msg│
+│  ✂️ PreClassifyResult class   — ยังใช้ถ้า PreClassify active                 │
+│  ✂️ buildPreClassifyPrompt()  — ยังใช้ถ้า PreClassify active                 │
 │  ✂️ TriggerService (triggers/trigger_service.dart) — ซ้ำกับ MVPTrigger      │
 │  ✂️ TimerTrigger (triggers/timer_trigger.dart)     — ซ้ำกับ MVPTrigger      │
 │  ✂️ _searchSearXNG (sequential waterfall)          — แทนด้วย parallel race  │
@@ -312,5 +315,7 @@
 │                                                                              │
 │  Before: 2-3 LLM calls/exchange (PreClassify + Face + Secret)               │
 │  After:  2 LLM calls/exchange   (Face + Secret Chat)                        │
+│  Note:   PreClassify ยังคงมีอยู่สำหรับ battery optimization path           │
+│          LeanSyntax ปรับเป็น moderate (ContextBudgetService budget=8192)    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘

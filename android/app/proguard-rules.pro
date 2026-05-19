@@ -72,7 +72,34 @@
 -keepattributes MethodParameters
 
 # ============================================================================
-# 9. Don't warn about missing dependencies
+# 9. LiteRT-LM (Google AI Edge)
+# ============================================================================
+-keep class com.google.ai.edge.litertlm.** { *; }
+-keep class com.google.ai.edge.litert.** { *; }
+-keepclassmembers class com.google.ai.edge.litertlm.** { *; }
+-dontwarn com.google.ai.edge.litertlm.**
+
+# ============================================================================
+# 10. SQLCipher (net.zetetic)
+# ============================================================================
+-keep class net.sqlcipher.** { *; }
+-keep class net.sqlcipher.database.** { *; }
+-keepclassmembers class net.sqlcipher.** { *; }
+-dontwarn net.sqlcipher.**
+
+# ============================================================================
+# 11. Flutter Plugins
+# ============================================================================
+-keep class io.flutter.plugins.** { *; }
+-keep class io.flutter.embedding.** { *; }
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+-keep class io.github.ponnamkarthik.** { *; }
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+
+# ============================================================================
+# 12. Don't warn about missing dependencies
 # ============================================================================
 -dontwarn com.google.auto.value.**
 -dontwarn com.google.mediapipe.framework.image.**
+-dontwarn com.google.ai.edge.litertlm.**
+-dontwarn net.sqlcipher.**

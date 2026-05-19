@@ -3,13 +3,19 @@ package com.example.haku
 import android.content.Context
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ToolProvider
+import com.google.ai.edge.litertlm.ToolSet
+import com.google.ai.edge.litertlm.tool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -49,12 +55,16 @@ class LiteRTLMBridge(private val context: Context) {
     private var currentModelPath: String? = null
     private var currentSystemInstruction: String? = null
     private var _maxTokens: Int = 1024
+    private var _supportImage: Boolean = false
     private var _temperature: Double = 0.8
     private var _topK: Int = 40
     private var _topP: Double = 0.95
 
     // Stateful conversation — เก็บ KV cache ข้ามรอบ (ต่อ session)
     private var currentConversation: Conversation? = null
+
+    // Tools สำหรับ function calling (Gemma 4)
+    private var _tools: List<ToolProvider> = emptyList()
 
     // accelerator ที่ใช้อยู่ — CPU / GPU / NPU
     private var _currentAccelerator: String = "GPU"
@@ -75,6 +85,7 @@ class LiteRTLMBridge(private val context: Context) {
         maxTokens: Int = 1024,
         systemInstruction: String? = null,
         accelerator: String = "GPU",
+        supportImage: Boolean = false,
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "📥 กำลังโหลดโมเดล: $modelPath (accelerator=$accelerator)")
@@ -86,6 +97,7 @@ class LiteRTLMBridge(private val context: Context) {
 
             unloadModel()
             _maxTokens = maxTokens
+            _supportImage = supportImage
             currentSystemInstruction = systemInstruction
 
             val backend: Backend = when (accelerator.uppercase()) {
@@ -98,6 +110,7 @@ class LiteRTLMBridge(private val context: Context) {
             val config = EngineConfig(
                 modelPath = modelPath,
                 backend = backend,
+                visionBackend = if (supportImage) Backend.GPU() else null,
                 maxNumTokens = maxTokens,
                 cacheDir = context.getExternalFilesDir(null)?.absolutePath,
             )
@@ -143,6 +156,20 @@ class LiteRTLMBridge(private val context: Context) {
         Log.i(TAG, "🔄 Conversation รีเซ็ตแล้ว")
     }
 
+    // ── Function Calling Tools ─────────────────────────────────────────────────
+
+    /**
+     * 🛠️ ตั้ง ToolSet สำหรับ function calling — รีเซ็ต conversation อัตโนมัติ
+     *
+     * เรียกก่อน loadModel หรือหลัง loadModel ก็ได้
+     * ถ้าเรียกหลัง loadModel → conversation จะถูกสร้างใหม่พร้อม tools ในรอบถัดไป
+     */
+    fun setTools(toolSet: ToolSet?) {
+        _tools = if (toolSet != null) listOf(tool(toolSet)) else emptyList()
+        resetConversation()
+        Log.i(TAG, "🛠️ tools: ${_tools.size} ToolProvider(s) set")
+    }
+
     /**
      * 🔧 ตั้งค่า sampler parameters — ไม่ต้อง reload โมเดล
      */
@@ -160,7 +187,9 @@ class LiteRTLMBridge(private val context: Context) {
      *
      * Stateful: เก็บ KV cache ข้ามรอบ → inference เร็วขึ้นใน session เดียวกัน
      * เรียก resetConversation() เพื่อเริ่ม session ใหม่
+     * ถ้า _tools ไม่ว่าง → เปิด enableConversationConstrainedDecoding สำหรับ function calling
      */
+    @OptIn(ExperimentalApi::class)
     private fun getOrCreateConversation(): Conversation? {
         currentConversation?.let { return it }
 
@@ -169,14 +198,25 @@ class LiteRTLMBridge(private val context: Context) {
         try { currentConversation?.close() } catch (_: Exception) {}
 
         val sampler = SamplerConfig(topK = _topK, topP = _topP, temperature = _temperature, seed = 0)
+        val hasTools = _tools.isNotEmpty()
+
+        // ต้อง set ExperimentalFlags ก่อน createConversation (global flag)
+        if (hasTools) ExperimentalFlags.enableConversationConstrainedDecoding = true
+
         val config = ConversationConfig(
             systemInstruction = currentSystemInstruction?.let { Contents.of(it) },
             samplerConfig = sampler,
+            tools = _tools,
         )
 
         return try {
-            eng.createConversation(config).also { currentConversation = it }
+            eng.createConversation(config).also {
+                currentConversation = it
+                if (hasTools) ExperimentalFlags.enableConversationConstrainedDecoding = false
+                Log.i(TAG, "💬 Conversation สร้างแล้ว (tools=${_tools.size})")
+            }
         } catch (e: Exception) {
+            if (hasTools) ExperimentalFlags.enableConversationConstrainedDecoding = false
             Log.e(TAG, "❌ สร้าง Conversation ล้มเหลว: ${e.message}")
             null
         }
@@ -261,17 +301,17 @@ class LiteRTLMBridge(private val context: Context) {
 
         return@withContext try {
             val result = StringBuilder()
+            val thought = StringBuilder()
             val latch = CountDownLatch(1)
             var inferenceError: String? = null
 
             conversation.sendMessageAsync(userMessage, object : MessageCallback {
                 override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
                     result.append(message.toString())
+                    message.channels["thought"]?.let { thought.append(it) }
                 }
                 override fun onDone() { latch.countDown() }
                 override fun onError(throwable: Throwable) {
-                    // บันทึก error แล้ว countdown — ห้าม close conversation ใน callback
-                    // เพราะ native session จะไม่ release จนกว่า callback thread จะ return
                     inferenceError = throwable.message
                     latch.countDown()
                 }
@@ -281,14 +321,81 @@ class LiteRTLMBridge(private val context: Context) {
 
             if (inferenceError != null) {
                 Log.e(TAG, "❌ generateTurn error: $inferenceError")
-                resetConversation() // reset หลัง callback เสร็จ → native session release ได้จริง
+                resetConversation()
                 ""
             } else {
-                result.toString()
+                // Prepend thinking block ถ้ามี — UI (_ThinkingSection) จะ parse แล้วแสดงแยก
+                val thinkingPrefix = if (thought.isNotEmpty()) "<thinking>${thought.toString().trim()}</thinking>" else ""
+                thinkingPrefix + result.toString()
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ generateTurn ล้มเหลว: ${e.message}")
+            resetConversation()
+            ""
+        }
+    }
+
+    /**
+     * 🖼️ Generate แบบ stateful พร้อม image input — ใช้ KV cache ต่อ session
+     *
+     * ต้องโหลดโมเดลด้วย supportImage=true ก่อน (visionBackend=GPU ต้องตั้งตอน loadModel)
+     * ถ้า supportImage=false จะ fallback ไป text-only โดยอัตโนมัติ
+     *
+     * imageBytesList — PNG bytes ของแต่ละรูป (Dart ส่ง Uint8List มาผ่าน MethodChannel)
+     */
+    suspend fun generateTurnWithImages(
+        userMessage: String,
+        imageBytesList: List<ByteArray>,
+    ): String = withContext(Dispatchers.IO) {
+        if (!isInitialized) {
+            Log.e(TAG, "❌ ยังไม่ได้โหลดโมเดล")
+            return@withContext ""
+        }
+        if (!_supportImage || imageBytesList.isEmpty()) {
+            return@withContext generateTurn(userMessage)
+        }
+
+        val conversation = getOrCreateConversation() ?: return@withContext ""
+
+        return@withContext try {
+            val result = StringBuilder()
+            val thought = StringBuilder()
+            val latch = CountDownLatch(1)
+            var inferenceError: String? = null
+
+            val contents = mutableListOf<Content>()
+            for (imageBytes in imageBytesList) {
+                contents.add(Content.ImageBytes(imageBytes))
+            }
+            if (userMessage.trim().isNotEmpty()) {
+                contents.add(Content.Text(userMessage))
+            }
+
+            conversation.sendMessageAsync(Contents.of(contents), object : MessageCallback {
+                override fun onMessage(message: com.google.ai.edge.litertlm.Message) {
+                    result.append(message.toString())
+                    message.channels["thought"]?.let { thought.append(it) }
+                }
+                override fun onDone() { latch.countDown() }
+                override fun onError(throwable: Throwable) {
+                    inferenceError = throwable.message
+                    latch.countDown()
+                }
+            })
+
+            latch.await()
+
+            if (inferenceError != null) {
+                Log.e(TAG, "❌ generateTurnWithImages error: $inferenceError")
+                resetConversation()
+                ""
+            } else {
+                val thinkingPrefix = if (thought.isNotEmpty()) "<thinking>${thought.toString().trim()}</thinking>" else ""
+                thinkingPrefix + result.toString()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ generateTurnWithImages ล้มเหลว: ${e.message}")
             resetConversation()
             ""
         }
@@ -359,6 +466,7 @@ class LiteRTLMBridge(private val context: Context) {
         "modelPath"            to currentModelPath,
         "backend"              to "LiteRT-LM",
         "accelerator"          to _currentAccelerator,
+        "supportsImage"        to _supportImage,
         "hasSystemInstruction" to (currentSystemInstruction != null),
         "hasActiveSession"     to (currentConversation != null),
         "status"               to if (isInitialized) "Ready ($currentAccelerator)" else "Not loaded",

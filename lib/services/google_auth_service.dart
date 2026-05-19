@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// 🔐 Google Auth Service - Google Login + Calendar Sync
 ///
@@ -38,6 +38,12 @@ class GoogleAuthService {
 
   static const String _userKey = 'google_user_data';
   static const String _tokenKey = 'google_access_token';
+
+  // 🔐 Secure storage for sensitive tokens (never use SharedPreferences for tokens)
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+  );
 
   // Google Sign In
   final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -190,8 +196,7 @@ class GoogleAuthService {
       _accessToken = auth?.accessToken;
 
       if (_accessToken != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_tokenKey, _accessToken!);
+        await _secureStorage.write(key: _tokenKey, value: _accessToken!);
       }
     } catch (e) {
       debugPrint('⚠️ Token refresh error: $e');
@@ -202,19 +207,20 @@ class GoogleAuthService {
   Future<void> _saveUserData() async {
     if (_currentUser == null) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, jsonEncode({
-      'email': _currentUser!.email,
-      'displayName': _currentUser!.displayName,
-      'photoUrl': _currentUser!.photoUrl,
-    }));
+    await _secureStorage.write(
+      key: _userKey,
+      value: jsonEncode({
+        'email': _currentUser!.email,
+        'displayName': _currentUser!.displayName,
+        'photoUrl': _currentUser!.photoUrl,
+      }),
+    );
   }
 
   /// 🗑️ Clear user data
   Future<void> _clearUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_userKey);
-    await prefs.remove(_tokenKey);
+    await _secureStorage.delete(key: _userKey);
+    await _secureStorage.delete(key: _tokenKey);
   }
 
   // ============================================================

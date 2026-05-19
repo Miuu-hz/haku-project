@@ -1,5 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'device_command_audit.dart';
+import 'device_command_gate.dart';
 
 /// 🔧 DeviceCommandService
 ///
@@ -9,6 +13,8 @@ import 'package:flutter/services.dart';
 /// Channel: com.example.haku/device
 ///
 /// แรงบันดาลใจจาก Google AI Edge Gallery — AgentTools.runIntent()
+///
+/// 🆕 รองรับ Audit Log + Permission Gate (4-tier security)
 class DeviceCommandService {
   static const MethodChannel _channel =
       MethodChannel('com.example.haku/device');
@@ -27,68 +33,132 @@ class DeviceCommandService {
   ///
   /// [command] คือ command string เช่น 'flashlight_on', 'open_app', 'dial_phone'
   /// [params] คือ Map ของ parameters ที่จำเป็นต่อ command นั้น
+  /// [context] — ถ้ามี จะแสดง confirm dialog สำหรับ command ระดับ confirm/biometric
+  /// [source] — แหล่งที่มาของคำสั่ง: 'user_chat', 'proactive_trigger', 'llm_tool', 'automation'
   ///
   /// Returns: Map ที่มี 'success' (bool) และอาจมี 'error', 'level', 'state' ฯลฯ
   static Future<Map<String, dynamic>> execute(
     String command, {
     Map<String, dynamic> params = const {},
+    BuildContext? context,
+    String source = 'user_chat',
+    bool skipApproval = false,
   }) async {
+    final tier = DeviceCommandGate.getTier(command);
+    final tierName = tier.name;
+
+    // ─── Permission Gate ───
+    if (DeviceCommandGate.requiresApproval(command) && !skipApproval) {
+      // คำสั่ง sensitive ต้องมี UI context เสมอ — ไม่มี context = block ทันที
+      if (context == null) {
+        await DeviceCommandAudit.instance.logEntry(
+          command: command,
+          params: params,
+          success: false,
+          error: 'Blocked: no UI context for approval',
+          source: source,
+          tier: tierName,
+        );
+        return {
+          'success': false,
+          'error': 'Command "$command" requires user confirmation but no UI context was provided',
+          'tier': tierName,
+        };
+      }
+      final approved = await DeviceCommandGate.requestConfirm(
+        context,
+        command: command,
+        title: 'ยืนยันคำสั่ง',
+        details: DeviceCommandGate.summarizeCommand(command, params),
+      );
+      if (!approved) {
+        // ผู้ใช้ปฏิเสธ — log ว่าถูกปฏิเสธแล้วคืนค่า
+        await DeviceCommandAudit.instance.logEntry(
+          command: command,
+          params: params,
+          success: false,
+          error: 'ผู้ใช้ปฏิเสธคำสั่ง',
+          source: source,
+          tier: tierName,
+        );
+        return {'success': false, 'error': 'User declined', 'tier': tierName};
+      }
+    }
+
+    // ─── Execute via MethodChannel ───
+    Map<String, dynamic> result;
     try {
-      final result = await _channel.invokeMethod('execute', {
+      final rawResult = await _channel.invokeMethod('execute', {
         'command': command,
         'params': Map<dynamic, dynamic>.from(params),
       });
-      return Map<String, dynamic>.from((result as Map<dynamic, dynamic>?) ?? {'success': false});
+      result = Map<String, dynamic>.from(
+        (rawResult as Map<dynamic, dynamic>?) ?? {'success': false},
+      );
     } on PlatformException catch (e) {
-      return {
+      result = {
         'success': false,
         'error': e.message ?? 'Platform error',
         'code': e.code,
       };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      result = {'success': false, 'error': e.toString()};
     }
+
+    // ─── Auto Audit Log ───
+    await DeviceCommandAudit.instance.logEntry(
+      command: command,
+      params: params,
+      success: result['success'] == true,
+      error: result['error'] as String?,
+      source: source,
+      tier: tierName,
+    );
+
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════
   //  Flashlight
   // ═══════════════════════════════════════════════════════════════════
 
-  Future<bool> flashlightOn() async {
-    final r = await execute('flashlight_on');
+  Future<bool> flashlightOn({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('flashlight_on', context: context, source: source);
     if (r['success'] == true) _flashlightOn = true;
     return (r['success'] as bool?) ?? false;
   }
 
-  Future<bool> flashlightOff() async {
-    final r = await execute('flashlight_off');
+  Future<bool> flashlightOff({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('flashlight_off', context: context, source: source);
     if (r['success'] == true) _flashlightOn = false;
     return (r['success'] as bool?) ?? false;
   }
 
-  Future<bool> flashlightToggle() async {
-    return _flashlightOn ? await flashlightOff() : await flashlightOn();
+  Future<bool> flashlightToggle({BuildContext? context, String source = 'user_chat'}) async {
+    return _flashlightOn
+        ? await flashlightOff(context: context, source: source)
+        : await flashlightOn(context: context, source: source);
   }
 
   // ═══════════════════════════════════════════════════════════════════
   //  App / Communication
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<bool> openApp(String packageName) async {
-    final r = await execute('open_app', params: {'packageName': packageName});
+  static Future<bool> openApp(String packageName, {BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_app', params: {'packageName': packageName}, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> dialPhone(String number) async {
-    final r = await execute('dial_phone', params: {'phoneNumber': number});
+  static Future<bool> dialPhone(String number, {BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('dial_phone', params: {'phoneNumber': number}, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> sendSms(String number, String message) async {
+  static Future<bool> sendSms(String number, String message, {BuildContext? context, String source = 'user_chat'}) async {
     final r = await execute('send_sms', params: {
       'phoneNumber': number,
       'message': message,
-    });
+    }, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
@@ -96,27 +166,29 @@ class DeviceCommandService {
     required String to,
     String subject = '',
     String body = '',
+    BuildContext? context,
+    String source = 'user_chat',
   }) async {
     final r = await execute('send_email', params: {
       'to': to,
       'subject': subject,
       'body': body,
-    });
+    }, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openUrl(String url) async {
-    final r = await execute('open_url', params: {'url': url});
+  static Future<bool> openUrl(String url, {BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_url', params: {'url': url}, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openCamera() async {
-    final r = await execute('open_camera');
+  static Future<bool> openCamera({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_camera', context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openGallery() async {
-    final r = await execute('open_gallery');
+  static Future<bool> openGallery({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_gallery', context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
@@ -124,44 +196,44 @@ class DeviceCommandService {
   //  Settings
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<bool> openSettings(String type) async {
-    final r = await execute('open_settings', params: {'type': type});
+  static Future<bool> openSettings(String type, {BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_settings', params: {'type': type}, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openWifiSettings() => openSettings('wifi');
-  static Future<bool> openBluetoothSettings() => openSettings('bluetooth');
-  static Future<bool> openLocationSettings() => openSettings('location');
-  static Future<bool> openBatterySettings() => openSettings('battery');
-  static Future<bool> openSoundSettings() => openSettings('sound');
-  static Future<bool> openDisplaySettings() => openSettings('display');
-  static Future<bool> openSecuritySettings() => openSettings('security');
+  static Future<bool> openWifiSettings({BuildContext? context, String source = 'user_chat'}) => openSettings('wifi', context: context, source: source);
+  static Future<bool> openBluetoothSettings({BuildContext? context, String source = 'user_chat'}) => openSettings('bluetooth', context: context, source: source);
+  static Future<bool> openLocationSettings({BuildContext? context, String source = 'user_chat'}) => openSettings('location', context: context, source: source);
+  static Future<bool> openBatterySettings({BuildContext? context, String source = 'user_chat'}) => openSettings('battery', context: context, source: source);
+  static Future<bool> openSoundSettings({BuildContext? context, String source = 'user_chat'}) => openSettings('sound', context: context, source: source);
+  static Future<bool> openDisplaySettings({BuildContext? context, String source = 'user_chat'}) => openSettings('display', context: context, source: source);
+  static Future<bool> openSecuritySettings({BuildContext? context, String source = 'user_chat'}) => openSettings('security', context: context, source: source);
 
   // ═══════════════════════════════════════════════════════════════════
   //  System Apps
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<bool> openCalendar() async {
-    final r = await execute('open_calendar');
+  static Future<bool> openCalendar({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_calendar', context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openClock() async {
-    final r = await execute('open_clock');
+  static Future<bool> openClock({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_clock', context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openCalculator() async {
-    final r = await execute('open_calculator');
+  static Future<bool> openCalculator({BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('open_calculator', context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
-  static Future<bool> openMaps({String? query, double? lat, double? lng}) async {
+  static Future<bool> openMaps({String? query, double? lat, double? lng, BuildContext? context, String source = 'user_chat'}) async {
     final params = <String, dynamic>{};
     if (query != null) params['query'] = query;
     if (lat != null) params['lat'] = lat;
     if (lng != null) params['lng'] = lng;
-    final r = await execute('open_maps', params: params);
+    final r = await execute('open_maps', params: params, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
@@ -169,8 +241,8 @@ class DeviceCommandService {
   //  Share / Contact
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<bool> shareText(String text) async {
-    final r = await execute('share_text', params: {'text': text});
+  static Future<bool> shareText(String text, {BuildContext? context, String source = 'user_chat'}) async {
+    final r = await execute('share_text', params: {'text': text}, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
@@ -178,12 +250,14 @@ class DeviceCommandService {
     String? name,
     String? phone,
     String? email,
+    BuildContext? context,
+    String source = 'user_chat',
   }) async {
     final r = await execute('create_contact', params: {
       if (name != null) 'name': name,
       if (phone != null) 'phone': phone,
       if (email != null) 'email': email,
-    });
+    }, context: context, source: source);
     return (r['success'] as bool?) ?? false;
   }
 
@@ -191,13 +265,13 @@ class DeviceCommandService {
   //  Queries
   // ═══════════════════════════════════════════════════════════════════
 
-  static Future<int> getBatteryLevel() async {
-    final r = await execute('get_battery_level');
+  static Future<int> getBatteryLevel({String source = 'user_chat'}) async {
+    final r = await execute('get_battery_level', source: source);
     return (r['level'] as num?)?.toInt() ?? -1;
   }
 
-  static Future<Map<String, dynamic>> getNetworkStatus() async {
-    final r = await execute('get_network_status');
+  static Future<Map<String, dynamic>> getNetworkStatus({String source = 'user_chat'}) async {
+    final r = await execute('get_network_status', source: source);
     return Map<String, dynamic>.from(r);
   }
 
@@ -214,7 +288,13 @@ class DeviceCommandService {
   ///   "params": {}
   /// }
   /// ```
-  static Future<Map<String, dynamic>> executeFromLlmJson(String jsonString) async {
+  ///
+  /// [context] ต้องส่งมาเสมอ — คำสั่ง confirm/biometric tier จะถูก block
+  /// ถ้าไม่มี context เพื่อแสดง approval dialog
+  static Future<Map<String, dynamic>> executeFromLlmJson(
+    String jsonString, {
+    BuildContext? context,
+  }) async {
     try {
       final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
       final command = decoded['command'] as String?;
@@ -224,7 +304,18 @@ class DeviceCommandService {
         return {'success': false, 'error': 'Missing command in LLM JSON'};
       }
 
-      final result = await execute(command, params: params);
+      // ป้องกัน LLM bypass approval gate:
+      // คำสั่ง confirm/biometric tier ต้องมี context สำหรับแสดง dialog
+      // ถ้าไม่มี context → block ทันที ไม่ execute
+      if (DeviceCommandGate.requiresApproval(command) && context == null) {
+        return {
+          'success': false,
+          'error': 'Command "$command" requires user confirmation but no UI context was provided',
+          'tier': DeviceCommandGate.getTier(command).name,
+        };
+      }
+
+      final result = await execute(command, params: params, context: context, source: 'llm_tool');
       return result;
     } catch (e) {
       return {'success': false, 'error': 'Failed to parse LLM JSON: $e'};

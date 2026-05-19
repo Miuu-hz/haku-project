@@ -20,13 +20,14 @@ import 'encryption_service.dart';
 class DatabaseHelper {
   // 🎯 ค่าคงที่สำหรับ Database
   static const String _databaseName = 'haku_encrypted.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
   
   // 📋 ชื่อตารางและคอลัมน์
   static const String tableEntries = 'entries';
   static const String tableChatLog = 'secret_chat_log';
   static const String tableKnowledgePages = 'knowledge_pages';
   static const String tableKnowledgeLinks = 'knowledge_links';
+  static const String tableDeviceCommandLog = 'device_command_log';
   static const String columnId = 'id';
   static const String columnContent = 'content';
   static const String columnCreatedAt = 'created_at';
@@ -68,10 +69,17 @@ class DatabaseHelper {
         onUpgrade: _onUpgrade,
       );
     } catch (e) {
-      // ไฟล์เดิมเป็น plain SQLite (ไม่ได้ encrypt) → ลบแล้วสร้าง encrypted ใหม่
+      // ไฟล์เดิมเป็น plain SQLite (ไม่ได้ encrypt) → backup ก่อนแล้วสร้าง encrypted ใหม่
       debugPrint('⚠️ DB open failed, migrating to encrypted DB: $e');
       final file = File(path);
       if (await file.exists()) {
+        final backupPath = '$path.bak.${DateTime.now().millisecondsSinceEpoch}';
+        try {
+          await file.copy(backupPath);
+          debugPrint('🗄️ DB backed up to: $backupPath');
+        } catch (backupErr) {
+          debugPrint('⚠️ DB backup failed: $backupErr');
+        }
         await file.delete();
         debugPrint('🗑️ Deleted old unencrypted DB, creating new encrypted DB');
       }
@@ -114,6 +122,7 @@ class DatabaseHelper {
 
     await _createChatLogTables(db);
     await _createKnowledgeTables(db);
+    await _createDeviceCommandLogTable(db);
   }
 
   Future<void> _createChatLogTables(Database db) async {
@@ -201,6 +210,34 @@ class DatabaseHelper {
       await _createChatLogTables(db);
       await _createKnowledgeTables(db);
     }
+    if (oldVersion < 4) {
+      await _createDeviceCommandLogTable(db);
+    }
+  }
+
+  Future<void> _createDeviceCommandLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableDeviceCommandLog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        command TEXT NOT NULL,
+        params TEXT DEFAULT '{}',
+        success INTEGER DEFAULT 1,
+        error TEXT,
+        source TEXT DEFAULT 'user_chat',
+        tier TEXT DEFAULT 'auto'
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_device_cmd_timestamp
+        ON $tableDeviceCommandLog(timestamp DESC)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_device_cmd_source
+        ON $tableDeviceCommandLog(source)
+    ''');
   }
 
   /// 🔓 เปิด database ด้วยรหัสผ่านที่กำหนด (สำหรับกรณีพิเศษ)
@@ -218,9 +255,11 @@ class DatabaseHelper {
   /// 🔄 เปลี่ยนรหัสผ่าน database
   Future<void> changePassword(String newPassword) async {
     final db = await database;
-    await db.execute("PRAGMA rekey = '$newPassword'");
-    
-    // บันทึก key ใหม่
+    // SQLCipher ไม่รองรับ parameterized query สำหรับ PRAGMA rekey
+    // ต้อง escape single quote เพื่อป้องกัน SQL injection
+    final safePassword = newPassword.replaceAll("'", "''");
+    await db.execute("PRAGMA rekey = '$safePassword'");
+
     // Note: ต้อง implement การ update key ใน EncryptionService ด้วย
   }
 

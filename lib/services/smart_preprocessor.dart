@@ -65,6 +65,10 @@ class SmartPreprocessor {
     RegExp(r'^ราคา\s*(.+)', caseSensitive: false),
     RegExp(r'^วิธี\s*(.+)', caseSensitive: false),
     RegExp(r'^สูตร\s*(.+)', caseSensitive: false),
+    // Thai nearby — "คาเฟ่ใกล้ๆ", "ร้านอาหารแถวนี้", "หาร้านกาแฟ"
+    RegExp(r'^(.+?)\s*(ใกล้ๆ|ใกล้ฉัน|ใกล้ที่นี่|แถวนี้|ในละแวกนี้|ในแถวนี้)', caseSensitive: false),
+    RegExp(r'^(หาร้าน|แนะร้าน|แนะนำร้าน|ร้านไหนดี)\s*(.+)?', caseSensitive: false),
+    RegExp(r'^แนะนำ\s*(.+?)\s*(ใกล้|แถว|ในละแวก)', caseSensitive: false),
     // English patterns
     RegExp(r'(?:^|\b)(?:search|find|look up|look for|search for)\s+(.+)', caseSensitive: false),
     RegExp(r'(?:^|\b)what\s+is\s+(.+)', caseSensitive: false),
@@ -340,7 +344,7 @@ class SmartPreprocessor {
     }
 
     // ตรวจสอบคำสำคัญ
-    final searchKeywords = ['อากาศ', 'ข่าว', 'ราคา', 'หุ้น', 'สกุลเงิน', 'news', 'price', 'stock', 'nearby', 'near me', 'ใกล้ฉัน', 'ใกล้ที่นี่', 'ใกล้บ้าน', 'แถวนี้', 'ในละแวก'];
+    final searchKeywords = ['อากาศ', 'ข่าว', 'ราคา', 'หุ้น', 'สกุลเงิน', 'news', 'price', 'stock', 'nearby', 'near me', 'ใกล้ฉัน', 'ใกล้ที่นี่', 'ใกล้บ้าน', 'ใกล้ๆ', 'แถวนี้', 'ในละแวก', 'ในละแวกนี้', 'ร้านใกล้', 'แนะร้าน'];
     for (final keyword in searchKeywords) {
       if (lower.contains(keyword)) {
         return message;

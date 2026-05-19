@@ -197,11 +197,30 @@ class DeviceCommandHandler(private val context: Context) {
         val url = params["url"] as? String
             ?: return mapOf("success" to false, "error" to "Missing url")
 
-        val fixedUrl = if (url.startsWith("http://") || url.startsWith("https://")) url else "https://$url"
-        val intent = Intent(Intent.ACTION_VIEW, fixedUrl.toUri())
+        // Normalize: เติม https:// ถ้าไม่มี scheme
+        val normalized = if (url.startsWith("http://") || url.startsWith("https://")) url else "https://$url"
+
+        // Parse URI แล้วตรวจ scheme อีกครั้ง — ป้องกัน http://javascript: หรือ intent:// ที่ซ่อนอยู่
+        val uri = try {
+            normalized.toUri()
+        } catch (e: Exception) {
+            return mapOf("success" to false, "error" to "Invalid URL format")
+        }
+
+        val scheme = uri.scheme?.lowercase() ?: ""
+        if (scheme != "http" && scheme != "https") {
+            return mapOf("success" to false, "error" to "Blocked URL scheme: $scheme")
+        }
+
+        // ตรวจ host ต้องมี — ป้องกัน https:// (ว่างเปล่า)
+        if (uri.host.isNullOrBlank()) {
+            return mapOf("success" to false, "error" to "Missing host in URL")
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW, uri)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
-        return mapOf("success" to true, "url" to fixedUrl)
+        return mapOf("success" to true, "url" to normalized)
     }
 
     private fun openCamera(): Map<String, Any?> {

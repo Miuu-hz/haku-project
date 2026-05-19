@@ -166,12 +166,16 @@ String _chargingEventTitle(ChargingTriggerType type) {
   }
 }
 
+/// 🔑 Global Navigator Key สำหรับ access context จากทุกที่ (รวมถึง notification callbacks)
+final GlobalKey<NavigatorState> hakuNavigatorKey = GlobalKey<NavigatorState>();
+
 /// 🎨 ธีมหลักของแอพ — Haku Crystal (light aurora + glass)
 class HakuApp extends StatelessWidget {
   const HakuApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+        navigatorKey: hakuNavigatorKey,
         title: 'Haku - AI Life Logger',
         debugShowCheckedModeBanner: false,
         theme: _buildCrystalTheme(),

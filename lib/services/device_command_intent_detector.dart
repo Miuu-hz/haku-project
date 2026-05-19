@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+
 import '../models/entry.dart';
 import 'database_helper.dart';
 import 'device_command_service.dart';
+import 'geofence_service.dart';
 import 'location_service.dart';
 import 'nominatim_service.dart';
 import 'place_service.dart';
@@ -17,11 +20,11 @@ import 'place_service.dart';
 class DeviceCommandIntentDetector {
   // ─── Flashlight ───
   static final _flashlightOnPattern = RegExp(
-    r'เปิดไฟฉาย|เปิดแฟลช|เปิดไฟ|flashlight on|turn on flash',
+    r'เปิดไฟฉาย|เปิดแฟลช|เปิดไฟ|flashlight on|turn on flash|open flash|flash on',
     caseSensitive: false,
   );
   static final _flashlightOffPattern = RegExp(
-    r'ปิดไฟฉาย|ปิดแฟลช|ปิดไฟ|flashlight off|turn off flash',
+    r'ปิดไฟฉาย|ปิดแฟลช|ปิดไฟ|flashlight off|turn off flash|close flash|flash off',
     caseSensitive: false,
   );
   static final _flashlightTogglePattern = RegExp(
@@ -134,21 +137,21 @@ class DeviceCommandIntentDetector {
 
   /// 🔍 ตรวจจับ intent จากข้อความผู้ใช้
   /// Returns: DeviceCommand? ถ้าไม่ match จะ return null
-  static Future<DeviceCommand?> detect(String userMessage) async {
+  static Future<DeviceCommand?> detect(String userMessage, {BuildContext? context}) async {
     final msg = userMessage.toLowerCase().trim();
 
     // ─── Flashlight ───
     if (_flashlightOnPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'flashlight_on',
-        execute: () => DeviceCommandService.execute('flashlight_on'),
+        execute: (ctx) => DeviceCommandService.execute('flashlight_on', context: ctx),
         replyTemplate: '💡 เปิดไฟฉายแล้วค่ะ',
       );
     }
     if (_flashlightOffPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'flashlight_off',
-        execute: () => DeviceCommandService.execute('flashlight_off'),
+        execute: (ctx) => DeviceCommandService.execute('flashlight_off', context: ctx),
         replyTemplate: '💡 ปิดไฟฉายแล้วค่ะ',
       );
     }
@@ -156,7 +159,7 @@ class DeviceCommandIntentDetector {
       // Kotlin ไม่รู้สถานะ torch — ให้ Dart singleton track state แล้ว call on/off
       return DeviceCommand(
         action: 'flashlight_toggle',
-        execute: () => DeviceCommandService().flashlightToggle().then((s) => {'success': s}),
+        execute: (ctx) => DeviceCommandService().flashlightToggle(context: ctx).then((s) => {'success': s}),
         replyTemplate: '💡 สลับไฟฉายแล้วค่ะ',
       );
     }
@@ -165,7 +168,7 @@ class DeviceCommandIntentDetector {
     if (_cameraPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_camera',
-        execute: () => DeviceCommandService.execute('open_camera'),
+        execute: (ctx) => DeviceCommandService.execute('open_camera', context: ctx),
         replyTemplate: '📷 เปิดกล้องแล้วค่ะ',
       );
     }
@@ -174,7 +177,7 @@ class DeviceCommandIntentDetector {
     if (_galleryPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_gallery',
-        execute: () => DeviceCommandService.execute('open_gallery'),
+        execute: (ctx) => DeviceCommandService.execute('open_gallery', context: ctx),
         replyTemplate: '🖼️ เปิดแกลเลอรี่แล้วค่ะ',
       );
     }
@@ -183,7 +186,7 @@ class DeviceCommandIntentDetector {
     if (_calendarPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_calendar',
-        execute: () => DeviceCommandService.execute('open_calendar'),
+        execute: (ctx) => DeviceCommandService.execute('open_calendar', context: ctx),
         replyTemplate: '📅 เปิดปฏิทินแล้วค่ะ',
       );
     }
@@ -192,7 +195,7 @@ class DeviceCommandIntentDetector {
     if (_clockPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_clock',
-        execute: () => DeviceCommandService.execute('open_clock'),
+        execute: (ctx) => DeviceCommandService.execute('open_clock', context: ctx),
         replyTemplate: '⏰ เปิดนาฬิกาแล้วค่ะ',
       );
     }
@@ -201,7 +204,7 @@ class DeviceCommandIntentDetector {
     if (_calculatorPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_calculator',
-        execute: () => DeviceCommandService.execute('open_calculator'),
+        execute: (ctx) => DeviceCommandService.execute('open_calculator', context: ctx),
         replyTemplate: '🧮 เปิดเครื่องคิดเลขแล้วค่ะ',
       );
     }
@@ -210,28 +213,28 @@ class DeviceCommandIntentDetector {
     if (_wifiPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_wifi_settings',
-        execute: () => DeviceCommandService.execute('open_wifi_settings'),
+        execute: (ctx) => DeviceCommandService.execute('open_wifi_settings', context: ctx),
         replyTemplate: '📶 เปิดตั้งค่า WiFi แล้วค่ะ',
       );
     }
     if (_bluetoothPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_bluetooth_settings',
-        execute: () => DeviceCommandService.execute('open_bluetooth_settings'),
+        execute: (ctx) => DeviceCommandService.execute('open_bluetooth_settings', context: ctx),
         replyTemplate: '🔵 เปิดตั้งค่า Bluetooth แล้วค่ะ',
       );
     }
     if (_locationPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_location_settings',
-        execute: () => DeviceCommandService.execute('open_location_settings'),
+        execute: (ctx) => DeviceCommandService.execute('open_location_settings', context: ctx),
         replyTemplate: '📍 เปิดตั้งค่าตำแหน่งแล้วค่ะ',
       );
     }
     if (_batteryPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'open_battery_settings',
-        execute: () => DeviceCommandService.execute('open_battery_settings'),
+        execute: (ctx) => DeviceCommandService.execute('open_battery_settings', context: ctx),
         replyTemplate: '🔋 เปิดตั้งค่าแบตเตอรี่แล้วค่ะ',
       );
     }
@@ -244,10 +247,11 @@ class DeviceCommandIntentDetector {
       final query = locationMatch?.group(1) ?? locationMatch?.group(2);
       return DeviceCommand(
         action: 'open_maps',
-        execute: () => DeviceCommandService.execute('open_maps', params: {'query': query}),
+        execute: (ctx) => DeviceCommandService.execute('open_maps', params: {'query': query}, context: ctx),
         replyTemplate: query != null
             ? '🗺️ เปิดแผนที่ไปที่ $query แล้วค่ะ'
             : '🗺️ เปิดแผนที่แล้วค่ะ',
+        params: {'query': query},
       );
     }
 
@@ -258,8 +262,9 @@ class DeviceCommandIntentDetector {
       if (number != null && number.isNotEmpty) {
         return DeviceCommand(
           action: 'dial_phone',
-          execute: () => DeviceCommandService.execute('dial_phone', params: {'phoneNumber': number}),
+          execute: (ctx) => DeviceCommandService.execute('dial_phone', params: {'phoneNumber': number}, context: ctx),
           replyTemplate: '☎️ เปิดหน้าโทร $number แล้วค่ะ',
+          params: {'phoneNumber': number},
         );
       }
     }
@@ -268,7 +273,7 @@ class DeviceCommandIntentDetector {
     if (_batteryLevelPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'get_battery_level',
-        execute: () async {
+        execute: (ctx) async {
           final level = await DeviceCommandService.getBatteryLevel();
           return {'success': true, 'level': level};
         },
@@ -284,7 +289,7 @@ class DeviceCommandIntentDetector {
     if (_networkPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'get_network_status',
-        execute: () => DeviceCommandService.execute('get_network_status'),
+        execute: (ctx) => DeviceCommandService.execute('get_network_status', context: ctx),
         replyTemplate: '',
         postExecuteReply: (result) {
           final connected = result['connected'] == true;
@@ -303,8 +308,9 @@ class DeviceCommandIntentDetector {
       if (url.isNotEmpty) {
         return DeviceCommand(
           action: 'open_url',
-          execute: () => DeviceCommandService.execute('open_url', params: {'url': url}),
+          execute: (ctx) => DeviceCommandService.execute('open_url', params: {'url': url}, context: ctx),
           replyTemplate: '🌐 เปิด $url แล้วค่ะ',
+          params: {'url': url},
         );
       }
     }
@@ -318,8 +324,9 @@ class DeviceCommandIntentDetector {
         final label = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
         return DeviceCommand(
           action: 'set_alarm',
-          execute: () => DeviceCommandService.execute('set_alarm', params: {'hour': h, 'minute': m}),
+          execute: (ctx) => DeviceCommandService.execute('set_alarm', params: {'hour': h, 'minute': m}, context: ctx),
           replyTemplate: '⏰ ตั้งปลุก $label แล้วค่ะ',
+          params: {'hour': h, 'minute': m},
         );
       }
       // ตรวจพบว่าต้องการตั้งปลุกแต่ parse เวลาไม่ได้ → ส่งให้ LLM ถาม
@@ -332,8 +339,9 @@ class DeviceCommandIntentDetector {
         final label = _formatDuration(seconds);
         return DeviceCommand(
           action: 'set_timer',
-          execute: () => DeviceCommandService.execute('set_timer', params: {'seconds': seconds}),
+          execute: (ctx) => DeviceCommandService.execute('set_timer', params: {'seconds': seconds}, context: ctx),
           replyTemplate: '⏱️ จับเวลา $label แล้วค่ะ',
+          params: {'seconds': seconds},
         );
       }
     }
@@ -342,7 +350,7 @@ class DeviceCommandIntentDetector {
     if (_silentPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'set_silent',
-        execute: () => DeviceCommandService.execute('set_silent'),
+        execute: (ctx) => DeviceCommandService.execute('set_silent', context: ctx),
         replyTemplate: '🔇 เงียบแล้วค่ะ',
         postExecuteReply: (r) {
           final note = r['note'] as String?;
@@ -354,28 +362,28 @@ class DeviceCommandIntentDetector {
     if (_vibratePattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'set_vibrate',
-        execute: () => DeviceCommandService.execute('set_vibrate'),
+        execute: (ctx) => DeviceCommandService.execute('set_vibrate', context: ctx),
         replyTemplate: '📳 โหมดสั่นแล้วค่ะ',
       );
     }
     if (_soundOnPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'set_sound_on',
-        execute: () => DeviceCommandService.execute('set_sound_on'),
+        execute: (ctx) => DeviceCommandService.execute('set_sound_on', context: ctx),
         replyTemplate: '🔔 เปิดเสียงแล้วค่ะ',
       );
     }
     if (_volumeUpPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'volume_up',
-        execute: () => DeviceCommandService.execute('volume_up'),
+        execute: (ctx) => DeviceCommandService.execute('volume_up', context: ctx),
         replyTemplate: '🔊 เพิ่มเสียงแล้วค่ะ',
       );
     }
     if (_volumeDownPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'volume_down',
-        execute: () => DeviceCommandService.execute('volume_down'),
+        execute: (ctx) => DeviceCommandService.execute('volume_down', context: ctx),
         replyTemplate: '🔉 ลดเสียงแล้วค่ะ',
       );
     }
@@ -384,8 +392,10 @@ class DeviceCommandIntentDetector {
     if (_checkInPattern.hasMatch(msg)) {
       return DeviceCommand(
         action: 'check_in',
-        execute: () async {
-          final position = await LocationService.getCurrentPosition();
+        execute: (ctx) async {
+          // ลอง fresh GPS ก่อน → fallback lastKnown จาก GeofenceService
+          var position = await LocationService.getCurrentPosition();
+          position ??= GeofenceService().lastKnownPosition;
           if (position == null) {
             return {'success': false, 'error': 'no_gps'};
           }
@@ -564,12 +574,20 @@ class DeviceCommandIntentDetector {
   }
 
   /// 🚀 ตรวจจับแล้ว execute ทันที พร้อม return ข้อความตอบกลับ
-  static Future<DeviceCommandResult?> detectAndExecute(String userMessage) async {
-    final command = await detect(userMessage);
+  static Future<DeviceCommandResult?> detectAndExecute(String userMessage, {BuildContext? context}) async {
+    final command = await detect(userMessage, context: context);
     if (command == null) return null;
 
     try {
-      final result = await command.execute();
+      if (context != null && !context.mounted) {
+        return DeviceCommandResult(
+          action: command.action,
+          success: false,
+          reply: '❌ ยกเลิกคำสั่ง (widget disposed)',
+          rawResult: {'success': false, 'error': 'Widget disposed'},
+        );
+      }
+      final result = await command.execute(context);
       final success = result['success'] == true;
 
       String reply;
@@ -599,15 +617,17 @@ class DeviceCommandIntentDetector {
 /// 📦 Data class สำหรับคำสั่งที่ตรวจจับได้
 class DeviceCommand {
   final String action;
-  final Future<Map<String, dynamic>> Function() execute;
+  final Future<Map<String, dynamic>> Function(BuildContext?) execute;
   final String replyTemplate;
   final String Function(Map<String, dynamic> result)? postExecuteReply;
+  final Map<String, dynamic> params;
 
   DeviceCommand({
     required this.action,
     required this.execute,
     required this.replyTemplate,
     this.postExecuteReply,
+    this.params = const {},
   });
 }
 

@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
+import '../models/entry.dart';
 import '../services/ai_service.dart';
 import '../services/context_retriever.dart';
 import '../services/database_helper.dart';
@@ -21,7 +25,10 @@ import '../services/litert_llm_provider.dart';
 import '../services/llm_provider_manager.dart';
 import '../services/prompt_builder.dart';
 import '../services/secret_chat_service.dart';
+import '../services/device_command_gate.dart';
 import '../services/device_command_intent_detector.dart';
+import '../services/device_command_notification_handler.dart';
+import '../widgets/device_command_confirmation_card.dart';
 import '../services/smart_preprocessor.dart';
 import '../services/place_feedback_service.dart';
 import '../services/place_service.dart';
@@ -30,6 +37,7 @@ import '../services/wiki_service.dart';
 import '../services/correlation_service.dart';
 import '../services/geofence_service.dart';
 import '../services/location_service.dart';
+import '../services/nominatim_service.dart';
 import '../services/scheduler_service.dart';
 import '../services/session_resume_service.dart';
 import '../services/web_search_service.dart';
@@ -148,12 +156,18 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
   ///
   /// Stage 1 (The Face): ตอบสนทนาไทยธรรมชาติ พร้อม context/RAG
   /// Stage 2 (Big Manager): lean classify + dispatch งาน urgent/deferred
-  Future<void> sendToAI(String userMessage, {bool useContext = true}) async {
+  Future<void> sendToAI(
+    String userMessage, {
+    bool useContext = true,
+    List<Uint8List>? images,
+    List<String>? imagePaths,
+    BuildContext? context,
+  }) async {
     debugPrint('🚀 ============================================');
     debugPrint('🚀 sendToAI called: $userMessage');
 
-    // เพิ่มข้อความผู้ใช้
-    addMessage(ChatMessage.user(userMessage));
+    // เพิ่มข้อความผู้ใช้ (พร้อม thumbnail ถ้ามีรูป)
+    addMessage(ChatMessage.user(userMessage, imagePaths: imagePaths));
 
     // แสดง "กำลังพิมพ์..."
     addMessage(ChatMessage.loading());
@@ -179,11 +193,36 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
       // ──────────────────────────────────────────────────────
       // 0.5 Device Command (rule-based, 0 LLM, async execute)
       // ──────────────────────────────────────────────────────
-      final deviceCmd = await DeviceCommandIntentDetector.detectAndExecute(userMessage);
-      if (deviceCmd != null) {
-        debugPrint('📱 Device command: ${deviceCmd.action} → success=${deviceCmd.success}');
+      final detectedCmd = await DeviceCommandIntentDetector.detect(userMessage, context: context);
+      if (detectedCmd != null) {
+        final tier = DeviceCommandGate.getTier(detectedCmd.action);
+
+        // 🛡️ Sensitive commands → แสดง inline confirmation card ในแชท
+        if (tier == CommandTier.confirm || tier == CommandTier.biometric) {
+          debugPrint('🛡️ Sensitive command: ${detectedCmd.action} → confirmation card');
+          state = state.where((m) => !m.isLoading).toList();
+          addMessage(ChatMessage.confirmationCard(
+            content: DeviceCommandGate.summarizeCommand(
+              detectedCmd.action,
+              detectedCmd.params,
+            ),
+            command: detectedCmd.action,
+            params: detectedCmd.params,
+          ));
+          return;
+        }
+
+        // 🟢 Auto / 🟡 Notify tier → execute ทันที
+        if (context != null && !context.mounted) return;
+        final result = await detectedCmd.execute(context);
+        final success = result['success'] == true;
+        final reply = detectedCmd.postExecuteReply != null
+            ? detectedCmd.postExecuteReply!(result)
+            : detectedCmd.replyTemplate;
+
+        debugPrint('📱 Device command: ${detectedCmd.action} → success=$success');
         state = state.where((m) => !m.isLoading).toList();
-        addMessage(ChatMessage.assistant(deviceCmd.reply));
+        addMessage(ChatMessage.assistant(reply));
         return;
       }
 
@@ -242,16 +281,18 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           final webService = WebSearchService();
           await webService.initialize();
 
-          // ตรวจว่าเป็น "nearby" query ไหม
-          final lowerQuery = searchQuery.toLowerCase();
+          // ตรวจว่าเป็น "nearby" query ไหม — ตรวจทั้ง original message และ extracted query
+          final lowerQuery = userMessage.toLowerCase();
           final isNearby = lowerQuery.contains('ใกล้ฉัน') ||
               lowerQuery.contains('ใกล้ที่นี่') ||
               lowerQuery.contains('ใกล้บ้าน') ||
               lowerQuery.contains('ใกล้ๆ') ||
               lowerQuery.contains('แถวนี้') ||
               lowerQuery.contains('ในละแวก') ||
+              lowerQuery.contains('ในละแวกนี้') ||
               lowerQuery.contains('ร้านใกล้') ||
               lowerQuery.contains('หาร้าน') ||
+              lowerQuery.contains('แนะร้าน') ||
               lowerQuery.contains('nearby') ||
               lowerQuery.contains('near me') ||
               lowerQuery.contains('near here');
@@ -298,7 +339,20 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           }
         } else {
           // webResult == '' → search ran but found nothing; null → exception
-          response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ';
+          // Fallback: let LLM answer from its own knowledge instead of saying "not found"
+          debugPrint('🔍 Web search returned empty, falling back to LLM knowledge...');
+          try {
+            final fallbackPrompt =
+                'User asked: "$userMessage"\n'
+                '(Web search returned no results, please answer from your own knowledge if possible. '
+                "If you truly don't know, say so honestly.)\n\n"
+                'Please respond in Thai naturally.';
+            response = await llm.generate(fallbackPrompt);
+            response = _extractResponseText(response);
+          } catch (e) {
+            debugPrint('⚠️ Fallback LLM failed: $e');
+            response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ';
+          }
         }
 
         // Replace searching message with real response
@@ -381,10 +435,17 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
               // On-device: stateful conversation — KV cache carries system instruction + history
               final liteRT = llm as LiteRTLLMProvider;
               final turn = PromptBuilder.buildUserTurn(userMessage: userMessage, context: ctx);
-              response = await liteRT.generateTurn(turn).timeout(
-                const Duration(seconds: 120),
-                onTimeout: () { debugPrint('⏱️ On-device LLM timeout'); return ''; },
-              );
+              if (images != null && images.isNotEmpty) {
+                response = await liteRT.generateTurnWithImages(turn, images).timeout(
+                  const Duration(seconds: 180),
+                  onTimeout: () { debugPrint('⏱️ Vision LLM timeout'); return ''; },
+                );
+              } else {
+                response = await liteRT.generateTurn(turn).timeout(
+                  const Duration(seconds: 120),
+                  onTimeout: () { debugPrint('⏱️ On-device LLM timeout'); return ''; },
+                );
+              }
             }
           } catch (e) {
             debugPrint('❌ LLM generate error: $e');
@@ -961,11 +1022,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ImagePicker _imagePicker = ImagePicker();
   bool _isTyping = false;
   bool _contextEnabled = true;
+  List<XFile> _pendingImages = [];
   Timer? _midnightTimer;
   StreamSubscription<TriggerEvent>? _triggerStreamSub;
 
@@ -981,6 +1044,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeServices();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1079,6 +1143,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _handleTrigger(event);
       };
 
+      // Initialize Device Command Notification Handler (confirm/deny actions)
+      DeviceCommandNotificationHandler().initialize();
+
       // Trigger wiring ย้ายไปที่ AppEntryPoint (main.dart) แล้ว
       // ChatScreen รอรับ trigger events ผ่าน NotificationService.onNotificationTap
       debugPrint('✅ All chat services initialized');
@@ -1118,14 +1185,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     debugPrint('💬 Quick reply from notification: $reply');
 
     // ส่งข้อความไปให้ AI เหมือนกับผู้ใช้พิมพ์เอง
-    await ref.read(chatHistoryProvider.notifier).sendToAI(reply);
+    await ref.read(chatHistoryProvider.notifier).sendToAI(reply, context: context);
 
     // Scroll ไปล่างสุด
     _scrollToBottom();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      DeviceCommandNotificationHandler().processPendingQueue();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _midnightTimer?.cancel();
     _triggerStreamSub?.cancel();
     _messageController.dispose();
@@ -1143,16 +1219,118 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// 📔 Photo→Auto-log — AI วิเคราะห์รูปแล้วบันทึกเป็น diary entry อัตโนมัติ
+  Future<void> _autoLogPhoto(XFile imageFile) async {
+    setState(() => _isTyping = true);
+    try {
+      final imageBytes = await imageFile.readAsBytes();
+
+      // GPS → area name (non-blocking, ใช้ lastKnownPosition ก่อน)
+      String? locationName;
+      final pos = GeofenceService().lastKnownPosition ??
+          await LocationService.getCurrentPosition();
+      if (pos != null) {
+        final addr = await NominatimService()
+            .reverseGeocode(pos.latitude, pos.longitude);
+        locationName = addr?.toString();
+      }
+
+      // AI บรรยายภาพเป็นภาษาไทย สั้น 1–2 ประโยค
+      final llm = LLMProviderManager().provider;
+      const descPrompt = 'บรรยายภาพนี้สั้นๆ ในภาษาไทย 1–2 ประโยค สำหรับบันทึกไดอารี่ส่วนตัว';
+      String description;
+      if (llm is LiteRTLLMProvider) {
+        description = await llm.generateTurnWithImages(descPrompt, [imageBytes]);
+      } else {
+        description = await llm.generate(descPrompt);
+      }
+      if (description.trim().isEmpty) description = '📷 บันทึกรูปภาพ';
+
+      // บันทึก diary entry
+      final entry = Entry(
+        content: description.trim(),
+        createdAt: DateTime.now(),
+        locationName: locationName,
+        tags: ['photo', 'auto-log'],
+      );
+      await DatabaseHelper.instance.createEntry(entry);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('บันทึกแล้ว: ${description.substring(0, description.length.clamp(0, 60))}…'),
+          backgroundColor: const Color(0xFF2C2C2E),
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    } catch (e) {
+      debugPrint('❌ _autoLogPhoto error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่')),
+        );
+      }
+    } finally {
+      setState(() => _isTyping = false);
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await _imagePicker.pickImage(source: source, imageQuality: 85);
+    if (picked != null) setState(() => _pendingImages = [..._pendingImages, picked]);
+  }
+
+  void _showImageSourceSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: kCrystal400),
+              title: const Text('ถ่ายภาพ', style: TextStyle(color: kFg1)),
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: kCrystal400),
+              title: const Text('เลือกจากแกลเลอรี', style: TextStyle(color: kFg1)),
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    final images = List<XFile>.from(_pendingImages);
+    if (text.isEmpty && images.isEmpty) return;
 
     _messageController.clear();
-    setState(() => _isTyping = true);
+    setState(() {
+      _pendingImages = [];
+      _isTyping = true;
+    });
 
+    List<Uint8List>? imageBytes;
+    List<String>? imagePaths;
+    if (images.isNotEmpty) {
+      imageBytes = await Future.wait(images.map((f) => f.readAsBytes()));
+      imagePaths = images.map((f) => f.path).toList();
+    }
+
+    if (!mounted) return;
     await ref.read(chatHistoryProvider.notifier).sendToAI(
-      text,
+      text.isEmpty ? '📷 วิเคราะห์รูปภาพนี้หน่อยได้ไหม?' : text,
       useContext: _contextEnabled,
+      images: imageBytes,
+      imagePaths: imagePaths,
+      context: context,
     );
 
     setState(() => _isTyping = false);
@@ -1194,7 +1372,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
       if (searchText != null && searchText.isNotEmpty) {
         setState(() => _isTyping = true);
-        await ref.read(chatHistoryProvider.notifier).sendToAI('ค้นหาข้อมูลเกี่ยวกับ $searchText');
+        if (!mounted) return;
+        await ref.read(chatHistoryProvider.notifier).sendToAI('ค้นหาข้อมูลเกี่ยวกับ $searchText', context: context);
         setState(() => _isTyping = false);
         _scrollToBottom();
       }
@@ -1210,7 +1389,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     setState(() => _isTyping = true);
-    await ref.read(chatHistoryProvider.notifier).sendToAI(question.query);
+    await ref.read(chatHistoryProvider.notifier).sendToAI(question.query, context: context);
     setState(() => _isTyping = false);
     _scrollToBottom();
   }
@@ -1382,63 +1561,116 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
   Widget _buildInputArea() => Container(
-      // Extra bottom padding lifts the input above the floating nav pill (~88px)
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       decoration: const BoxDecoration(
         color: kGlassFillSoft,
-        border: Border(
-          top: BorderSide(color: kGlassEdge, width: 1),
-        ),
+        border: Border(top: BorderSide(color: kGlassEdge, width: 1)),
       ),
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 88),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.mic_none),
-              color: kFg3,
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ฟีเจอร์เสียงจะมาใน Phase 2.5')),
-                );
-              },
-            ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                style: const TextStyle(color: kFg1),
-                decoration: InputDecoration(
-                  hintText: 'ถามฮาคุสิ...',
-                  hintStyle: TextStyle(color: kFg4.withAlpha(180)),
-                  filled: true,
-                  fillColor: kGlassFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(kRPill),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                ),
-                onSubmitted: (_) => _sendMessage(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _isTyping
-                ? const SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: kCrystal400),
+            // ── Image preview strip + auto-log chip ─────────────
+            if (_pendingImages.isNotEmpty) ...[
+              SizedBox(
+                height: 80,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _pendingImages.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) => Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.file(
+                          File(_pendingImages[i].path),
+                          width: 72, height: 72, fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.send),
-                    color: kCrystal500,
-                    onPressed: _sendMessage,
+                      Positioned(
+                        top: 0, right: 0,
+                        child: GestureDetector(
+                          onTap: () => setState(() =>
+                            _pendingImages = List.from(_pendingImages)..removeAt(i)),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 16, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.book_outlined, size: 14, color: kCrystal400),
+                      label: const Text('บันทึก diary', style: TextStyle(fontSize: 12, color: kFg1)),
+                      backgroundColor: kGlassFill,
+                      side: const BorderSide(color: kGlassStroke),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        final img = _pendingImages.first;
+                        setState(() => _pendingImages = []);
+                        _autoLogPhoto(img);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            // ── Input row ────────────────────────────────────────
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.image_outlined),
+                  color: _pendingImages.isNotEmpty ? kCrystal400 : kFg3,
+                  onPressed: _showImageSourceSheet,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    style: const TextStyle(color: kFg1),
+                    decoration: InputDecoration(
+                      hintText: _pendingImages.isNotEmpty ? 'พิมพ์คำถามเพิ่ม (ไม่บังคับ)' : 'ถามฮาคุสิ...',
+                      hintStyle: TextStyle(color: kFg4.withAlpha(180)),
+                      filled: true,
+                      fillColor: kGlassFill,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(kRPill),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _isTyping
+                    ? const SizedBox(
+                        width: 48, height: 48,
+                        child: Center(
+                          child: SizedBox(
+                            width: 24, height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: kCrystal400),
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.send),
+                        color: kCrystal500,
+                        onPressed: _sendMessage,
+                      ),
+              ],
+            ),
           ],
         ),
       ),
@@ -1499,6 +1731,21 @@ class _ChatBubble extends StatelessWidget {
     // 🔔 Proactive Message (จาก Trigger)
     if (message.isProactive) {
       return _buildProactiveBubble(message);
+    }
+
+    // 🛡️ Device Command Confirmation Card
+    if (message.isConfirmationCard) {
+      return DeviceCommandConfirmationCard(
+        command: message.command ?? 'unknown',
+        params: message.params ?? const {},
+        onConfirmed: () {
+          // ลบ card ออกจาก chat หลังยืนยัน (optional)
+          // หรือแสดง success message
+        },
+        onCancelled: () {
+          // ลบ card ออกจาก chat หลังยกเลิก (optional)
+        },
+      );
     }
 
     final isUser = message.isUser;

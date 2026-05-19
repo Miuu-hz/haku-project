@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'automation_screen.dart';
+import 'command_audit_screen.dart';
 import '../models/llm_model_config.dart';
 import '../services/background_task_service.dart';
 import '../utils/haku_design_tokens.dart';
@@ -276,6 +277,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // 🔒 ส่วนความปลอดภัย
           _buildSectionHeader('🔐 ความปลอดภัย'),
+
+          ListTile(
+            leading: const Icon(Icons.fact_check_outlined, color: _kSLavender),
+            title: const Text(
+              'ประวัติคำสั่ง',
+              style: TextStyle(color: _kSTextMain),
+            ),
+            subtitle: const Text(
+              'ดูว่า Haku สั่งอะไรไปบ้าง',
+              style: TextStyle(color: _kSTextSub),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const CommandAuditScreen(),
+                ),
+              );
+            },
+          ),
           
           FutureBuilder<bool>(
             future: BiometricService.canCheckBiometrics(),
@@ -2068,9 +2090,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _runBenchmark() async {
     final provider = _providerManager.provider;
+    final isCloud = _providerManager.activeType != ProviderType.onDevice;
+
     if (!provider.isInitialized) {
-      setState(() => _benchmarkResult = 'โหลดโมเดลก่อนแล้วค่อยทดสอบ');
-      return;
+      if (isCloud) {
+        // ☁️ Auto-initialize cloud provider before benchmarking
+        setState(() { _isBenchmarking = true; _benchmarkResult = 'กำลังเชื่อมต่อ...'; });
+        try {
+          final success = await provider.initialize();
+          if (!success) {
+            setState(() {
+              _benchmarkResult = 'เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ API Key';
+              _isBenchmarking = false;
+            });
+            return;
+          }
+        } catch (e) {
+          setState(() {
+            _benchmarkResult = 'เชื่อมต่อไม่สำเร็จ: $e';
+            _isBenchmarking = false;
+          });
+          return;
+        }
+      } else {
+        // 📱 On-device: model must be loaded first
+        setState(() => _benchmarkResult = 'โหลดโมเดลก่อนแล้วค่อยทดสอบ');
+        return;
+      }
     }
 
     setState(() { _isBenchmarking = true; _benchmarkResult = null; });

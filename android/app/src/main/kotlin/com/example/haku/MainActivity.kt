@@ -15,6 +15,7 @@ import android.provider.Settings
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.util.Log
+import com.example.haku.receiver.ChargingBroadcastReceiver
 import com.example.haku.receiver.NotificationAlarmReceiver
 import kotlinx.coroutines.*
 
@@ -39,6 +40,9 @@ class MainActivity: FlutterFragmentActivity() {
     }
     
     private var pendingWidgetAction: Map<String, String>? = null
+
+    // DeviceCommandHandler shared between LLM tools and Device MethodChannel
+    private val deviceCommandHandler by lazy { DeviceCommandHandler(this) }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -186,7 +190,8 @@ class MainActivity: FlutterFragmentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error in Scheduler method ${call.method}: ${e.message}")
-                result.error("SCHEDULER_ERROR", e.message, e.stackTraceToString())
+                result.error("SCHEDULER_ERROR", e.message, null)
+                Log.e(TAG, "Scheduler error", e)
             }
         }
     }
@@ -217,9 +222,10 @@ class MainActivity: FlutterFragmentActivity() {
      * 🤖 Setup LLM MethodChannel — LiteRT-LM (แทน MediaPipe ที่ deprecated)
      *
      * Methods:
-     *   loadModel(modelPath, maxTokens, systemInstruction?)  → bool
+     *   loadModel(modelPath, maxTokens, systemInstruction?, supportImage?)  → bool
      *   generate(prompt)                                     → String   [stateless, one-shot]
      *   generateTurn(prompt)                                 → String   [stateful, KV cache]
+     *   generateTurnWithImages(prompt, images)               → String   [stateful, vision]
      *   resetConversation()                                  → null     [เริ่ม session ใหม่]
      *   setSystemInstruction(instruction?)                   → null
      *   unloadModel()                                        → null
@@ -228,6 +234,10 @@ class MainActivity: FlutterFragmentActivity() {
      */
     private fun setupLLMChannel(flutterEngine: FlutterEngine) {
         val llmBridge = LiteRTLMBridge.getInstance(this)
+
+        // Register HakuToolSet for function calling — must be set before first generateTurn()
+        llmBridge.setTools(HakuToolSet(deviceCommandHandler))
+        Log.i(TAG, "🛠️ HakuToolSet registered with LiteRT-LM bridge")
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LLM_CHANNEL).setMethodCallHandler {
             call, result ->
@@ -239,13 +249,14 @@ class MainActivity: FlutterFragmentActivity() {
                         val maxTokens = call.argument<Int>("maxTokens") ?: 1024
                         val systemInstruction = call.argument<String>("systemInstruction")
                         val accelerator = call.argument<String>("accelerator") ?: "GPU"
+                        val supportImage = call.argument<Boolean>("supportImage") ?: false
 
                         if (modelPath == null) {
                             result.error("INVALID_PATH", "Model path is null", null)
                             return@setMethodCallHandler
                         }
 
-                        Log.i(TAG, "📥 Loading LiteRT-LM model: $modelPath (accelerator=$accelerator)")
+                        Log.i(TAG, "📥 Loading LiteRT-LM model: $modelPath (accelerator=$accelerator, vision=$supportImage)")
 
                         CoroutineScope(Dispatchers.Main).launch {
                             val success = llmBridge.loadModel(
@@ -253,6 +264,7 @@ class MainActivity: FlutterFragmentActivity() {
                                 maxTokens = maxTokens,
                                 systemInstruction = systemInstruction,
                                 accelerator = accelerator,
+                                supportImage = supportImage,
                             )
                             result.success(success)
                         }
@@ -308,6 +320,28 @@ class MainActivity: FlutterFragmentActivity() {
                         }
                     }
 
+                    // 🖼️ Generate พร้อม image input — vision mode
+                    "generateTurnWithImages" -> {
+                        val prompt = call.argument<String>("prompt") ?: ""
+                        @Suppress("UNCHECKED_CAST")
+                        val images = call.argument<List<ByteArray>>("images") ?: emptyList()
+
+                        if (!llmBridge.isInitialized) {
+                            result.error("NOT_INITIALIZED", "LiteRT-LM not initialized", null)
+                            return@setMethodCallHandler
+                        }
+
+                        val temperature = call.argument<Double>("temperature")
+                        val topK = call.argument<Int>("topK")
+                        val topP = call.argument<Double>("topP")
+                        llmBridge.setSamplerParams(temperature, topK, topP)
+
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val response = llmBridge.generateTurnWithImages(prompt, images)
+                            result.success(response)
+                        }
+                    }
+
                     // 🔄 รีเซ็ต Conversation — เริ่ม session ใหม่
                     "resetConversation" -> {
                         llmBridge.resetConversation()
@@ -338,7 +372,8 @@ class MainActivity: FlutterFragmentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error in LLM method ${call.method}: ${e.message}")
-                result.error("LLM_ERROR", e.message, e.stackTraceToString())
+                result.error("LLM_ERROR", e.message, null)
+                Log.e(TAG, "LLM error", e)
             }
         }
     }
@@ -399,7 +434,8 @@ class MainActivity: FlutterFragmentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error in battery method ${call.method}: ${e.message}")
-                result.error("BATTERY_ERROR", e.message, e.stackTraceToString())
+                result.error("BATTERY_ERROR", e.message, null)
+                Log.e(TAG, "Battery error", e)
             }
         }
     }
@@ -416,6 +452,23 @@ class MainActivity: FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleWidgetIntent(intent)
+        registerChargingReceiver()
+    }
+
+    /**
+     * 🔌 Register charging receiver dynamically (avoids exported=true security issue)
+     */
+    private fun registerChargingReceiver() {
+        try {
+            val filter = android.content.IntentFilter().apply {
+                addAction(android.content.Intent.ACTION_POWER_CONNECTED)
+                addAction(android.content.Intent.ACTION_POWER_DISCONNECTED)
+            }
+            registerReceiver(ChargingBroadcastReceiver(), filter)
+            Log.i(TAG, "🔌 Charging receiver registered dynamically")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register charging receiver", e)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -429,8 +482,6 @@ class MainActivity: FlutterFragmentActivity() {
      * ให้ Flutter สั่งงาน smartphone ได้: flashlight, open app, dial, SMS, settings, etc.
      */
     private fun setupDeviceCommandChannel(flutterEngine: FlutterEngine) {
-        val handler = DeviceCommandHandler(this)
-
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL).setMethodCallHandler {
             call, result ->
             try {
@@ -439,7 +490,7 @@ class MainActivity: FlutterFragmentActivity() {
                         val command = call.argument<String>("command")
                         val params = call.argument<Map<String, Any>>("params")
                         if (command != null) {
-                            val outcome = handler.execute(command, params ?: emptyMap())
+                            val outcome = deviceCommandHandler.execute(command, params ?: emptyMap())
                             result.success(outcome)
                         } else {
                             result.error("INVALID", "Missing command", null)
@@ -449,7 +500,8 @@ class MainActivity: FlutterFragmentActivity() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error in device command ${call.method}: ${e.message}")
-                result.error("DEVICE_ERROR", e.message, e.stackTraceToString())
+                result.error("DEVICE_ERROR", e.message, null)
+                Log.e(TAG, "Device command error", e)
             }
         }
     }
