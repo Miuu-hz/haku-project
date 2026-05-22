@@ -4,7 +4,6 @@ import 'ai_action_service.dart';
 import 'llm_provider_manager.dart';
 import 'prompt_builder.dart';
 import 'secret_chat_service.dart';
-import 'web_search_service.dart';
 
 /// 🧠 Manager Dispatch Service (Big Manager)
 ///
@@ -21,7 +20,6 @@ class ManagerDispatchService {
   factory ManagerDispatchService() => _instance;
   ManagerDispatchService._internal();
 
-  final WebSearchService _webSearch = WebSearchService();
   final AIActionService _actionService = AIActionService();
 
   // Deduplication: เก็บ recent searches (TTL 60s)
@@ -140,20 +138,8 @@ class ManagerDispatchService {
   ) async {
     switch (result.intent) {
       case ManagerIntent.search:
-        // Deduplication check
-        if (_isDuplicateSearch(result.payload)) {
-          debugPrint('🔄 Skipping duplicate search: ${result.payload}');
-          return null;
-        }
-        try {
-          await _webSearch.initialize();
-          final searchResult = await _webSearch.searchForAI(result.payload);
-          debugPrint('✅ Manager web search done: ${result.payload}');
-          return searchResult;
-        } catch (e) {
-          debugPrint('⚠️ Manager web search failed: $e');
-          return null;
-        }
+        debugPrint('🔍 Manager search deferred to McpService');
+        return null; // McpService handles search in chat_screen PATH A
 
       case ManagerIntent.schedule:
         // Parse payload format: "title,date,time"
@@ -211,23 +197,6 @@ class ManagerDispatchService {
       case ManagerIntent.none:
         return null;
     }
-  }
-
-  /// 🔄 Check if this search was recently done (TTL 60s)
-  static bool _isDuplicateSearch(String query) {
-    final normalized = query.toLowerCase().trim();
-
-    // Cleanup expired entries
-    _recentSearches.removeWhere(
-      (_, time) => DateTime.now().difference(time).inSeconds > 60,
-    );
-
-    final lastSearch = _recentSearches[normalized];
-    if (lastSearch != null) {
-      return true;
-    }
-    _recentSearches[normalized] = DateTime.now();
-    return false;
   }
 
   /// 📝 Mark a query as recently searched (for deduplication with SmartPreprocessor)

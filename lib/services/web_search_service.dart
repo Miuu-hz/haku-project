@@ -26,10 +26,10 @@ class WebSearchService {
 
   /// SearXNG public instances — ลองทีละอันจนสำเร็จ
   static const List<String> _searxInstances = [
-    'search.bus-hit.me',
-    'searx.be',
-    'paulgo.io',
-    'searxng.org',
+    'search.sapti.me',
+    'searx.tiekoetter.com',
+    'priv.au',
+    'searxng.nicfab.eu',
   ];
 
   // Cache
@@ -178,7 +178,7 @@ class WebSearchService {
       try {
         final searchUri = Uri.https(
           '$lang.wikipedia.org',
-          '/api/rest_v1/search/page',
+          '/w/rest.php/v1/search/page',
           {'q': query, 'limit': '$maxResults'},
         );
 

@@ -410,7 +410,7 @@ class MCPClient {
     }
   }
 
-  /// 🇹🇭 ThaiLLM API (KBTG) — OpenAI-compatible, header: apikey
+  /// 🇹🇭 ThaiLLM API — OpenAI-compatible, Authorization: Bearer
   Future<MCPResponse> _callThaiLLM(String prompt, int maxTokens) async {
     if (_apiKey == null || _apiKey!.isEmpty) {
       return MCPResponse.error(code: 401, message: 'ThaiLLM API key required');
@@ -419,13 +419,13 @@ class MCPClient {
     try {
       final response = await http
           .post(
-            Uri.parse('http://thaillm.or.th/api/kbtg/v1/chat/completions'),
+            Uri.parse('http://thaillm.or.th/api/v1/chat/completions'),
             headers: {
               'Content-Type': 'application/json',
-              'apikey': _apiKey!,
+              'Authorization': 'Bearer ${_apiKey!}',
             },
             body: jsonEncode({
-              'model': '/model',
+              'model': 'openthaigpt-thaillm-8b-instruct-v7.2',
               'max_tokens': maxTokens,
               'messages': [
                 {'role': 'user', 'content': prompt}

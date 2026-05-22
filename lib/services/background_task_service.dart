@@ -32,9 +32,8 @@ class BackgroundTaskService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    // โหลด timezone database (ใช้ UTC + Dart offset math แทน native plugin)
     tz.initializeTimeZones();
-    tz.setLocalLocation(tz.UTC);
+    tz.setLocalLocation(tz.getLocation('Asia/Bangkok'));
 
     await _plugin.initialize(
       const InitializationSettings(

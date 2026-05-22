@@ -1,0 +1,2048 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haku — Index Library</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13151c;
+    --bg3: #1a1d26;
+    --border: rgba(255,255,255,0.07);
+    --text1: #e8eaf0;
+    --text2: #9096a8;
+    --text3: #555b6e;
+    --accent: #7b8cff;
+    --accent2: #a78bfa;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --err: #f87171;
+    --pink: #f472b6;
+    --cyan: #22d3ee;
+    --r: 10px;
+    --r-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text1);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg3) transparent;
+  }
+  nav h2 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 0 16px 8px;
+  }
+  nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 2px solid transparent;
+    transition: all .15s;
+  }
+  nav a:hover { color: var(--text1); background: rgba(255,255,255,.04); }
+  nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(123,140,255,.08); }
+  nav .dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  nav .sep { height: 1px; background: var(--border); margin: 8px 16px; }
+  nav .logo {
+    padding: 0 16px 20px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text1);
+    letter-spacing: -.02em;
+  }
+  nav .logo span { color: var(--accent); }
+
+  /* ── Main ── */
+  main {
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 1100px;
+    overflow-x: hidden;
+  }
+  .page-header {
+    margin-bottom: 40px;
+  }
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    margin-bottom: 6px;
+  }
+  .page-header p { color: var(--text2); font-size: 14px; }
+
+  /* ── Stats Bar ── */
+  .stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 12px 20px;
+    min-width: 120px;
+  }
+  .stat .num { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat .lbl { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 48px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header h2 { font-size: 16px; font-weight: 600; }
+  .section-header .count {
+    background: var(--bg3);
+    color: var(--text3);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+  }
+  .section-emoji { font-size: 18px; }
+
+  /* ── File Cards ── */
+  .cards { display: flex; flex-direction: column; gap: 6px; }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 12px 16px;
+    transition: border-color .15s;
+  }
+  .card:hover { border-color: rgba(123,140,255,.25); }
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .card-icon { font-size: 15px; margin-top: 1px; flex-shrink: 0; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-name {
+    font-family: 'Consolas', 'Fira Code', monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  .card-desc { color: var(--text2); font-size: 13px; }
+  .card-connects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .tag {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid;
+    font-family: 'Consolas', monospace;
+    white-space: nowrap;
+  }
+  .tag-uses    { color: #7b8cff; border-color: rgba(123,140,255,.3); background: rgba(123,140,255,.08); }
+  .tag-usedby  { color: #a78bfa; border-color: rgba(167,139,250,.3); background: rgba(167,139,250,.08); }
+  .tag-kotlin  { color: #22d3ee; border-color: rgba(34,211,238,.3);  background: rgba(34,211,238,.08); }
+  .tag-channel { color: #fbbf24; border-color: rgba(251,191,36,.3);  background: rgba(251,191,36,.08); }
+  .tag-db      { color: #4ade80; border-color: rgba(74,222,128,.3);  background: rgba(74,222,128,.08); }
+  .tag-new     { color: #f472b6; border-color: rgba(244,114,182,.3); background: rgba(244,114,182,.08); }
+
+  /* ── Search ── */
+  .search-wrap {
+    margin-bottom: 28px;
+  }
+  #search {
+    width: 100%;
+    max-width: 400px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 16px;
+    color: var(--text1);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  #search:focus { border-color: rgba(123,140,255,.4); }
+  #search::placeholder { color: var(--text3); }
+
+  /* ── Architecture diagram ── */
+  .arch {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 20px 24px;
+    margin-bottom: 40px;
+    font-family: 'Consolas', monospace;
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .arch .hi1 { color: var(--accent); }
+  .arch .hi2 { color: var(--ok); }
+  .arch .hi3 { color: var(--warn); }
+  .arch .hi4 { color: var(--pink); }
+  .arch .hi5 { color: var(--cyan); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 99px; }
+
+  /* hidden by search */
+  .card.hidden { display: none; }
+  .section.empty-section > .cards { display: none; }
+  .section.empty-section > .section-header::after {
+    content: 'ไม่พบ'; color: var(--text3); font-size: 12px; margin-left: auto;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ── -->
+<nav>
+  <div class="logo">Haku <span>箱</span></div>
+  <h2>Index Library</h2>
+  <a href="#screens" class="active"><span class="dot" style="background:#7b8cff"></span>Screens</a>
+  <a href="#models"><span class="dot" style="background:#a78bfa"></span>Models</a>
+  <div class="sep"></div>
+  <h2>Services</h2>
+  <a href="#ai-engine"><span class="dot" style="background:#22d3ee"></span>AI Engine</a>
+  <a href="#memory"><span class="dot" style="background:#4ade80"></span>Memory System</a>
+  <a href="#prompt"><span class="dot" style="background:#fbbf24"></span>Prompt &amp; Context</a>
+  <a href="#chat"><span class="dot" style="background:#f472b6"></span>Chat &amp; Conversation</a>
+  <a href="#action"><span class="dot" style="background:#fb923c"></span>Action Execution</a>
+  <a href="#location"><span class="dot" style="background:#34d399"></span>Location &amp; Sensors</a>
+  <a href="#scheduling"><span class="dot" style="background:#60a5fa"></span>Scheduling &amp; BG</a>
+  <a href="#profile"><span class="dot" style="background:#c084fc"></span>Profile &amp; Learning</a>
+  <a href="#workers"><span class="dot" style="background:#f87171"></span>Workers</a>
+  <a href="#integration"><span class="dot" style="background:#38bdf8"></span>Integration</a>
+  <a href="#security"><span class="dot" style="background:#e879f9"></span>Security</a>
+  <a href="#storage"><span class="dot" style="background:#a3e635"></span>Storage &amp; Data</a>
+  <div class="sep"></div>
+  <a href="#widgets"><span class="dot" style="background:#818cf8"></span>Widgets</a>
+  <a href="#utils"><span class="dot" style="background:#94a3b8"></span>Utils</a>
+  <a href="#kotlin"><span class="dot" style="background:#22d3ee"></span>Android / Kotlin</a>
+</nav>
+
+<!-- ── Main ── -->
+<main>
+  <div class="page-header">
+    <h1>Index Library — Haku (箱)</h1>
+    <p>ไฟล์ทั้งหมดในโปรเจกต์ จัดหมวดหมู่ตามหน้าที่ พร้อมความสัมพันธ์ระหว่างไฟล์ &nbsp;·&nbsp; อัปเดต 2026-05-22</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="num">13</div><div class="lbl">Screens</div></div>
+    <div class="stat"><div class="num">5</div><div class="lbl">Models</div></div>
+    <div class="stat"><div class="num">74</div><div class="lbl">Services</div></div>
+    <div class="stat"><div class="num">6</div><div class="lbl">Workers</div></div>
+    <div class="stat"><div class="num">6</div><div class="lbl">Widgets</div></div>
+    <div class="stat"><div class="num">12</div><div class="lbl">Kotlin files</div></div>
+  </div>
+
+  <!-- Architecture -->
+  <div class="arch"><span class="hi1">User message</span>
+  │
+  ├─ 0.    <span class="hi2">QuickAction</span>           rule-based, 0 LLM — greeting, name recall
+  ├─ 0.5   <span class="hi2">DeviceCommandIntentDetector</span>  rule-based — flashlight, alarm, check-in…
+  ├─ 1.    <span class="hi2">SmartPreprocessor</span>     rule-based workers — calendar/reminder detect
+  ├─ 1.5   <span class="hi3">PreClassify</span>           LLM ~50 tokens — intent + English summary
+  ├─ 2.    <span class="hi3">TagContextService</span>     FTS5 + WikiService query
+  ├─ 3.    <span class="hi4">Face LLM</span>              Thai response (Gemma 4 on-device / Cloud)
+  └─ 4.    <span class="hi5">SecretChatService.logExchange()</span>  async → RAG + Wiki write</div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <input id="search" type="text" placeholder="ค้นหาไฟล์หรือคำอธิบาย..." autocomplete="off">
+  </div>
+
+  <!-- ════════════════════════════════════════════════ SCREENS -->
+  <div class="section" id="screens">
+    <div class="section-header">
+      <span class="section-emoji">🖥️</span>
+      <h2>Screens</h2>
+      <span class="count">13 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🏠</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/home_screen.dart</div>
+            <div class="card-desc">หน้าหลัก — Timeline บันทึก, ความคืบหน้า Objective, Social Battery, Streak, อากาศ, Correlation insights</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">CorrelationService</span>
+              <span class="tag tag-uses">SocialBatteryService</span>
+              <span class="tag tag-uses">StreakService</span>
+              <span class="tag tag-uses">WeatherService</span>
+              <span class="tag tag-uses">DatabaseHelper</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧭</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/main_navigation_screen.dart</div>
+            <div class="card-desc">Bottom nav หลัก — Glass pill 3 tabs (Home, Chat, Settings) พร้อม HakuDesignTokens</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">main.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">💬</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/chat_screen.dart</div>
+            <div class="card-desc">AI Chat หลัก — ไหลผ่าน Pipeline 8 ขั้นตอน (QuickAction → DeviceCmd → Preprocess → PreClassify → TagContext → Face LLM → SecretChat), รองรับ Vision/Image, Thinking Mode, MCP chip, Device command confirmation cards</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SmartPreprocessor</span>
+              <span class="tag tag-uses">SecretChatService</span>
+              <span class="tag tag-uses">PromptBuilder</span>
+              <span class="tag tag-uses">LLMProviderManager</span>
+              <span class="tag tag-uses">TagContextService</span>
+              <span class="tag tag-uses">WikiService</span>
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">DeviceCommandIntentDetector</span>
+              <span class="tag tag-uses">SessionResumeService</span>
+              <span class="tag tag-uses">McpService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📝</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/new_entry_screen.dart</div>
+            <div class="card-desc">สร้าง/แก้ไข diary entry — เลือก mood (1-5), capture GPS, แนบ media, เลือก tags</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-uses">LocationService</span>
+              <span class="tag tag-uses">NominatimService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">👁️</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/view_entry_screen.dart</div>
+            <div class="card-desc">ดู diary entry รายละเอียด — auto-summarize ด้วย LLM, keyword insights, media preview</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SummarizationService</span>
+              <span class="tag tag-uses">DatabaseHelper</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔐</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/lock_screen.dart</div>
+            <div class="card-desc">หน้า Biometric lock — แสดงก่อนเข้าแอป ถ้าตั้ง PIN/Face/Fingerprint ไว้</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">BiometricService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚙️</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/settings_screen.dart</div>
+            <div class="card-desc">Settings หลัก — Profile, LLM config (provider/model/params), Automation toggles, Command audit link, Export data, MCP server URL</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMProviderManager</span>
+              <span class="tag tag-uses">LLMSettingsService</span>
+              <span class="tag tag-uses">UserProfileService</span>
+              <span class="tag tag-uses">ExportService</span>
+              <span class="tag tag-uses">McpService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">👋</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/onboarding_screen.dart</div>
+            <div class="card-desc">Setup wizard ครั้งแรก — สร้าง encryption key, ตั้งชื่อ, อธิบาย privacy-first</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">EncryptionService</span>
+              <span class="tag tag-uses">UserProfileService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⏱️</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/focus_timer_screen.dart</div>
+            <div class="card-desc">Pomodoro timer — เชื่อม Goal, นับ streak, break management</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">FocusTimerService</span>
+              <span class="tag tag-uses">StreakService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📌</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/presets_screen.dart</div>
+            <div class="card-desc">จัดการ Preset modes (Morning, Battle, Focus, Night) — เปิด/ปิด, ตั้ง trigger location</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">PresetService</span>
+              <span class="tag tag-uses">PlaceService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🤖</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/automation_screen.dart</div>
+            <div class="card-desc">Automation cards mockup — stock/gold ticker เชื่อม trigger (Phase 3 planned)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">MVPTriggerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧩</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/model_manager_screen.dart</div>
+            <div class="card-desc">Import/จัดการ LLM model ไฟล์ — scan Downloads, copy → permanent dir, set active model</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">ModelManagerService</span>
+              <span class="tag tag-uses">LLMService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔍</span>
+          <div class="card-body">
+            <div class="card-name">lib/screens/command_audit_screen.dart</div>
+            <div class="card-desc">Timeline ของ Device Commands ที่ AI สั่ง — แสดง command, tier, ผล, timestamp (SQLite)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeviceCommandAudit</span>
+              <span class="tag tag-uses">DatabaseHelper</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ MODELS -->
+  <div class="section" id="models">
+    <div class="section-header">
+      <span class="section-emoji">📦</span>
+      <h2>Models</h2>
+      <span class="count">5 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📓</span>
+          <div class="card-body">
+            <div class="card-name">lib/models/entry.dart</div>
+            <div class="card-desc">Diary entry — id, content, createdAt, mood(1-5), locationName, tags[], mediaPath</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">DatabaseHelper</span>
+              <span class="tag tag-usedby">RAGService</span>
+              <span class="tag tag-usedby">UnifiedVectorService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎭</span>
+          <div class="card-body">
+            <div class="card-name">lib/models/preset.dart</div>
+            <div class="card-desc">Behavioral mode — name, icon, trigger (time/location), active state, personality modifiers</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">PresetService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎯</span>
+          <div class="card-body">
+            <div class="card-name">lib/models/objective.dart</div>
+            <div class="card-desc">Goal/appointment — title, dueDate, location?, status (pending/done/overdue)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">ObjectivesService</span>
+              <span class="tag tag-usedby">SchedulerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">💬</span>
+          <div class="card-body">
+            <div class="card-name">lib/models/chat_message.dart</div>
+            <div class="card-desc">Chat message types — user, assistant, proactive, loading, error, confirmation card (device cmd / calendar)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">chat_screen.dart</span>
+              <span class="tag tag-usedby">ChatHistoryService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧠</span>
+          <div class="card-body">
+            <div class="card-name">lib/models/llm_model_config.dart</div>
+            <div class="card-desc">Dynamic LLM parameters per model — maxNumTokens, maxContextTokens, workerMaxTokens, supportsVision, supportsThinking, defaultTemperature. Includes detect(filename) auto-detection.</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">LLMService</span>
+              <span class="tag tag-usedby">LiteRTLLMProvider</span>
+              <span class="tag tag-usedby">ContextBudgetService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ AI ENGINE -->
+  <div class="section" id="ai-engine">
+    <div class="section-header">
+      <span class="section-emoji">🤖</span>
+      <h2>AI Engine</h2>
+      <span class="count">8 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚙️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/llm_service.dart</div>
+            <div class="card-desc">LiteRT-LM runtime singleton — โหลด .litertlm/.task, generateTurn() (KV-cache stateful), generateTurnWithImages() (Gemma 4 vision), setSystemInstruction(), auto-unload timer, beginBackgroundSession()</div>
+            <div class="card-connects">
+              <span class="tag tag-kotlin">LiteRTLMBridge.kt</span>
+              <span class="tag tag-channel">com.example.haku/llm</span>
+              <span class="tag tag-usedby">LiteRTLLMProvider</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔌</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/llm_provider.dart</div>
+            <div class="card-desc">Abstract interface — initialize(), generate(), dispose(), isInitialized, modelConfig</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">LiteRTLLMProvider</span>
+              <span class="tag tag-usedby">CloudLLMProvider</span>
+              <span class="tag tag-usedby">LLMProviderManager</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📱</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/litert_llm_provider.dart</div>
+            <div class="card-desc">On-device Gemma 3/4 provider — delegate ไปยัง LLMService, เปิด generateTurnWithImages(), setSystemInstruction(), cancelAutoUnload() ให้ chat_screen ใช้ได้</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-uses">LLMModelConfig</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">☁️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/cloud_llm_provider.dart</div>
+            <div class="card-desc">Cloud LLM provider — Gemini / Claude / OpenAI / OpenRouter, fallback chain, streaming support</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">LLMProviderManager</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔀</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/llm_provider_manager.dart</div>
+            <div class="card-desc">Provider switcher — เก็บ active provider (on-device / cloud), preference persistence, fallback chain เมื่อ LiteRT ไม่พร้อม</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LiteRTLLMProvider</span>
+              <span class="tag tag-uses">CloudLLMProvider</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎛️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/llm_settings_service.dart</div>
+            <div class="card-desc">User-adjustable LLM params — temperature, top-k, top-p, max tokens per model, บันทึกใน SharedPreferences</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">settings_screen.dart</span>
+              <span class="tag tag-usedby">LLMProviderManager</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔍</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/llm_intent_detector.dart</div>
+            <div class="card-desc">LLM-powered intent classifier — ใช้สำหรับ fallback เมื่อ rule-based ของ DeviceCommandIntentDetector ไม่ match</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-usedby">DeviceCommandIntentDetector</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧩</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/model_manager_service.dart</div>
+            <div class="card-desc">จัดการไฟล์โมเดล — scan Downloads+AppDocs, copy→permanent dir, save/read active path, validate .litertlm/.task/.tflite</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">model_manager_screen.dart</span>
+              <span class="tag tag-uses">LLMModelConfig.detect()</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ MEMORY -->
+  <div class="section" id="memory">
+    <div class="section-header">
+      <span class="section-emoji">🧠</span>
+      <h2>Memory System</h2>
+      <span class="count">7 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔍</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/rag_service.dart</div>
+            <div class="card-desc">RAG (Retrieval-Augmented Generation) — HybridVectorSearch wrapper, indexEntry()/indexEntries(), buildContext(query, topK) → string ใส่ prompt, เก็บ vector เป็น BLOB ใน SQLite</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">HybridVectorSearch</span>
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-usedby">SecretChatService</span>
+              <span class="tag tag-usedby">WikiService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📐</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/hybrid_vector_search.dart</div>
+            <div class="card-desc">TF-IDF hash-based vector engine — 384-dim, L2-normalized cosine similarity ใน Dart, Isolate เมื่อ >1000 rows, เก็บ vector เป็น BLOB ใน SQLite (ไม่ใช่ ML embeddings จริง)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">RAGService</span>
+              <span class="tag tag-db">SQLite BLOB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">💡</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/unified_vector_service.dart</div>
+            <div class="card-desc">In-memory TF-IDF store — รองรับ 3 types: entry/fact/knowledge, เก็บใน SharedPreferences (JSON), search() + upsertFact() + addKnowledge(). ใช้สำหรับ facts/knowledge (ไม่ใช่ entries จริง — อยู่ใน SQLite)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">SessionResumeService</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+              <span class="tag tag-usedby">FactWorker</span>
+              <span class="tag tag-usedby">GoalWorker</span>
+              <span class="tag tag-usedby">HealthDoctor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📚</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/wiki_service.dart</div>
+            <div class="card-desc">LLM Wiki (Karpathy+Mem0 pattern) — KnowledgePage ต่อ entity (person/place/topic/goal), onNewFact() → rawFacts+_ruleBasedLinks, updatePendingSummaries() → LLM synthesis → _indexSummaryIntoRag(), 1-hop graph expansion ตอน query</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-db">knowledge_pages (SQLite)</span>
+              <span class="tag tag-usedby">SecretChatService</span>
+              <span class="tag tag-usedby">FactWorker</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🏷️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/tag_context_service.dart</div>
+            <div class="card-desc">สองหน้าที่: (1) buildContext() — ก่อน Face LLM: keyword → FTS5 chat_log + findRelatedEntries → context string, (2) saveTagsToRecentEntry() — หลัง logExchange: merge AI tags+location ลง entry SQLite</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-uses">SecretChatService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔄</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/session_resume_service.dart</div>
+            <div class="card-desc">สร้าง resume string ฉีดเข้า system instruction ทุก session ใหม่ — buildResume() ดึง top facts จาก UnifiedVectorService + calendar today/tomorrow + recent episodic chat_log (>= Session 2026-05-22: ได้ name/job/goal/pref ครบแล้ว)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-uses">SchedulerService</span>
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📦</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/memory_bundle_service.dart</div>
+            <div class="card-desc">A2A Memory Export/Import — exportBundle(categories) → JSON (facts+WikiPages), importBundle() → dedup+conflict flag. Phase 5 จะเพิ่ม NaCl encryption + AgentIdentity keypair</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-uses">WikiService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ PROMPT -->
+  <div class="section" id="prompt">
+    <div class="section-header">
+      <span class="section-emoji">✍️</span>
+      <h2>Prompt &amp; Context Engineering</h2>
+      <span class="count">4 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🏗️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/prompt_builder.dart</div>
+            <div class="card-desc">Template ทุก LLM prompt — buildGemmaPrompt(), buildGemma4SystemInstruction(), buildGemma4UserTurn(), buildPreClassifyPrompt(), buildManagerPrompt(), buildScheduleBlock(). รองรับ Gemma 3 template (&lt;start_of_turn&gt;) และ Gemma 4 system role</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">chat_screen.dart</span>
+              <span class="tag tag-usedby">SecretChatService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧱</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/context_builder.dart</div>
+            <div class="card-desc">Assembles context block ก่อน inject — ผสม user profile + sensor data + RAG results + recent msgs</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">ContextRetriever</span>
+              <span class="tag tag-uses">ContextBudgetService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📡</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/context_retriever.dart</div>
+            <div class="card-desc">ดึง context จาก SQLite, vector DB, triggers — รวม facts + recent entries + scheduled events</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">SchedulerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">💰</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/context_budget_service.dart</div>
+            <div class="card-desc">Token accounting — กำหนด budget แต่ละ slot (system/resume/wiki/rag/history), truncate ตาม LLMModelConfig.maxContextTokens</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMModelConfig</span>
+              <span class="tag tag-usedby">ContextBuilder</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ CHAT -->
+  <div class="section" id="chat">
+    <div class="section-header">
+      <span class="section-emoji">💬</span>
+      <h2>Chat &amp; Conversation</h2>
+      <span class="count">5 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🕵️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/secret_chat_service.dart</div>
+            <div class="card-desc">Stage 4 pipeline — preClassify() (LLM ~50 token → PreClassifyResult{intent,summaryEn,tags}), logExchange() → English log entry → RAGService.indexEntry() + WikiService.onNewFact() per tag, BigManager.dispatchFromLog()</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">WikiService</span>
+              <span class="tag tag-uses">ManagerDispatchService</span>
+              <span class="tag tag-uses">PromptBuilder</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔧</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/smart_preprocessor.dart</div>
+            <div class="card-desc">Stage 1 pipeline — Workers: FactWorker, CalendarWorker, ReminderWorker, GoalWorker, HealthDoctor. QuickAction (0 LLM): greeting/name recall. LeanContext ย่อ context ด้วย Thai lean syntax</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">FactWorker</span>
+              <span class="tag tag-uses">CalendarWorker</span>
+              <span class="tag tag-uses">ReminderWorker</span>
+              <span class="tag tag-uses">GoalWorker</span>
+              <span class="tag tag-uses">HealthDoctor</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📜</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/chat_history_service.dart</div>
+            <div class="card-desc">เก็บ raw chat log 100 messages ล่าสุด (in-memory + SQLite), auto-summarize เมื่อเต็ม, inject เป็น conversation history ใน cloud prompt</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⏳</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/chat_summary_service.dart</div>
+            <div class="card-desc">Deferred summarization — เมื่อแบต >50% + ชาร์จ: สรุป chat log 24h → fact → prune เก่า</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">BackgroundTaskHandlers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📊</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/summarization_service.dart</div>
+            <div class="card-desc">LLM-powered summarization — single entry / multi-entry summary, key insight extraction</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-usedby">view_entry_screen.dart</span>
+              <span class="tag tag-usedby">BackgroundTaskHandlers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ ACTION -->
+  <div class="section" id="action">
+    <div class="section-header">
+      <span class="section-emoji">⚡</span>
+      <h2>Action Execution</h2>
+      <span class="count">7 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📡</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/device_command_intent_detector.dart</div>
+            <div class="card-desc">Stage 0.5 pipeline — regex-detect device commands ใน Thai: flashlight, alarm (Thai time), timer, ringer, volume, check-in, open-app, dial, SMS, URL, battery, maps, camera, gallery. Zero LLM.</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeviceCommandService</span>
+              <span class="tag tag-uses">DeviceCommandGate</span>
+              <span class="tag tag-uses">DeviceCommandAudit</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📱</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/device_command_service.dart</div>
+            <div class="card-desc">Flutter→Kotlin bridge — MethodChannel com.example.haku/device, execute({command, params}) → {success, ...fields}</div>
+            <div class="card-connects">
+              <span class="tag tag-kotlin">DeviceCommandHandler.kt</span>
+              <span class="tag tag-channel">com.example.haku/device</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🛡️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/device_command_gate.dart</div>
+            <div class="card-desc">4-tier security — auto (execute ทันที), notify (แจ้งเตือนหลังทำ), confirm (ขอ permission ก่อน), biometric (ต้อง Face/Fingerprint)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">DeviceCommandIntentDetector</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📋</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/device_command_audit.dart</div>
+            <div class="card-desc">Audit log ทุก command ที่ AI สั่ง — บันทึก command/tier/result/timestamp ลง device_command_log (SQLite encrypted, 30d retention)</div>
+            <div class="card-connects">
+              <span class="tag tag-db">device_command_log (SQLite)</span>
+              <span class="tag tag-usedby">DeviceCommandIntentDetector</span>
+              <span class="tag tag-usedby">command_audit_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔔</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/device_command_notification_handler.dart</div>
+            <div class="card-desc">Handle "Approve" / "Deny" button ใน notification สำหรับ confirm-tier commands</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeviceCommandService</span>
+              <span class="tag tag-usedby">NotificationService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎬</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/ai_action_service.dart</div>
+            <div class="card-desc">Parse + execute AI actions จาก LLM response — SCHEDULE, REMINDER, PRESET, PLACE_SAVE, WEB_SEARCH tags</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SchedulerService</span>
+              <span class="tag tag-uses">PresetService</span>
+              <span class="tag tag-uses">WebSearchService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧑‍💼</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/manager_dispatch_service.dart</div>
+            <div class="card-desc">BigManager Stage 2 — รับ PreClassifyResult จาก SecretChat, classify intent → execute urgent actions (reminder/calendar) → defer low-priority to DeferredTaskService</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeferredTaskService</span>
+              <span class="tag tag-uses">SchedulerService</span>
+              <span class="tag tag-usedby">SecretChatService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ LOCATION -->
+  <div class="section" id="location">
+    <div class="section-header">
+      <span class="section-emoji">📍</span>
+      <h2>Location &amp; Sensors</h2>
+      <span class="count">7 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🛰️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/location_service.dart</div>
+            <div class="card-desc">GPS wrapper — Significant Change tracking (ไม่ใช่ continuous polling), getCurrentPosition() 10s timeout, lastKnownPosition cache</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">GeofenceService</span>
+              <span class="tag tag-usedby">new_entry_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🗺️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/nominatim_service.dart</div>
+            <div class="card-desc">Reverse geocode GPS→area name — ผ่าน OSM Nominatim (non-profit, privacy-safe), GPS ไม่ถึง Google/Overpass โดยตรง</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">DeviceCommandIntentDetector (check-in)</span>
+              <span class="tag tag-usedby">WebSearchService (nearby)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📌</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/place_service.dart</div>
+            <div class="card-desc">Saved places — CRUD, match ใกล้ 300m, sentiment field (positive/neutral/negative), lastFeedbackAt. ใช้ OSM/local cache ไม่ต้องเน็ต</div>
+            <div class="card-connects">
+              <span class="tag tag-db">saved_places (SQLite)</span>
+              <span class="tag tag-usedby">DwellTracker</span>
+              <span class="tag tag-usedby">FactWorker</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⏲️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/dwell_tracker.dart</div>
+            <div class="card-desc">ตรวจจับ "อยู่นาน" — DwellSession: enter→exit, trigger PlaceFeedback เมื่อ dwell ≥15 min (ข้าม routine zones บ้าน/ออฟฟิศ)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">PlaceService</span>
+              <span class="tag tag-usedby">GeofenceService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔵</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/geofence_service.dart</div>
+            <div class="card-desc">Zone monitoring — ไม่ใช้ continuous GPS, hook DwellTracker.onPosition(), onDwellComplete → MVPTriggerService, lastKnownPosition public</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">LocationService</span>
+              <span class="tag tag-uses">DwellTracker</span>
+              <span class="tag tag-uses">MVPTriggerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🌤️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/weather_service.dart</div>
+            <div class="card-desc">Open-Meteo API — 3-day forecast, daily cache (ไม่ดึงบ่อย), อุณหภูมิ/ฝน/ความชื้น inject เป็น context ใน home_screen</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">home_screen.dart</span>
+              <span class="tag tag-usedby">ContextBuilder</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔋</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/place_feedback_service.dart</div>
+            <div class="card-desc">Queue place feedback requests หลัง dwell — PlaceFeedbackRequest model, PlaceSentiment enum, เขียนลง MVPTriggerService.pendingTriggers</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">MVPTriggerService</span>
+              <span class="tag tag-uses">PlaceService</span>
+              <span class="tag tag-usedby">DwellTracker</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ SCHEDULING -->
+  <div class="section" id="scheduling">
+    <div class="section-header">
+      <span class="section-emoji">⏰</span>
+      <h2>Scheduling &amp; Background</h2>
+      <span class="count">6 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📅</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/scheduler_service.dart</div>
+            <div class="card-desc">NLP→Calendar — extract event จาก Thai text, getCalendarEvents(start, end), create/delete/update Google Calendar + local events</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">GoogleAuthService</span>
+              <span class="tag tag-usedby">CalendarWorker</span>
+              <span class="tag tag-usedby">SessionResumeService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎯</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/mvp_trigger_service.dart</div>
+            <div class="card-desc">Proactive foreground triggers — time+GPS+pattern, 5min check interval, TriggerType: morning/evening/location/placeFeedback, inject context ก่อนส่งให้ Face LLM</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">GeofenceService</span>
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-usedby">chat_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔌</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/triggers/charging_trigger.dart</div>
+            <div class="card-desc">End-of-day processing เมื่อชาร์จ — processEndOfDay(): ManagerSummaryStrategy → worker tasks → WikiService.updatePendingSummaries() (เมื่อ SLM โหลดได้) → RAG context → Thai summary</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">WikiService</span>
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">LLMService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-kotlin">ChargingBroadcastReceiver.kt</span>
+              <span class="tag tag-usedby">main.dart (chargingBackgroundMain)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🌅</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/background_task_service.dart</div>
+            <div class="card-desc">AlarmManager scheduling — scheduleDailyTriggers() (09:00 morning + 20:00 evening), ส่ง notification ผ่าน NotificationAlarmReceiver</div>
+            <div class="card-connects">
+              <span class="tag tag-kotlin">NotificationAlarmReceiver.kt</span>
+              <span class="tag tag-kotlin">BootReceiver.kt</span>
+              <span class="tag tag-usedby">main.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔧</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/background_task_handlers.dart</div>
+            <div class="card-desc">Handlers สำหรับ deferred background tasks — handleMemoryConsolidation() (episodic →fact), handleWikiUpdate() → WikiService.updatePendingSummaries(), handleAnalysis() → ManagerSummaryStrategy</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">WikiService</span>
+              <span class="tag tag-uses">RAGService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">DeferredTaskService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📬</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/deferred_task_service.dart</div>
+            <div class="card-desc">Priority queue สำหรับงานหนัก — enqueue(taskType, payload, priority), ประมวลผลตอน idle/ชาร์จ, task types: reminder, calendar_event, memory_consolidation, wiki_update</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">BackgroundTaskHandlers</span>
+              <span class="tag tag-usedby">ManagerDispatchService</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ PROFILE -->
+  <div class="section" id="profile">
+    <div class="section-header">
+      <span class="section-emoji">👤</span>
+      <h2>Profile &amp; Learning</h2>
+      <span class="count">6 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🪪</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/user_profile_service.dart</div>
+            <div class="card-desc">Identity card — setBasicInfo(name/nickname/role), addLike/Dislike/Goal, initialize() โหลดจาก SharedPreferences. ใช้โดย SessionResume + PromptBuilder</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">FactWorker</span>
+              <span class="tag tag-usedby">SessionResumeService</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+              <span class="tag tag-usedby">settings_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎯</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/objectives_service.dart</div>
+            <div class="card-desc">จัดการ Goals — CRUD objectives, sync กับ Calendar, mark done/overdue, ใช้ใน home_screen progress circle</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SchedulerService</span>
+              <span class="tag tag-db">objectives (SQLite)</span>
+              <span class="tag tag-usedby">home_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎭</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/preset_service.dart</div>
+            <div class="card-desc">Behavioral mode manager — auto-switch Preset ตาม time/location trigger, personality modifiers inject ใน system prompt</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">GeofenceService</span>
+              <span class="tag tag-uses">MVPTriggerService</span>
+              <span class="tag tag-usedby">presets_screen.dart</span>
+              <span class="tag tag-usedby">AIActionService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚡</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/social_battery_service.dart</div>
+            <div class="card-desc">Energy cost model — draining keywords (งาน, ประชุม) vs recharging (พัก, ออกกำลัง), mood influence, แสดงใน home_screen</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">home_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔥</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/streak_service.dart</div>
+            <div class="card-desc">Focus session streak — นับวันต่อเนื่อง, total sessions, badge unlock threshold, persist ใน SharedPreferences</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">focus_timer_screen.dart</span>
+              <span class="tag tag-usedby">home_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔗</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/correlation_service.dart</div>
+            <div class="card-desc">Pattern detection — co-occurrence analysis ระหว่าง tags/mood/location (lift scoring), ไม่ใช้ LLM, แสดงใน home_screen "patterns"</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-usedby">home_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ WORKERS -->
+  <div class="section" id="workers">
+    <div class="section-header">
+      <span class="section-emoji">🔨</span>
+      <h2>Workers (Batch Processors)</h2>
+      <span class="count">6 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📝</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/workers/fact_worker.dart</div>
+            <div class="card-desc">Rule-based fact extractor (0 LLM) — ชื่อ/ชื่อเล่น/อาชีพ/ชอบ/ไม่ชอบ/เป้าหมาย/สถานที่/สุขภาพ → WikiService.onNewFact() + UnifiedVectorService.upsertFact() (name/job/goal/pref ✅ fixed 2026-05-22)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">WikiService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-uses">UserProfileService</span>
+              <span class="tag tag-new">fixed 2026-05-22</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📅</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/workers/calendar_worker.dart</div>
+            <div class="card-desc">Extract นัดหมายจาก Thai text — day-first patterns (วันนี้/พรุ่งนี้มีนัด…), มีนัด-first, เช้า/บ่าย/เย็น suffix → SchedulerService.createEvent()</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SchedulerService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⏰</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/workers/reminder_worker.dart</div>
+            <div class="card-desc">Extract reminder intents — "อย่าลืม…", "เตือน…", "remind me…" → DeferredTaskService.enqueue(reminder)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeferredTaskService</span>
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎯</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/workers/goal_worker.dart</div>
+            <div class="card-desc">Detect goal/intention patterns — "อยากออกกำลัง 3x/สัปดาห์", "ตั้งใจจะ…" → UnifiedVectorService.addFact(category: goal)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">💊</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/workers/health_doctor.dart</div>
+            <div class="card-desc">Health facts tracker (ไม่วินิจฉัยโรค) — period/fever/cold/pain/allergy detection → UnifiedVectorService.addFact(category: health_log)</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">UnifiedVectorService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚙️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/worker_service.dart</div>
+            <div class="card-desc">Batch coordinator — queueFactExtraction(), queueHealthAnalysis(), runBatchProcess(backgroundMode) สำหรับ ChargingTrigger._executeWorkerTasks()</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">FactWorker</span>
+              <span class="tag tag-uses">HealthDoctor</span>
+              <span class="tag tag-usedby">ChargingTrigger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ INTEGRATION -->
+  <div class="section" id="integration">
+    <div class="section-header">
+      <span class="section-emoji">🌐</span>
+      <h2>Integration &amp; APIs</h2>
+      <span class="count">4 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔌</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/mcp_service.dart</div>
+            <div class="card-desc">MCP client — JSON-RPC 2.0 over HTTP POST, connect() (handshake + tools/list), callTool(name, args), search() ลอง brave_search → web_search → fallback, URL เก็บใน SharedPreferences</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">chat_screen.dart</span>
+              <span class="tag tag-usedby">settings_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔍</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/web_search_service.dart</div>
+            <div class="card-desc">Web search — Wikipedia (primary) → SearXNG (parallel race) → Google scrape (fallback). searchNearby() ใช้ NominatimService แปลง GPS→area name ก่อน ไม่ส่ง coordinates ให้ Google</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">NominatimService</span>
+              <span class="tag tag-usedby">AIActionService</span>
+              <span class="tag tag-usedby">SmartPreprocessor</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📆</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/google_auth_service.dart</div>
+            <div class="card-desc">Google Sign In + Calendar API — mock mode available สำหรับ emulator, OAuth token refresh, calendar read/write</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">SchedulerService</span>
+              <span class="tag tag-usedby">settings_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔗</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/mcp_client.dart</div>
+            <div class="card-desc">Lightweight MCP HTTP tunnel — ใช้สำหรับ streaming/SSE mode (ต่างจาก McpService ที่เป็น request-response)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">McpService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ SECURITY -->
+  <div class="section" id="security">
+    <div class="section-header">
+      <span class="section-emoji">🔐</span>
+      <h2>Security &amp; Permissions</h2>
+      <span class="count">3 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">👆</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/biometric_service.dart</div>
+            <div class="card-desc">Face ID / Touch ID / Fingerprint — authenticate(), canCheckBiometrics, isDeviceSupported. ใช้ local_auth package</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">lock_screen.dart</span>
+              <span class="tag tag-usedby">DeviceCommandGate (biometric tier)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔋</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/battery_optimization_service.dart</div>
+            <div class="card-desc">ขอ "ignore battery optimization" permission — Android Xiaomi/Samsung/OPPO intent routing, ตรวจว่าถูก whitelist แล้วหรือยัง</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">onboarding_screen.dart</span>
+              <span class="tag tag-usedby">settings_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔑</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/battery_aware_service.dart</div>
+            <div class="card-desc">Battery level + charging state monitor — isCharging, batteryLevel, stream สำหรับ auto-pause AI inference เมื่อ &lt;20%</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">ChargingTrigger</span>
+              <span class="tag tag-usedby">DeferredTaskService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ STORAGE -->
+  <div class="section" id="storage">
+    <div class="section-header">
+      <span class="section-emoji">🗄️</span>
+      <h2>Storage &amp; Data</h2>
+      <span class="count">4 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🗃️</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/database_helper.dart</div>
+            <div class="card-desc">SQLite + SQLCipher singleton — tables: entries, chat_log (FTS5 BM25), device_command_log, knowledge_pages, knowledge_links, saved_places. CRUD + FTS search + migrations</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">RAGService</span>
+              <span class="tag tag-usedby">WikiService</span>
+              <span class="tag tag-usedby">TagContextService</span>
+              <span class="tag tag-usedby">DeviceCommandAudit</span>
+              <span class="tag tag-usedby">home_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔒</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/encryption_service.dart</div>
+            <div class="card-desc">Key generation/storage — AES-256 key สำหรับ SQLCipher, เก็บใน Android Keystore / iOS Keychain ผ่าน flutter_secure_storage</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">DatabaseHelper</span>
+              <span class="tag tag-usedby">onboarding_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📤</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/export_service.dart</div>
+            <div class="card-desc">Export entries — JSON / Markdown / CSV format, date range filter, share via system share sheet</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DatabaseHelper</span>
+              <span class="tag tag-usedby">settings_screen.dart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📱</span>
+          <div class="card-body">
+            <div class="card-name">lib/services/notification_service.dart</div>
+            <div class="card-desc">Local notifications — quick reply buttons สำหรับ confirm-tier device commands, morning/evening briefing, proactive triggers</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeviceCommandNotificationHandler</span>
+              <span class="tag tag-usedby">BackgroundTaskService</span>
+              <span class="tag tag-usedby">MVPTriggerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ WIDGETS -->
+  <div class="section" id="widgets">
+    <div class="section-header">
+      <span class="section-emoji">🧩</span>
+      <h2>Widgets</h2>
+      <span class="count">6 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">✨</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/caustic_shimmer.dart</div>
+            <div class="card-desc">Animated glass shimmer — 4s loop, 15° gradient strip, ใช้บน card ที่ active/loading</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">➕</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/quick_actions_fab.dart</div>
+            <div class="card-desc">Expandable FAB — New Entry + Chat with AI shortcuts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">👤</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/profile_editor_widget.dart</div>
+            <div class="card-desc">Edit user identity card inline — name, role, likes, goals → UserProfileService.setBasicInfo()</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">UserProfileService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📅</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/event_confirmation_card.dart</div>
+            <div class="card-desc">Inline calendar event confirmation card — แสดงใน chat เมื่อ AI detect นัดหมาย พร้อม Accept/Decline</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">SchedulerService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🗺️</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/location_picker_widget.dart</div>
+            <div class="card-desc">Interactive OpenStreetMap location picker — drag pin, search, saved places list</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">PlaceService</span>
+              <span class="tag tag-uses">NominatimService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚡</span>
+          <div class="card-body">
+            <div class="card-name">lib/widgets/device_command_confirmation_card.dart</div>
+            <div class="card-desc">Inline command approval card — แสดงใน chat สำหรับ confirm/biometric tier commands, สีตาม security tier</div>
+            <div class="card-connects">
+              <span class="tag tag-uses">DeviceCommandGate</span>
+              <span class="tag tag-uses">DeviceCommandService</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ UTILS -->
+  <div class="section" id="utils">
+    <div class="section-header">
+      <span class="section-emoji">🛠️</span>
+      <h2>Utils</h2>
+      <span class="count">2 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📏</span>
+          <div class="card-body">
+            <div class="card-name">lib/utils/constants.dart</div>
+            <div class="card-desc">App-wide constants — app name/version, max token limits, pricing, database table names, color codes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🎨</span>
+          <div class="card-body">
+            <div class="card-name">lib/utils/haku_design_tokens.dart</div>
+            <div class="card-desc">Haku Crystal Design System — kCrystal400/500/600, kOk, kFg1/2/3/4, kGlassFill, kRPill, kR4, aurora palette, glass effect helpers. ใช้ทุก screen</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ KOTLIN -->
+  <div class="section" id="kotlin">
+    <div class="section-header">
+      <span class="section-emoji">🤖</span>
+      <h2>Android / Kotlin</h2>
+      <span class="count">12 ไฟล์</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🚪</span>
+          <div class="card-body">
+            <div class="card-name">android/.../MainActivity.kt</div>
+            <div class="card-desc">Entry point — Flutter engine setup, register MethodChannel com.example.haku/device + com.example.haku/llm + com.example.haku/foreground</div>
+            <div class="card-connects">
+              <span class="tag tag-channel">com.example.haku/device</span>
+              <span class="tag tag-channel">com.example.haku/llm</span>
+              <span class="tag tag-channel">com.example.haku/foreground</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🧠</span>
+          <div class="card-body">
+            <div class="card-name">android/.../LiteRTLMBridge.kt</div>
+            <div class="card-desc">On-device LLM inference — โหลด .litertlm/.task ผ่าน MediaPipe LiteRT, generateTurn(), generateTurnWithImages() (Gemma 4 vision, visionBackend=GPU), setSystemInstruction(), KV cache stateful session</div>
+            <div class="card-connects">
+              <span class="tag tag-channel">com.example.haku/llm</span>
+              <span class="tag tag-usedby">LLMService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⚡</span>
+          <div class="card-body">
+            <div class="card-name">android/.../DeviceCommandHandler.kt</div>
+            <div class="card-desc">Execute device commands — flashlight, alarm (AlarmManager), timer, ringer mode (DND), volume (STREAM_RING), open app, dial, SMS, URL, maps, camera, gallery, battery/network status</div>
+            <div class="card-connects">
+              <span class="tag tag-channel">com.example.haku/device</span>
+              <span class="tag tag-usedby">DeviceCommandService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔧</span>
+          <div class="card-body">
+            <div class="card-name">android/.../service/HakuForegroundService.kt</div>
+            <div class="card-desc">Foreground service (dataSync type) — คงชีวิต background tasks, ส่ง chargingConnected event ไปยัง chargingBackgroundMain() isolate</div>
+            <div class="card-connects">
+              <span class="tag tag-channel">com.example.haku/foreground</span>
+              <span class="tag tag-usedby">main.dart (chargingBackgroundMain)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📲</span>
+          <div class="card-body">
+            <div class="card-name">android/.../HakuWidgetProvider.kt</div>
+            <div class="card-desc">Android home screen widget — แสดง streak/entry count/quote, update ผ่าน AppWidgetManager</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">WidgetService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">📅</span>
+          <div class="card-body">
+            <div class="card-name">android/.../SchedulerBridge.kt</div>
+            <div class="card-desc">Kotlin-side calendar bridge — AlarmManager scheduling, exact alarm permission handling (Android 12+)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">SchedulerService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🛠️</span>
+          <div class="card-body">
+            <div class="card-name">android/.../HakuToolSet.kt</div>
+            <div class="card-desc">MCP tool definitions บน Kotlin side — expose device capabilities เป็น MCP tools ให้ external agent เรียกได้</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔗</span>
+          <div class="card-body">
+            <div class="card-name">android/.../HakuServiceBinder.kt</div>
+            <div class="card-desc">Service binding — bind/unbind HakuForegroundService สำหรับ inter-service communication</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔔</span>
+          <div class="card-body">
+            <div class="card-name">android/.../BackgroundNotificationHelper.kt</div>
+            <div class="card-desc">Background notification management — สร้าง notification channel, show/dismiss notifications จาก background service</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔄</span>
+          <div class="card-body">
+            <div class="card-name">android/.../receiver/BootReceiver.kt</div>
+            <div class="card-desc">BOOT_COMPLETED receiver — reschedule AlarmManager triggers หลังรีบูต (morning 09:00 + evening 20:00)</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">BackgroundTaskService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">🔌</span>
+          <div class="card-body">
+            <div class="card-name">android/.../receiver/ChargingBroadcastReceiver.kt</div>
+            <div class="card-desc">ACTION_POWER_CONNECTED receiver — ส่ง chargingConnected event → HakuForegroundService → chargingBackgroundMain() isolate</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">ChargingTrigger (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <span class="card-icon">⏰</span>
+          <div class="card-body">
+            <div class="card-name">android/.../receiver/NotificationAlarmReceiver.kt</div>
+            <div class="card-desc">AlarmManager receiver — แสดง proactive notification (morning briefing / evening summary) เมื่อถึงเวลา</div>
+            <div class="card-connects">
+              <span class="tag tag-usedby">BackgroundTaskService (Flutter)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── Search ──
+  const searchInput = document.getElementById('search');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    document.querySelectorAll('.card').forEach(card => {
+      const text = card.textContent.toLowerCase();
+      card.classList.toggle('hidden', q.length > 0 && !text.includes(q));
+    });
+    document.querySelectorAll('.section').forEach(sec => {
+      const visible = [...sec.querySelectorAll('.card')].some(c => !c.classList.contains('hidden'));
+      sec.classList.toggle('empty-section', q.length > 0 && !visible);
+    });
+  });
+
+  // ── Active nav ──
+  const sections = document.querySelectorAll('.section');
+  const navLinks = document.querySelectorAll('nav a');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.2 });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

@@ -32,15 +32,16 @@ import '../widgets/device_command_confirmation_card.dart';
 import '../services/smart_preprocessor.dart';
 import '../services/place_feedback_service.dart';
 import '../services/place_service.dart';
+import '../services/preset_service.dart';
 import '../services/tag_context_service.dart';
 import '../services/wiki_service.dart';
 import '../services/correlation_service.dart';
 import '../services/geofence_service.dart';
 import '../services/location_service.dart';
 import '../services/nominatim_service.dart';
+import '../services/mcp_service.dart';
 import '../services/scheduler_service.dart';
 import '../services/session_resume_service.dart';
-import '../services/web_search_service.dart';
 import '../utils/haku_design_tokens.dart';
 
 /// 💬 หน้าแชทกับ AI (Haku Assistant) - Phase 2: Real LLM
@@ -266,68 +267,26 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
           preprocessResult?.detectedIntent == DetectedIntent.search;
 
       if (needsSearch) {
-        debugPrint('🔍 Search path: showing intermediate message...');
-
-        // แสดง intermediate message แทน loading
+        debugPrint('🔍 Search path: MCP flow');
         state = state.where((m) => !m.isLoading).toList();
-        addMessage(
-            ChatMessage.searching('รับทราบค่ะ กำลังค้นหาให้นะคะ...'));
+        addMessage(ChatMessage.searching('รับทราบค่ะ กำลังค้นหาให้นะคะ...'));
 
-        // Execute web search
         final searchQuery = preprocessResult!.searchQuery ?? userMessage;
-        ManagerDispatchService.markSearched(searchQuery); // dedup
+        ManagerDispatchService.markSearched(searchQuery);
+
         String? webResult;
-        try {
-          final webService = WebSearchService();
-          await webService.initialize();
-
-          // ตรวจว่าเป็น "nearby" query ไหม — ตรวจทั้ง original message และ extracted query
-          final lowerQuery = userMessage.toLowerCase();
-          final isNearby = lowerQuery.contains('ใกล้ฉัน') ||
-              lowerQuery.contains('ใกล้ที่นี่') ||
-              lowerQuery.contains('ใกล้บ้าน') ||
-              lowerQuery.contains('ใกล้ๆ') ||
-              lowerQuery.contains('แถวนี้') ||
-              lowerQuery.contains('ในละแวก') ||
-              lowerQuery.contains('ในละแวกนี้') ||
-              lowerQuery.contains('ร้านใกล้') ||
-              lowerQuery.contains('หาร้าน') ||
-              lowerQuery.contains('แนะร้าน') ||
-              lowerQuery.contains('nearby') ||
-              lowerQuery.contains('near me') ||
-              lowerQuery.contains('near here');
-
-          double? lat, lng;
-          String? placesKey;
-
-          if (isNearby) {
-            // ดึง GPS + Google Places key พร้อมกัน
-            final positionFuture = LocationService.getCurrentPosition();
-            final prefsFuture = SharedPreferences.getInstance();
-            final position = await positionFuture;
-            final prefs = await prefsFuture;
-            placesKey = prefs.getString('google_places_api_key');
-            if (position != null) {
-              lat = position.latitude;
-              lng = position.longitude;
-            }
+        final mcp = McpService();
+        await mcp.loadSettings();
+        if (mcp.isConfigured) {
+          try {
+            final connected = await mcp.connect();
+            if (connected) webResult = await mcp.search(searchQuery);
+          } catch (e) {
+            debugPrint('⚠️ MCP search failed: $e');
           }
-
-          webResult = await webService.searchForAI(
-            searchQuery,
-            lat: lat,
-            lng: lng,
-            googlePlacesKey: placesKey,
-          );
-          debugPrint('✅ Web search completed: $searchQuery');
-        } catch (e) {
-          debugPrint('⚠️ Web search failed: $e');
         }
 
-        // Follow-up LLM: สรุปผลค้นหาเป็นคำตอบ
-        if (llm.isInitialized &&
-            webResult != null &&
-            webResult.isNotEmpty) {
+        if (llm.isInitialized && webResult != null && webResult.isNotEmpty) {
           try {
             final followUpPrompt =
                 _buildSearchFollowUpPrompt(userMessage, webResult);
@@ -338,24 +297,20 @@ class ChatNotifier extends StateNotifier<List<ChatMessage>> {
             response = webResult;
           }
         } else {
-          // webResult == '' → search ran but found nothing; null → exception
-          // Fallback: let LLM answer from its own knowledge instead of saying "not found"
-          debugPrint('🔍 Web search returned empty, falling back to LLM knowledge...');
+          // MCP ไม่ได้ตั้งค่า หรือค้นไม่เจอ → Face LLM ตอบจากความรู้เอง
+          debugPrint('🔍 No MCP result, falling back to LLM knowledge...');
           try {
-            final fallbackPrompt =
-                'User asked: "$userMessage"\n'
-                '(Web search returned no results, please answer from your own knowledge if possible. '
-                "If you truly don't know, say so honestly.)\n\n"
+            final fallbackPrompt = 'User asked: "$userMessage"\n'
+                '(ไม่มีข้อมูลจากการค้นหา ตอบจากความรู้ที่มีได้เลยค่ะ)\n\n'
                 'Please respond in Thai naturally.';
             response = await llm.generate(fallbackPrompt);
             response = _extractResponseText(response);
           } catch (e) {
             debugPrint('⚠️ Fallback LLM failed: $e');
-            response = 'ขอโทษนะคะ ไม่พบข้อมูลที่ค้นหาได้ในขณะนี้ค่ะ ลองถามใหม่อีกครั้งนะคะ';
+            response = 'ขอโทษนะคะ ไม่สามารถค้นหาข้อมูลได้ในขณะนี้ค่ะ';
           }
         }
 
-        // Replace searching message with real response
         state = state.where((m) => !m.isSearching).toList();
         addMessage(ChatMessage.assistant(
           response,
@@ -1031,6 +986,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   List<XFile> _pendingImages = [];
   Timer? _midnightTimer;
   StreamSubscription<TriggerEvent>? _triggerStreamSub;
+  bool _mcpConfigured = false;
+  int _mcpToolCount = 0;
 
   final List<QuickQuestion> _quickQuestions = [
     QuickQuestion(icon: Icons.calendar_today_outlined, text: 'สรุปวันนี้',   query: 'summarize_today', isAction: true, actionType: 'summarize_today'),
@@ -1150,11 +1107,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       // ChatScreen รอรับ trigger events ผ่าน NotificationService.onNotificationTap
       debugPrint('✅ All chat services initialized');
 
+      // โหลด MCP status
+      await _loadMcpStatus();
+
       // 📍 เริ่ม Geofence + DwellTracker monitoring (foreground เท่านั้น)
       debugPrint('🔄 Starting Geofence monitoring...');
       await GeofenceService().initialize();
       await GeofenceService().startMonitoring();
       debugPrint('✅ Geofence monitoring started');
+
+      // 🎭 Wire preset change → chat message + notification
+      PresetService().onPresetChanged = (oldPreset, newPreset) {
+        debugPrint('🎭 Preset changed: ${oldPreset.name} → ${newPreset.name}');
+        // Add proactive message to chat
+        ref.read(chatHistoryProvider.notifier).addMessage(
+          ChatMessage.proactive(
+            '${newPreset.icon} ${newPreset.behavior.greeting}',
+            triggerTitle: newPreset.name,
+          ),
+        );
+        // Send local notification
+        NotificationService().showPresetNotification(
+          oldPresetName: oldPreset.name,
+          newPresetName: newPreset.name,
+          newPresetIcon: newPreset.icon,
+          greeting: newPreset.behavior.greeting,
+        );
+      };
 
       // เช็ค pending place feedback — ยิง trigger หลัง UI ตั้ง settle 2s
       await PlaceFeedbackService().initialize();
@@ -1274,9 +1253,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     }
   }
 
+  Future<void> _loadMcpStatus() async {
+    final mcp = McpService();
+    await mcp.loadSettings();
+    if (mounted) {
+      setState(() {
+        _mcpConfigured = mcp.isConfigured;
+        _mcpToolCount = mcp.tools.length;
+      });
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     final picked = await _imagePicker.pickImage(source: source, imageQuality: 85);
     if (picked != null) setState(() => _pendingImages = [..._pendingImages, picked]);
+  }
+
+  // ── MCP Status Chip ──────────────────────────────────────────
+  Widget _buildMcpChip() {
+    final label = _mcpConfigured
+        ? (_mcpToolCount > 0 ? 'MCP · $_mcpToolCount tools' : 'MCP · connected')
+        : 'MCP · ไม่ได้ตั้งค่า';
+    final color = _mcpConfigured ? kOk : kFg4;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: GestureDetector(
+        onTap: _showMcpSheet,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withAlpha(_mcpConfigured ? 25 : 18),
+            borderRadius: BorderRadius.circular(kRPill),
+            border: Border.all(color: color.withAlpha(_mcpConfigured ? 90 : 55)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.electric_bolt_rounded, size: 11, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Feature Guide Sheet ─────────────────────────────────────
+  void _showCapabilitiesSheet({
+    required bool supportsVision,
+    required bool supportsThinking,
+    required String modelLabel,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _CapabilitiesSheet(
+        modelLabel: modelLabel,
+        supportsVision: supportsVision,
+        supportsThinking: supportsThinking,
+        onTryVision: () {
+          Navigator.pop(context);
+          _showImageSourceSheet();
+        },
+      ),
+    );
+  }
+
+  void _showMcpSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _McpSheet(
+        onStatusChanged: (bool configured, int toolCount) {
+          if (mounted) setState(() { _mcpConfigured = configured; _mcpToolCount = toolCount; });
+        },
+      ),
+    );
   }
 
   void _showImageSourceSheet() {
@@ -1371,12 +1436,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         },
       );
       if (searchText != null && searchText.isNotEmpty) {
+        final mcp = McpService();
+        await mcp.loadSettings();
+
+        if (!mcp.isConfigured) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('กรุณาตั้งค่า MCP Server URL ก่อนนะคะ'),
+              ),
+            );
+          }
+          return;
+        }
+
         setState(() => _isTyping = true);
-        if (!mounted) return;
-        await ref.read(chatHistoryProvider.notifier).sendToAI('ค้นหาข้อมูลเกี่ยวกับ $searchText', context: context);
-        setState(() => _isTyping = false);
-        _scrollToBottom();
+        try {
+          final connected = await mcp.connect();
+          if (connected) {
+            final result = await mcp.search(searchText);
+            if (result != null && result.isNotEmpty && mounted) {
+              await ref
+                  .read(chatHistoryProvider.notifier)
+                  .sendToAI('ค้นหาข้อมูลเกี่ยวกับ $searchText', context: context);
+            }
+          } else if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('เชื่อมต่อ MCP Server ไม่ได้')),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('ค้นหาล้มเหลว: $e')),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isTyping = false);
+          _scrollToBottom();
+        }
       }
+      return;
+    }
+
+    if (question.actionType == 'open_vision') {
+      _showImageSourceSheet();
       return;
     }
 
@@ -1410,6 +1514,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
+    // ดึง model capabilities จาก LiteRTLLMProvider (ถ้าใช้ on-device)
+    final liteRT = llmService is LiteRTLLMProvider ? llmService : null;
+    final modelCfg = liteRT?.modelConfig;
+    final supportsVision = modelCfg?.supportsVision ?? false;
+    final supportsThinking = modelCfg?.supportsThinking ?? false;
+    final modelLabel = llmService.isInitialized
+        ? (modelCfg?.displayName ?? LLMProviderManager().providerName)
+        : 'Gemma 4';
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: HakuGlassAppBar(
@@ -1420,22 +1533,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Eyebrow chip — provider label
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: kCrystal400.withAlpha(46),
-                    borderRadius: BorderRadius.circular(kRPill),
+                // Eyebrow chip — tappable capability badge
+                GestureDetector(
+                  onTap: () => _showCapabilitiesSheet(
+                    supportsVision: supportsVision,
+                    supportsThinking: supportsThinking,
+                    modelLabel: modelLabel,
                   ),
-                  child: Text(
-                    llmService.isInitialized
-                        ? 'on-device · ${LLMProviderManager().providerName}'
-                        : 'on-device · Gemma 3',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: kCrystal600,
-                      letterSpacing: 0.5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: kCrystal400.withAlpha(46),
+                      borderRadius: BorderRadius.circular(kRPill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          modelLabel,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: kCrystal600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        if (supportsVision) ...[
+                          const SizedBox(width: 5),
+                          const Text('👁', style: TextStyle(fontSize: 9)),
+                        ],
+                        if (supportsThinking) ...[
+                          const SizedBox(width: 2),
+                          const Text('💭', style: TextStyle(fontSize: 9)),
+                        ],
+                        const SizedBox(width: 3),
+                        const Icon(Icons.info_outline_rounded, size: 9, color: kCrystal500),
+                      ],
                     ),
                   ),
                 ),
@@ -1538,16 +1671,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _buildQuickQuestions() => Container(
+  Widget _buildQuickQuestions() {
+    final provider = LLMProviderManager().provider;
+    final visionSupported = provider is LiteRTLLMProvider
+        ? provider.modelConfig.supportsVision
+        : false;
+
+    final questions = [
+      ..._quickQuestions,
+      if (visionSupported)
+        QuickQuestion(
+          icon: Icons.photo_camera_outlined,
+          text: '📷 วิเคราะห์รูป',
+          query: '',
+          actionType: 'open_vision',
+        ),
+    ];
+
+    return Container(
       height: 60,
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _quickQuestions.length,
+        itemCount: questions.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final question = _quickQuestions[index];
+          final question = questions[index];
           return ActionChip(
             avatar: Icon(question.icon, size: 18, color: kFg3),
             label: Text(question.text),
@@ -1559,6 +1709,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         },
       ),
     );
+  }
 
   Widget _buildInputArea() => Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -1627,6 +1778,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 ),
               ),
             ],
+            // ── MCP status chip ──────────────────────────────────
+            _buildMcpChip(),
             // ── Input row ────────────────────────────────────────
             Row(
               children: [
@@ -2151,4 +2304,449 @@ class QuickQuestion {
     this.isAction = false,
     this.actionType,
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🔌 MCP Config Sheet — ตั้งค่าและทดสอบ MCP Server
+// ══════════════════════════════════════════════════════════════
+
+class _McpSheet extends StatefulWidget {
+  final void Function(bool configured, int toolCount) onStatusChanged;
+  const _McpSheet({required this.onStatusChanged});
+
+  @override
+  State<_McpSheet> createState() => _McpSheetState();
+}
+
+class _McpSheetState extends State<_McpSheet> {
+  late TextEditingController _urlCtrl;
+  bool _testing = false;
+  String? _testResult;
+  bool _testOk = false;
+  List<String> _toolNames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _urlCtrl = TextEditingController(text: McpService().serverUrl ?? '');
+  }
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _testConnection() async {
+    final url = _urlCtrl.text.trim();
+    if (url.isEmpty) return;
+    setState(() { _testing = true; _testResult = null; _toolNames = []; });
+    try {
+      await McpService().saveServerUrl(url);
+      final ok = await McpService().connect();
+      final tools = McpService().tools.map((t) => t.name).toList();
+      setState(() {
+        _testing = false;
+        _testOk = ok;
+        _toolNames = tools;
+        _testResult = ok
+            ? 'เชื่อมต่อสำเร็จ · ${tools.length} tools'
+            : 'เชื่อมต่อไม่สำเร็จ';
+      });
+      widget.onStatusChanged(ok, tools.length);
+    } catch (e) {
+      setState(() {
+        _testing = false;
+        _testOk = false;
+        _testResult = 'Error: $e';
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final url = _urlCtrl.text.trim();
+    await McpService().saveServerUrl(url);
+    widget.onStatusChanged(url.isNotEmpty, McpService().tools.length);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: kFg4.withAlpha(100),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: kCrystal400.withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.electric_bolt_rounded, size: 18, color: kCrystal400),
+              ),
+              const SizedBox(width: 10),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('MCP Server', style: TextStyle(color: kFg1, fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text('Model Context Protocol', style: TextStyle(color: kFg3, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // URL field
+          TextField(
+            controller: _urlCtrl,
+            style: const TextStyle(color: kFg1, fontSize: 14),
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              hintText: 'http://localhost:3000',
+              hintStyle: TextStyle(color: kFg4.withAlpha(160)),
+              filled: true,
+              fillColor: kGlassFill,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: kGlassStroke),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: kGlassStroke),
+              ),
+              prefixIcon: const Icon(Icons.link, size: 18, color: kFg3),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Test result
+          if (_testResult != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: (_testOk ? kOk : kErr).withAlpha(20),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: (_testOk ? kOk : kErr).withAlpha(80)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(_testOk ? Icons.check_circle_outline : Icons.error_outline,
+                          size: 14, color: _testOk ? kOk : kErr),
+                      const SizedBox(width: 6),
+                      Text(_testResult!,
+                          style: TextStyle(fontSize: 13, color: _testOk ? kOk : kErr)),
+                    ],
+                  ),
+                  if (_toolNames.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6, runSpacing: 4,
+                      children: _toolNames.map((name) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: kCrystal400.withAlpha(25),
+                          borderRadius: BorderRadius.circular(kRPill),
+                          border: Border.all(color: kCrystal400.withAlpha(60)),
+                        ),
+                        child: Text(name, style: const TextStyle(fontSize: 11, color: kCrystal400)),
+                      )).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          if (_testResult != null) const SizedBox(height: 12),
+          // Buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _testing ? null : _testConnection,
+                  icon: _testing
+                      ? const SizedBox(width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: kCrystal400))
+                      : const Icon(Icons.wifi_tethering, size: 16),
+                  label: Text(_testing ? 'กำลังทดสอบ...' : 'ทดสอบ'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kCrystal400,
+                    side: const BorderSide(color: kGlassStroke),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: kCrystal500,
+                    foregroundColor: kFgOnCyan,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('บันทึก'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🌟 Capabilities Sheet — Feature Guide สำหรับ Gemma 4
+// ══════════════════════════════════════════════════════════════
+
+class _CapabilitiesSheet extends StatelessWidget {
+  final String modelLabel;
+  final bool supportsVision;
+  final bool supportsThinking;
+  final VoidCallback onTryVision;
+
+  const _CapabilitiesSheet({
+    required this.modelLabel,
+    required this.supportsVision,
+    required this.supportsThinking,
+    required this.onTryVision,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: kFg4.withAlpha(100),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: kCrystal400.withAlpha(30),
+                  borderRadius: BorderRadius.circular(kRPill),
+                  border: Border.all(color: kCrystal400.withAlpha(60)),
+                ),
+                child: Text(
+                  modelLabel,
+                  style: const TextStyle(fontSize: 12, color: kCrystal400, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('ความสามารถพิเศษ',
+                  style: TextStyle(color: kFg1, fontSize: 16, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Vision
+          if (supportsVision) ...[
+            _FeatureCard(
+              emoji: '👁',
+              title: 'Vision — วิเคราะห์รูปภาพ',
+              accentColor: kCrystal400,
+              steps: const [
+                'แตะ 📷 ในช่อง input ด้านล่าง',
+                'เลือกรูปจากแกลเลอรีหรือถ่ายใหม่',
+                'พิมพ์คำถาม (ไม่บังคับ) แล้วกดส่ง',
+              ],
+              examples: const [
+                '"อาหารในรูปคืออะไร?"',
+                '"แปลข้อความในรูปให้หน่อย"',
+                '"สรุปเนื้อหาในสไลด์นี้"',
+              ],
+              action: FilledButton.icon(
+                onPressed: onTryVision,
+                icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                label: const Text('ลองเลย — เปิดกล้อง'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: kCrystal500,
+                  foregroundColor: kFgOnCyan,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Thinking
+          if (supportsThinking) ...[
+            const _FeatureCard(
+              emoji: '💭',
+              title: 'Thinking Mode — คิดก่อนตอบ',
+              accentColor: kVividMint,
+              steps: [
+                'ถามคำถามซับซ้อนหรือขอให้วิเคราะห์',
+                'Gemma 4 จะคิดทบทวนก่อนส่งคำตอบ',
+                'แตะ "💭 reasoning" เหนือคำตอบเพื่อดูกระบวนการคิด',
+              ],
+              examples: [
+                '"ช่วยวางแผนการเรียนสัปดาห์หน้าให้หน่อย"',
+                '"วิเคราะห์นิสัยจากบันทึกของฉัน"',
+                '"แก้โจทย์คณิตศาสตร์นี้ให้หน่อย"',
+              ],
+              note: 'ทำงานอัตโนมัติ — ไม่ต้องตั้งค่าอะไรเพิ่ม',
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          if (!supportsVision && !supportsThinking)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'โมเดลปัจจุบัน ($modelLabel) ยังไม่รองรับ Vision หรือ Thinking Mode\nลองเปลี่ยนเป็น Gemma 4 E2B/E4B ในการตั้งค่า',
+                style: const TextStyle(color: kFg3, fontSize: 13, height: 1.5),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final Color accentColor;
+  final List<String> steps;
+  final List<String> examples;
+  final Widget? action;
+  final String? note;
+
+  const _FeatureCard({
+    required this.emoji,
+    required this.title,
+    required this.accentColor,
+    required this.steps,
+    required this.examples,
+    this.action,
+    this.note,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: accentColor.withAlpha(12),
+        borderRadius: BorderRadius.circular(kR4),
+        border: Border.all(color: accentColor.withAlpha(60)),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title row
+          Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title,
+                    style: TextStyle(
+                        color: accentColor, fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Steps
+          ...steps.asMap().entries.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 16, height: 16,
+                  margin: const EdgeInsets.only(top: 1, right: 8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withAlpha(40),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text('${e.key + 1}',
+                        style: TextStyle(fontSize: 9, color: accentColor, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                Expanded(child: Text(e.value, style: const TextStyle(color: kFg1, fontSize: 13))),
+              ],
+            ),
+          )),
+
+          const SizedBox(height: 10),
+
+          // Examples
+          Text('ตัวอย่าง:', style: TextStyle(color: accentColor.withAlpha(200), fontSize: 11,
+              fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6, runSpacing: 4,
+            children: examples.map((ex) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: kGlassFill,
+                borderRadius: BorderRadius.circular(kRPill),
+                border: Border.all(color: kGlassStroke),
+              ),
+              child: Text(ex, style: const TextStyle(color: kFg2, fontSize: 11)),
+            )).toList(),
+          ),
+
+          if (note != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, size: 12, color: accentColor.withAlpha(180)),
+                const SizedBox(width: 4),
+                Text(note!, style: TextStyle(color: accentColor.withAlpha(180), fontSize: 11)),
+              ],
+            ),
+          ],
+
+          if (action != null) ...[
+            const SizedBox(height: 12),
+            action!,
+          ],
+        ],
+      ),
+    );
+  }
 }

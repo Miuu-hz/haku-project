@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,11 @@ import 'geofence_service.dart';
 import 'location_service.dart';
 import 'nominatim_service.dart';
 import 'place_service.dart';
+import 'preset_service.dart';
+import 'rag_service.dart';
+import 'unified_vector_service.dart';
+import 'wiki_service.dart';
+import 'workers/fact_worker.dart';
 
 /// 🎯 DeviceCommandIntentDetector
 ///
@@ -402,30 +408,58 @@ class DeviceCommandIntentDetector {
           final lat = position.latitude;
           final lng = position.longitude;
 
-          // Tier 1: SavedPlaces ที่อยู่ในรัศมี 300m
+          // ===== หาชื่อสถานที่ (Multi-tier) =====
           String placeName = '';
-          final saved = PlaceService().savedPlaces;
           double nearestDist = double.infinity;
           String nearestName = '';
-          for (final p in saved) {
-            final d = _haversineMeters(lat, lng, p.latitude, p.longitude);
-            if (d < nearestDist) {
-              nearestDist = d;
-              nearestName = p.name;
+
+          // Tier 1: PresetService saved locations (ที่ user ตั้งค่าใน PresetsScreen)
+          final presetService = PresetService();
+          await presetService.initialize();
+          for (final type in ['home', 'office', 'gym']) {
+            final loc = presetService.savedLocations[type];
+            if (loc != null) {
+              final d = LocationService.calculateDistance(
+                lat, lng, loc.latitude, loc.longitude,
+              );
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearestName = loc.name;
+              }
             }
           }
           if (nearestDist < 300) placeName = nearestName;
 
-          // Tier 2: Nominatim reverse geocode
+          // Tier 2: PlaceService saved places
+          if (placeName.isEmpty) {
+            await PlaceService().initialize();
+            for (final p in PlaceService().savedPlaces) {
+              final d = _haversineMeters(lat, lng, p.latitude, p.longitude);
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearestName = p.name;
+              }
+            }
+            if (nearestDist < 300) placeName = nearestName;
+          }
+
+          // Tier 3: Device geocoding (ใช้ OS geocoder — เร็วกว่า Nominatim)
+          if (placeName.isEmpty) {
+            final geoName = await LocationService.getLocationName(lat, lng);
+            if (geoName != null && geoName.isNotEmpty) {
+              placeName = geoName;
+            }
+          }
+
+          // Tier 4: Nominatim reverse geocode (ละเอียดกว่า แต่ต้องใช้เน็ต)
           if (placeName.isEmpty) {
             final addr = await NominatimService().reverseGeocode(lat, lng);
             placeName = addr?.toSearchSuffix() ?? '';
           }
 
-          // Tier 3: coordinates fallback
+          // Tier 5: coordinates fallback
           if (placeName.isEmpty) {
-            placeName =
-                '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
+            placeName = '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
           }
 
           final now = DateTime.now();
@@ -438,14 +472,76 @@ class DeviceCommandIntentDetector {
             tags: const ['check_in', 'location'],
           );
           final id = await DatabaseHelper.instance.createEntry(entry);
+          final entryWithId = entry.copyWith(id: id);
           final timeStr =
               '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
+          // ── Memory System Integration ───────────────────────────────
+          if (id > 0) {
+            // 1. RAG: Index entry for semantic search
+            final rag = RAGService();
+            await rag.initialize();
+            unawaited(rag.indexEntry(entryWithId));
+
+            // 2. Wiki: Build place knowledge page
+            final wiki = WikiService();
+            unawaited(wiki.onNewFact(
+              category: 'place',
+              key: placeName,
+              content: 'Checked in at $placeName on ${now.toIso8601String()}',
+            ));
+
+            // 3. Unified Vector: Add as fact for vector search
+            final vectors = UnifiedVectorService();
+            unawaited(vectors.addFact(
+              category: 'place',
+              content: 'User checked in at $placeName',
+              metadata: {
+                'placeName': placeName,
+                'lat': lat,
+                'lng': lng,
+                'type': 'check_in',
+              },
+            ));
+
+            // 4. FactWorker: Extract check-in patterns (inline, lightweight)
+            unawaited(FactWorker().processCheckIn(entryWithId));
+
+            // 5. Geofence: Update last known position
+            await GeofenceService().updateLastKnownPosition(position);
+
+            // 6. Preset: Check if near saved location and evaluate triggers
+            String? matchedLocationType;
+            for (final type in ['home', 'office', 'gym']) {
+              final loc = presetService.savedLocations[type];
+              if (loc != null) {
+                final dist = LocationService.calculateDistance(
+                  lat, lng, loc.latitude, loc.longitude,
+                );
+                if (dist < 300) {
+                  matchedLocationType = type;
+                  break;
+                }
+              }
+            }
+
+            // ถ้าอยู่ใกล้ saved location → trigger preset evaluation โดยตรง
+            if (matchedLocationType != null) {
+              unawaited(presetService.checkAndSwitchTriggersForLocation(matchedLocationType));
+            }
+
+            return {
+              'success': true,
+              'placeName': placeName,
+              'time': timeStr,
+              'isNewPlace': nearestDist >= 300 && matchedLocationType == null,
+              'matchedLocationType': matchedLocationType,
+            };
+          }
+
           return {
-            'success': id > 0,
-            'placeName': placeName,
-            'time': timeStr,
-            'isNewPlace': nearestDist >= 300,
+            'success': false,
+            'error': 'save_failed',
           };
         },
         replyTemplate: '',
@@ -456,9 +552,31 @@ class DeviceCommandIntentDetector {
           final place = r['placeName'] as String? ?? 'ที่นี่';
           final time = r['time'] as String? ?? '';
           final isNew = r['isNewPlace'] == true;
-          final suffix =
-              isNew ? '\n💡 ตั้งชื่อที่นี่ได้ใน SavedPlaces นะคะ' : '';
-          return '📍 เช็คอิน @ $place · $time$suffix';
+          final matchedLoc = r['matchedLocationType'] as String?;
+
+          String icon = '📍';
+          String suffix = '';
+
+          if (matchedLoc != null) {
+            switch (matchedLoc) {
+              case 'home':
+                icon = '🏠';
+                suffix = '\n🏠 ถึงบ้านแล้ว';
+                break;
+              case 'office':
+                icon = '🏢';
+                suffix = '\n🏢 ถึงที่ทำงานแล้ว';
+                break;
+              case 'gym':
+                icon = '🏋️';
+                suffix = '\n🏋️ ถึงยิมแล้ว';
+                break;
+            }
+          } else if (isNew) {
+            suffix = '\n💡 บันทึกเป็นสถานที่ประจำได้ใน Presets นะคะ';
+          }
+
+          return '$icon เช็คอิน @ $place · $time$suffix';
         },
       );
     }

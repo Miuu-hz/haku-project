@@ -1,10 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/preset.dart';
+import '../services/location_service.dart';
 import '../services/preset_service.dart';
 import '../utils/haku_design_tokens.dart';
+import '../widgets/location_picker_widget.dart';
 
 /// 🎭 Presets Screen - จัดการ Presets และ Objectives
 ///
@@ -731,8 +734,8 @@ class _LocationsTabState extends State<_LocationsTab> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '1. Go to the location you want to save\n'
-                    '2. Tap "Save Current Location"\n'
+                    '1. Tap "Set" to pick a location on the map\n'
+                    '2. Search or tap on the map to select\n'
                     '3. Haku will remember this place\n'
                     '4. Next time you visit, the matching preset will activate',
                     style: TextStyle(color: kFg2, fontSize: 13, height: 1.6),
@@ -750,21 +753,74 @@ class _LocationsTabState extends State<_LocationsTab> {
     setState(() => _isSaving = true);
 
     try {
-      final success = await PresetService().saveCurrentLocationAs(type);
-
-      if (mounted) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Saved $type location')),
-          );
-          setState(() {});
-        } else {
+      // 1. ขอ permission ก่อน
+      final hasPermission = await LocationService.requestPermission();
+      if (!hasPermission) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Could not get current location. Please check GPS.'),
+              content: Text('ต้องเปิดสิทธิ์ Location เพื่อใช้งานค่ะ'),
             ),
           );
         }
+        return;
+      }
+
+      if (!mounted) return;
+
+      // 2. เปิด Location Picker
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute<Map<String, dynamic>>(
+          builder: (context) => const LocationPickerScreen(),
+        ),
+      );
+
+      if (result == null || !mounted) return;
+
+      final location = result['location'] as LatLng?;
+      final placeName = result['name'] as String?;
+
+      if (location == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่ได้เลือกตำแหน่งค่ะ')),
+        );
+        return;
+      }
+
+      // 3. ถ้าไม่มีชื่อจาก picker → reverse geocode
+      String name = placeName ?? type;
+      if (placeName == null || placeName.isEmpty) {
+        final geoName = await LocationService.getLocationName(
+          location.latitude,
+          location.longitude,
+        );
+        if (geoName != null && geoName.isNotEmpty) {
+          name = geoName;
+        }
+      }
+
+      // 4. บันทึกผ่าน PresetService
+      final savedLocation = SavedLocation(
+        latitude: location.latitude,
+        longitude: location.longitude,
+        name: name,
+        type: type,
+      );
+      await PresetService().saveLocation(type, savedLocation);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('บันทึก $type: $name แล้วค่ะ')),
+        );
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('⚠️ _saveCurrentLocation failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('บันทึกไม่สำเร็จ: $e')),
+        );
       }
     } finally {
       if (mounted) {
@@ -836,65 +892,79 @@ class _LocationCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(kR3),
               border: Border.all(color: kGlassStroke),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(icon, style: const TextStyle(fontSize: 32)),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: kFg1,
+                Row(
+                  children: [
+                    Text(icon, style: const TextStyle(fontSize: 32)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: kFg1,
+                            ),
+                          ),
+                          if (location != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              location!.name,
+                              style: const TextStyle(
+                                  fontSize: 12, color: kFg3),
+                            ),
+                          ] else
+                            const Text(
+                              'Not set',
+                              style: TextStyle(fontSize: 12, color: kFg4),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (location != null)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: kFg4),
+                        onPressed: onDelete,
+                      ),
+                    FilledButton.icon(
+                      onPressed: isLoading ? null : onSave,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kCrystal400,
+                        foregroundColor: kFgOnCyan,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(kR2),
                         ),
                       ),
-                      if (location != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          location!.name,
-                          style: const TextStyle(
-                              fontSize: 12, color: kFg3),
-                        ),
-                      ] else
-                        const Text(
-                          'Not set',
-                          style: TextStyle(fontSize: 12, color: kFg4),
-                        ),
-                    ],
-                  ),
-                ),
-                if (location != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: kFg4),
-                    onPressed: onDelete,
-                  ),
-                FilledButton.icon(
-                  onPressed: isLoading ? null : onSave,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: kCrystal400,
-                    foregroundColor: kFgOnCyan,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kR2),
+                      icon: isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: kFgOnCyan),
+                            )
+                          : Icon(location == null
+                              ? Icons.add_location
+                              : Icons.refresh),
+                      label: Text(isLoading
+                          ? 'Saving...'
+                          : (location == null ? 'Set' : 'Update')),
                     ),
-                  ),
-                  icon: isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: kFgOnCyan),
-                        )
-                      : Icon(location == null
-                          ? Icons.add_location
-                          : Icons.refresh),
-                  label: Text(isLoading
-                      ? 'Saving...'
-                      : (location == null ? 'Set' : 'Update')),
+                  ],
                 ),
+                if (location != null) ...[
+                  const SizedBox(height: 12),
+                  MiniMapPreview(
+                    latitude: location!.latitude,
+                    longitude: location!.longitude,
+                    placeName: location!.name,
+                    height: 120,
+                  ),
+                ],
               ],
             ),
           ),

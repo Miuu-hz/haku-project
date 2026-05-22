@@ -247,6 +247,66 @@ class PresetService {
     _checkTriggers();
   }
 
+  /// 🔍 ตรวจสอบ Triggers โดยใช้ location type ที่รู้แล้ว (ไม่ต้องดึง GPS ใหม่)
+  ///
+  /// ใช้ตอน Check-in ที่รู้ว่าอยู่ที่ไหนแล้ว เพื่อประหยัดแบต + ความแม่นยำ
+  Future<void> checkAndSwitchTriggersForLocation(String locationType) async {
+    final now = DateTime.now();
+    final currentHour = now.hour;
+    final currentMinute = now.minute;
+    final currentDay = now.weekday;
+
+    Preset? bestMatch;
+    int bestPriority = -1;
+
+    for (final preset in _presets) {
+      if (!preset.isEnabled) continue;
+      if (preset.trigger.manualOnly) continue;
+
+      bool matches = true;
+
+      // เช็ค time trigger
+      if (preset.trigger.hasTimeTrigger) {
+        final startParts = preset.trigger.timeStart!.split(':');
+        final endParts = preset.trigger.timeEnd!.split(':');
+        final startHour = int.parse(startParts[0]);
+        final startMinute = int.parse(startParts[1]);
+        final endHour = int.parse(endParts[0]);
+        final endMinute = int.parse(endParts[1]);
+        final currentTimeMinutes = currentHour * 60 + currentMinute;
+        final startTimeMinutes = startHour * 60 + startMinute;
+        final endTimeMinutes = endHour * 60 + endMinute;
+        if (currentTimeMinutes < startTimeMinutes ||
+            currentTimeMinutes > endTimeMinutes) {
+          matches = false;
+        }
+      }
+
+      // เช็ค day trigger
+      if (matches && preset.trigger.hasDayTrigger) {
+        if (!preset.trigger.daysOfWeek!.contains(currentDay)) {
+          matches = false;
+        }
+      }
+
+      // เช็ค location trigger โดยตรง (ไม่ต้องดึง GPS)
+      if (matches && preset.trigger.locationType != null) {
+        if (preset.trigger.locationType != locationType) {
+          matches = false;
+        }
+      }
+
+      if (matches && preset.priority > bestPriority) {
+        bestMatch = preset;
+        bestPriority = preset.priority;
+      }
+    }
+
+    if (bestMatch != null && bestMatch.id != _currentPreset?.id) {
+      await switchPreset(bestMatch.id);
+    }
+  }
+
   /// 🔍 ตรวจสอบ Triggers
   Future<void> _checkTriggers() async {
     final now = DateTime.now();
@@ -349,6 +409,13 @@ class PresetService {
 
     // อยู่ใน radius (default 300m)
     return distance < 300;
+  }
+
+  /// 🔍 ตรวจสอบ triggers จากภายนอก (เช่น หลัง Check-in)
+  ///
+  /// ใช้เมื่อผู้ใช้ check-in แล้วอยากให้ประเมินว่าควรสลับ preset หรือไม่
+  Future<void> checkAndSwitchTriggers() async {
+    await _checkTriggers();
   }
 
   /// 🤖 AI สั่ง switch preset

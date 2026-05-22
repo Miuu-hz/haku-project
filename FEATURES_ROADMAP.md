@@ -1,6 +1,6 @@
 # Haku — Private Life OS: Features Roadmap
 
-> อัปเดตล่าสุด: 2026-05-19 (Device Commands Level 1 + Audit Log + Permission Gate + Check-in + Nominatim nearby search)
+> อัปเดตล่าสุด: 2026-05-22 (Memory system audit ✅ — write/read paths ครบทุก tier, FactWorker→UnifiedVectorService fix, Gemma 4 Vision + Thinking Mode, MCP chip)
 > เรียงตามวัตถุประสงค์และที่มาของโปรเจกต์
 
 ---
@@ -178,8 +178,8 @@ Response budget    : 2000 tokens
 - [x] อัพเดท `MainActivity.kt` — ใช้ `LiteRTLMBridge` + `generateTurn` + `resetConversation`
 - [x] `LiteRTLLMProvider.generateTurn()` — stateful KV cache per chat session
 - [x] `PromptBuilder.buildSystemInstruction()` + `buildUserTurn()` — แยก system vs user turn
-- [ ] ทดสอบ build + รันบน device จริง
-- [ ] Download `.litertlm` model format จาก HuggingFace (Gemma 3 1B)
+- [x] ทดสอบ build + รันบน device จริง ✅ (Gemma 4 active)
+- [x] Download `.litertlm` model format — **ใช้ Gemma 4 E2B/E4B แล้ว** (ไม่ใช่ Gemma 3 1B)
 
 **MethodChannel ที่รองรับ:**
 ```
@@ -195,21 +195,23 @@ getModelInfo()                                      → Map { hasActiveSession }
 
 **Model Support:**
 ```yaml
-current:
-  model: Gemma 3 1B (.litertlm)
-  size: ~600 MB
-  context: ~4096 tokens (เพิ่มจาก 2048)
-  lean_syntax: ใช้ full lean (compress Thai ให้สั้น + PreClassify)
-
-roadmap:
-  model: Gemma 4 2B / 4B (.litertlm)
+# อัปเดต 2026-05-22: เปลี่ยนมาใช้ Gemma 4 แล้ว
+current:  # ✅ ACTIVE
+  model: Gemma 4 E2B / E4B (.litertlm)
   size: ~1.5GB / ~4GB
   context: 128K tokens (budget: 8192, set ใน ContextBudgetService)
-  new_features: Thinking Mode, Function Calling native
+  features_active:
+    - Thinking Mode ✅  # parse <thinking> tags → _ThinkingSection
+    - Vision ✅         # visionBackend=GPU auto, generateTurnWithImages
   lean_syntax: ยังใช้อยู่แต่ผ่อนคลายกว่า (ไม่ต้อง extreme compress)
                — ContextBudgetService จัดการ budget แทน manual lean
-               — LeanSyntax format ปรับให้อ่านง่ายขึ้น (ไม่ต้องตัด vowels)
                — PreClassify ยังคงไว้ เพราะประหยัดแบต (ไม่ใช่ context)
+
+legacy:  # ไม่ได้ใช้แล้ว
+  model: Gemma 3 1B (.litertlm)
+  size: ~600 MB
+  context: ~4096 tokens
+  lean_syntax: full lean (compress Thai ให้สั้น + PreClassify)
 ```
 
 ---
@@ -579,31 +581,62 @@ scheduleDaily   AlarmManager   MVPTriggerService  unified channel
 
 ---
 
-### 2.10 Web Search Integration ✅
+### 2.10 Web Search Integration ✅ (MCP Migration Done)
 
-- [x] SearXNG JSON API — 4 public instances fallback (ไม่ต้อง API key)
-- [x] Jina AI Reader — `GET https://r.jina.ai/{url}` → clean markdown
-- [x] English + Thai search patterns
-- [x] Location-aware Search (Google Places API, BYOK)
-- [x] No-results fix — return `''` แทน Thai string (ป้องกัน hallucinate)
-- [x] 6h cache + 2s rate limit
+> **อัปเดต 21/5/2026:** MCP migration เสร็จสมบูรณ์ — WebSearchService HTTP scraping ถอดออกจาก pipeline แล้ว, McpService พร้อมใช้งาน
 
-**อัปเดต 22/5/2026 — Web Search Overhaul (Gemma 4 4B LiteRT)**
+**Architecture ใหม่ (หลัง MCP):**
+```
+"ค้นเว็บ" chip / SmartPreprocessor DetectedIntent.search
+  ↓
+McpService (lib/services/mcp_service.dart)
+  ├─ loadSettings() → serverUrl จาก SharedPreferences 'mcp_server_url'
+  ├─ connect() → initialize handshake + tools/list
+  └─ search(query) → tools/call brave_search | web_search | search
+  ↓
+ผลลัพธ์ → _buildSearchFollowUpPrompt() → Face LLM → Thai response
+fallback (MCP ไม่ตั้งค่า / ล้มเหลว) → Face LLM ตอบจากความรู้เอง
+```
 
-- [x] **Wikipedia REST API (th/en)** — primary search tier ใหม่, ฟรี, 200 req/s, clean text extract, ไม่ต้อง API key; ค้น th ก่อน → fallback en อัตโนมัติ (22/5/2026)
-- [x] **SearXNG parallel race** — `Future.wait()` ยิงทุก instance พร้อมกัน เอาตัวแรกที่มีผล (แทน sequential waterfall ที่ช้าสูงสุด 30s) (22/5/2026)
-- [x] **Search priority: Wikipedia → SearXNG parallel → Google scraping** — encyclopedic queries ได้ Wikipedia ก่อนเสมอ (22/5/2026)
-- [x] **`_detectQueryLanguage()`** — ตรวจ Thai Unicode range `0x0E00–0x0E7F` → ส่ง `'th'` / `'auto'` ให้ SearXNG โดยอัตโนมัติ (22/5/2026)
-- [x] **Universal search prompts** — `_buildSearchFollowUpPrompt` + `_buildTriggerPrompt` ตรวจ cloud vs on-device; cloud ใช้ plain text prompt, on-device ใช้ Gemma `<start_of_turn>` format (แก้ปัญหา cloud echo context) (22/5/2026)
-- [x] **`^` anchor บน search patterns** — ป้องกัน false positive เช่น "ฉันมีวิธีแก้" → trigger web search โดยไม่ตั้งใจ (22/5/2026)
-- [x] **`_parseGoogleHtml` query param fix** — แก้ signature ให้รับ `query` เพื่อ fallback title เมื่อ selector ไม่ match (22/5/2026)
-- [x] **Gemma 4 4B context window** — token budget ไม่ใช่ข้อจำกัดอีกต่อไป ส่ง Wikipedia full extract ได้โดยไม่ต้อง truncate (22/5/2026)
+**สิ่งที่เสร็จแล้ว:**
+- [x] **`lib/services/mcp_service.dart`** ✅ — JSON-RPC 2.0 over HTTP POST
+  - `McpTool` model, singleton `McpService`
+  - `loadSettings()` / `saveServerUrl()` — SharedPreferences `mcp_server_url`
+  - `connect()` → `initialize` + `tools/list`
+  - `callTool(name, args)` → `tools/call`, parse content array
+  - `search(query)` → ลอง `brave_search` → `web_search` → `search` → fallback tool ที่มี "search" ในชื่อ
+- [x] **PATH A rewired** — `chat_screen.dart` SmartPreprocessor search → McpService, graceful fallback ถ้าไม่ตั้งค่า
+- [x] **"ค้นเว็บ" chip dialog rewired** — SnackBar ถ้าไม่ตั้งค่า MCP, connect + search ถ้าพร้อม
+- [x] **Settings > MCP Integration** — ListTile + dialog บันทึก URL, subtitle สีเขียว/ส้มตามสถานะ
+- [x] **WebSearchService ถอดออกจาก** `manager_dispatch_service.dart` + `ai_action_service.dart`
+- [x] **`dart analyze lib/` → No issues found** ✅
+- [x] UI shell ยังอยู่ครบ: chip (L1041), AlertDialog (L1343–1372), `_buildSearchingBubble()`, `_buildSearchFollowUpPrompt()`
+
+**สิ่งที่ถอดออก (เพราะ broken):**
+- [~] ~~SearXNG public instances~~ — rate-limit 429 หลัง ~5 ครั้ง
+- [~] ~~Google scraping~~ — JS-rendered, static HTML ใช้ไม่ได้
+- [~] `WebSearchService` HTTP pipeline ใน chat/manager/action
+
+**ขั้นต่อไป (ต้องทำเอง):**
+- [ ] ตั้ง MCP server จริง เช่น `npx @modelcontextprotocol/server-brave-search` (ต้อง Brave API key)
+- [ ] ใส่ URL ใน Settings > MCP Integration → ทดสอบ search end-to-end
+
+**MCP Tools ที่รองรับ:**
+| Tool | Server ตัวอย่าง | API Key |
+|------|----------------|---------|
+| `brave_search` | `@modelcontextprotocol/server-brave-search` | ✅ ต้องการ |
+| `web_search` | generic MCP search servers | ขึ้นอยู่กับ server |
+| `search` | fallback — tool แรกที่มีคำว่า search | — |
+
+**Privacy Note:** ข้อมูลออกนอกเครื่องเฉพาะตอน user กด search และ MCP server ตั้งค่าไว้ — user เลือก server เอง (self-hosted = ไม่ออกนอกบ้าน)
+
+---
 
 **อัปเดต 18/5/2026 — Nominatim Nearby Search:**
 - [x] **`NominatimService`** — reverse geocode GPS → `NominatimAddress` (suburb, county) โดยใช้ OpenStreetMap Nominatim (ฟรี, ไม่ต้อง API key) + 1km cache
 - [x] **`searchNearby(lat, lng, query)`** — GPS → Nominatim area name → ค้น "cafe ยางตลาด กาฬสินธุ์" (แทนเพียงพิกัด GPS)
-- [x] **`searchNearbyForAI(query, lat, lng)`** — ใช้ Nominatim เมื่อมี GPS แต่ไม่มี Google API key (fallback ที่สมบูรณ์)
-- [x] **Expanded nearby keywords** — ใกล้ๆ, ร้านใกล้, หาร้าน, near here (ก่อนหน้ามีแค่ "ใกล้เคียง")
+- [x] **`searchNearbyForAI(query, lat, lng)`** — ใช้ Nominatim เมื่อมี GPS แต่ไม่มี Google API key
+- [x] **Expanded nearby keywords** — ใกล้ๆ, ร้านใกล้, หาร้าน, near here
 
 ---
 
@@ -731,11 +764,15 @@ CalendarWorker มีนัด → schedulePreFlight(event)
 
 ### 2.19 Thinking Mode ✅
 
-**สถานะ:** เสร็จแล้ว (2026-05-11)
+**สถานะ:** เสร็จแล้ว + พร้อมใช้งานกับ Gemma 4 (2026-05-22)
 
-- [x] parse `<thinking>...</thinking>` จาก model response ด้วย RegExp
+- [x] parse `<thinking>...</thinking>` และ `<think>...</think>` (Gemma 4 + DeepSeek-R1) ด้วย RegExp
 - [x] `_ThinkingSection` — collapsible widget เหนือ reply จริง (default collapsed)
 - [x] แสดงเฉพาะเมื่อ model ส่ง thinking tags มา (Gemma 4 / reasoning models)
+- [x] `LLMModelConfig.supportsThinking` getter — Gemma 4 E2B/E4B คืน `true`
+- [x] `_CapabilitiesSheet` — Feature Guide Sheet (tap AppBar chip) พร้อม step-by-step + ตัวอย่าง
+
+**วิธีเรียกใช้:** แตะ chip `[Gemma 4 E2B 👁 💭]` ใน AppBar → ดูคู่มือ + ตัวอย่าง prompt
 
 ---
 
@@ -876,7 +913,54 @@ _startNewLiteRTSession() (chat_screen.dart)
 
 ---
 
-### 3.2 Skills System 🔴 (Feature 5 จาก Gallery)
+### 3.2 MCP Integration — External Tools Gateway ✅ (Foundation Done)
+
+**สถานะ:** Foundation เสร็จแล้ว (21/5/2026) — รอ MCP server จริงมาต่อ
+**ความยาก:** ⭐⭐
+**Privacy:** User เลือก MCP server เอง — self-hosted = ข้อมูลไม่ออกนอกบ้าน
+
+> MCP (Model Context Protocol) เป็น standard JSON-RPC 2.0 สำหรับ LLM tool calls — แทนที่ broken HTTP scraping ด้วย pluggable tool interface
+
+**Architecture (implement แล้ว):**
+```
+User: "ค้นหา..." / SmartPreprocessor DetectedIntent.search
+  ↓
+McpService (lib/services/mcp_service.dart)
+  ├─ loadSettings() → serverUrl จาก SharedPreferences 'mcp_server_url'
+  ├─ connect() → initialize + tools/list
+  └─ search(query) → tools/call brave_search | web_search | search
+  ↓
+ผลลัพธ์ inject เข้า Face LLM → Thai response
+fallback: Face LLM ตอบจากความรู้เอง (ถ้า MCP ไม่ตั้งค่า / ล้มเหลว)
+```
+
+**เสร็จแล้ว:**
+- [x] `lib/services/mcp_service.dart` — McpTool model + McpService singleton
+- [x] `connect()` → `initialize` handshake + `tools/list`
+- [x] `callTool()` → `tools/call`, parse content array
+- [x] `search()` → ลอง `brave_search` → `web_search` → `search` → fallback
+- [x] PATH A (SmartPreprocessor search) → McpService
+- [x] "ค้นเว็บ" chip dialog → McpService / SnackBar
+- [x] Settings > "🔌 MCP Integration" section — URL tile + dialog + save
+- [x] `dart analyze lib/` → No issues found
+- **LLM usage:** 0 extra
+
+**ยังต้องทำ (รอ user ตั้งค่า):**
+- [ ] ตั้ง MCP server จริง เช่น `npx @modelcontextprotocol/server-brave-search`
+- [ ] ทดสอบ end-to-end: พิมพ์ query → searching bubble → MCP result → LLM Thai response
+
+**MCP Tools ที่รองรับ:**
+| Tools | ต้องการ | ตัวอย่าง server |
+|-------|--------|----------------|
+| `brave_search` | Brave API key | `@modelcontextprotocol/server-brave-search` |
+| `web_search` | ขึ้นอยู่กับ server | generic MCP search |
+| `runJs` (อนาคต) | Gallery WebView bridge | real-browser search ไม่ถูก detect |
+
+**อ้างอิง:** `C:\Users\haiki\.claude\plans\integration-mcp-compiled-forest.md`
+
+---
+
+### 3.3 Skills System 🔴 (Feature 6 จาก Gallery)
 
 **สถานะ:** ยังไม่ implement
 **ความยาก:** ⭐⭐⭐⭐
@@ -921,7 +1005,7 @@ LLM → loadSkill(name) → runJs(skillScript) → JS returns JSON → UI render
 
 ---
 
-### 3.3 Native Function Calling 🔴 (Feature 6 จาก Gallery)
+### 3.4 Native Function Calling 🔴 (Feature 7 จาก Gallery)
 
 **สถานะ:** ยังไม่ implement
 **ความยาก:** ⭐⭐⭐⭐⭐
@@ -1313,64 +1397,34 @@ Haku A เสนอเวลา → User A confirm → Haku A สร้าง ev
 - [x] `GeofenceService` + `MVPTriggerService` (foreground only) ✅
 - **ข้อจำกัด:** DwellTracker ทำงานได้เฉพาะแอพเปิดอยู่ — Phase 5.3 จะแก้
 
-### Trigger-RAG Context Pipeline (Next — 2026-05-18)
-> แก้ไขจุดที่ Trigger → ChatScreen ไม่มี context จริงจาก RAG
+### Memory System Audit ✅ (เสร็จแล้ว — 2026-05-22)
+> ตรวจสอบ write/read paths ทุก tier ครบแล้ว — ไม่มี gap เหลือ
 
-| Priority | งาน | ไฟล์ | ผลกระทบ |
-|---|---|---|---|
-| 🔴 1 | `logExchange()` → index เข้า RAG | `secret_chat_service.dart` | บทสนทนาไม่ถูก index → trigger search ไม่เจอ |
-| 🔴 2 | `chargingBackgroundMain()` → init `RAGService` | `main.dart` | ChargingTrigger ประมวลผลโดยไม่รู้เนื้อหา diary |
-| 🔴 3 | `ChargingTriggerEvent` → เพิ่ม `context: ContextData?` | `charging_trigger.dart` | notification tap → ChatScreen ไม่มี context |
-| 🟡 4 | Unify สอง vector index | `rag_service.dart` + `unified_vector_service.dart` | ChargingTrigger เห็นแค่ facts / ContextRetriever เห็นแค่ entries |
-| 🟡 5 | `respondToTrigger()` → re-query RAG ด้วย trigger context | `chat_screen.dart` | ตอบ trigger ด้วย context ที่อาจ stale |
-| 🟢 6 | Notification tap → deep link พร้อม `triggerPayload` | `notification_service.dart` | user tap → ChatScreen เปิดเปล่า ไม่ auto-respond |
-
-**สรุปสถานะปัจจุบัน:**
+**WRITE PATH (confirmed ✅):**
 ```
-Chat → RAG → Chat      ✅ (foreground, MVPTrigger path ทำงานครบ)
-Charging → RAG → Notif ❌ (สาย charging ใช้แค่ facts, ไม่ใช่ diary entries)
-logExchange → RAG index ❌ (root cause — ไม่มีอะไรถูก index จริง)
+Chat → logExchange() → RAGService.indexEntry()           ✅ secret_chat_service.dart
+Chat → logExchange() → WikiService.onNewFact() per tag   ✅
+FactWorker → WikiService.onNewFact()                     ✅ name/nickname/role/pref/goal
+FactWorker → UnifiedVectorService.upsertFact()           ✅ fixed 2026-05-22
+Charging → ChargingTrigger.processEndOfDay()
+  └─► WikiService.updatePendingSummaries()               ✅ (เมื่อ SLM โหลดได้)
+BackgroundTaskHandlers.handleWikiUpdate()                ✅ AlarmManager fallback (ไม่ขึ้นกับ SLM)
+WikiService.updatePendingSummaries() → _indexSummaryIntoRag() → RAGService.indexEntry() ✅
 ```
 
-### Wiki Service Integration (Next — 2026-05-19 → 05-21)
-> แก้ไขจุดที่ Wiki ไม่ถูกประมวลผล + ไม่ถูก index โดย RAGService
-
-**ปัญหาหลัก 2 ข้อ:**
-
-| # | ปัญหา | ผลกระทบ |
-|---|---|---|
-| 1 | **Summaries เป็น placeholder ตลอด** — `onNewFact(runLLM: false)` เก็บแค่ `content` ดิบ | Wiki pages ไม่มี LLM synthesis |
-| 2 | **Wiki กับ RAGService แยกกันสมบูรณ์** — `RAGService.buildContext()` ค้นแค่ entries table | RAG ไม่เห็น Wiki knowledge เลย |
-
-**WRITE PATH ปัจจุบัน:**
+**READ PATH (confirmed ✅):**
 ```
-Chat → logExchange() → WikiService.onNewFact()
-  ├─► rawFacts.add()         ✅
-  ├── summary = content       ⚠️ placeholder (ยังไม่ใช่ LLM summary)
-  ├─► _ruleBasedLinks()       ✅ GraphRAG co-occurrence
-  └─► SQLite upsert           ✅
-
-MISSING: Charging → WikiService.updatePendingSummaries() ❌
+sendToAI()
+  ├─► WikiService.query()          ✅ vector + title-match + 1-hop graph
+  ├─► TagContextService.buildContext() ✅ FTS5 BM25 chat_log
+  └─► SessionResumeService.buildResume()
+        ├─► UnifiedVectorService.facts  ✅ (ได้ name/job/goal/pref/health ครบแล้ว)
+        └─► calendar today/tomorrow     ✅
 ```
 
-**READ PATH ปัจจุบัน:**
-```
-sendToAI() → WikiService.query()
-  ├─► UnifiedVectorService.search()  ✅ (facts)
-  ├─► _titleSearch()                 ✅
-  ├─► 1-hop graph expansion          ✅
-  └─► formatForContext()             ✅
-
-MISSING: Wiki pages → RAGService.indexEntry() ❌
-```
-
-**Fixes (3 วัน):**
-
-| วัน | Fix | ไฟล์ | รายละเอียด |
-|---|---|---|---|
-| 🔴 19/05 | **Fix A** — Charging เรียก `updatePendingSummaries()` | `charging_trigger.dart` | หลัง `ManagerSummaryStrategy.analyze()` → `await WikiService().updatePendingSummaries(batchSize: 10)` |
-| 🔴 20/05 | **Fix B** — Index Wiki summaries เข้า RAGService | `wiki_service.dart` | หลัง `_upsert(page.copyWith(summary:))` → สร้าง `Entry(content: page.summary, tags: [type, title])` → `RAGService().indexEntry(entry)` |
-| 🟢 21/05 | **Integration** — Verify read/write paths | ทุกไฟล์ | ทดสอบ: Chat→Wiki→RAG→Chat วนกลับมาครบทุก path |
+**Gap ที่แก้แล้ว:**
+- `FactWorker` เขียน name/nickname/role/pref/goal ลง `WikiService` เท่านั้น → `SessionResumeService.[RESUME]` ว่าง
+- แก้: เพิ่ม `_vectorService.upsertFact()` คู่กันสำหรับทุก category สำคัญ (`name`, `job`, `goal`, `preference`)
 
 ### UI / UX
 - [x] Haku Crystal Design System — ครบทุก screen (13 screens) ✅
@@ -1380,8 +1434,14 @@ MISSING: Wiki pages → RAGService.indexEntry() ❌
 
 
 ระดับ 2 — ต่อยอดความเป็น life logger (จุดแตกต่างจาก assistant ทั่วไป)
-Photo → Auto-log
-เปิดกล้อง → ถ่ายรูป → กลับมา Haku → "บันทึกด้วยไหม?" พร้อม location tag อัตโนมัติ นี่คือ "Thought Catcher" ที่อยู่ใน roadmap แต่ทำผ่าน device command ได้เลย ไม่ต้อง in-app camera
+Photo → Auto-log ✅ (Gemma 4 Vision พร้อมใช้งาน 2026-05-22)
+เปิดกล้อง → ถ่ายรูป → กลับมา Haku → "บันทึกด้วยไหม?" พร้อม location tag อัตโนมัติ
+- [x] `_autoLogPhoto()` — ถ่ายรูป → Gemma 4 บรรยาย → diary entry + GPS location
+- [x] `generateTurnWithImages()` — Dart + Kotlin bridge พร้อม (visionBackend=GPU auto เมื่อ modelId มี gemma-4)
+- [x] `LLMModelConfig.supportsVision` getter
+- [x] Quick question chip "📷 วิเคราะห์รูป" แสดงเฉพาะเมื่อ Gemma 4 โหลดอยู่
+- [x] `_CapabilitiesSheet` — คู่มือ step-by-step + ตัวอย่าง prompt + ปุ่ม "ลองเลย"
+**วิธีใช้:** แตะ 📷 ในช่อง input → เลือกรูป → ส่ง (หรือกด "บันทึก diary" เพื่อ auto-log)
 
 Check-in อัตโนมัติ
 "เช็คอิน" → Haku ดึง current GPS → สร้าง diary entry พร้อม location ทันที — ปิด loop ที่ตอนนี้ user ต้องพิมพ์เองว่าอยู่ที่ไหน

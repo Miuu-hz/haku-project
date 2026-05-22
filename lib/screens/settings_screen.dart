@@ -7,8 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'automation_screen.dart';
 import 'command_audit_screen.dart';
+import 'presets_screen.dart';
+import '../services/preset_service.dart';
 import '../models/llm_model_config.dart';
+import '../models/preset.dart';
 import '../services/background_task_service.dart';
+import '../services/mcp_service.dart';
 import '../utils/haku_design_tokens.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
@@ -55,6 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoLockEnabled = true;
   int _autoLockMinutes = 1;
   bool _isLoading = true;
+  String _mcpServerUrl = '';
   bool _isPickingModel = false;
   String? _customLlmPath;
   Map<String, dynamic>? _modelValidation;
@@ -182,6 +187,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final proactiveLocation = prefs.getBool('proactive_location_enabled') ?? true;
     final proactiveCharging = prefs.getBool('proactive_charging_enabled') ?? true;
 
+    final mcpUrl = prefs.getString('mcp_server_url') ?? '';
+
     setState(() {
       _customLlmPath = savedPath;
       _modelValidation = validation;
@@ -190,8 +197,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _proactiveLocationEnabled = proactiveLocation;
       _proactiveChargingEnabled = proactiveCharging;
       _googleSignedIn = _googleAuth.isSignedIn;
+      _mcpServerUrl = mcpUrl;
       _isLoading = false;
     });
+  }
+
+  /// 🎭 โหลด Preset ปัจจุบันสำหรับแสดงใน Settings
+  Future<Preset?> _loadCurrentPreset() async {
+    try {
+      final presetService = PresetService();
+      await presetService.initialize();
+      return presetService.currentPreset;
+    } catch (e) {
+      debugPrint('⚠️ _loadCurrentPreset failed: $e');
+      return null;
+    }
+  }
+
+  Future<void> _showMcpUrlDialog() async {
+    final ctrl = TextEditingController(text: _mcpServerUrl);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('MCP Server URL'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'http://localhost:3000'),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('บันทึก'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && mounted) {
+      await McpService().saveServerUrl(result);
+      setState(() => _mcpServerUrl = result);
+    }
   }
   
   Future<void> _loadCalendarEvents() async {
@@ -374,6 +424,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           const Divider(),
 
+          // 🎭 ส่วน AI Personality & Presets
+          _buildSectionHeader('🎭 AI Personality & Presets'),
+
+          FutureBuilder<Preset?>(
+            future: _loadCurrentPreset(),
+            builder: (context, snapshot) {
+              final preset = snapshot.data;
+              return ListTile(
+                leading: Text(
+                  preset?.icon ?? '🎭',
+                  style: const TextStyle(fontSize: 24),
+                ),
+                title: Text(
+                  preset?.name ?? 'AI Presets',
+                  style: const TextStyle(color: _kSTextMain),
+                ),
+                subtitle: Text(
+                  preset != null
+                      ? 'โหมดปัจจุบัน: ${preset.name} · แตะเพื่อจัดการ'
+                      : 'ปรับแต่งบุคลิก AI และสถานที่',
+                  style: const TextStyle(color: _kSTextSub),
+                ),
+                trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => const PresetsScreen(),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+
+          const Divider(),
+
           // 🤖 ส่วน AI Model
           _buildSectionHeader('🤖 โมเดล AI'),
 
@@ -521,6 +608,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: _kSTextHint, fontSize: 11),
                 ),
               ],
+            ),
+          ),
+
+          const Divider(),
+
+          // 🔌 MCP Integration
+          _buildSectionHeader('🔌 MCP Integration'),
+          ListTile(
+            leading: const Icon(Icons.cable_outlined, color: _kSLavender),
+            title: const Text('MCP Server URL',
+                style: TextStyle(color: _kSTextMain)),
+            subtitle: Text(
+              _mcpServerUrl.isEmpty ? 'ยังไม่ได้ตั้งค่า' : _mcpServerUrl,
+              style: TextStyle(
+                color: _mcpServerUrl.isEmpty ? Colors.orange : Colors.green,
+                fontSize: 12,
+              ),
+            ),
+            onTap: _showMcpUrlDialog,
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              'URL ของ MCP server สำหรับ web search (เช่น http://localhost:3000)\nถ้าไม่ตั้งค่า ปุ่มค้นเว็บจะไม่ทำงาน',
+              style: TextStyle(color: _kSTextHint, fontSize: 11),
             ),
           ),
 

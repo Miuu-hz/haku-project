@@ -18,6 +18,8 @@ android/key.properties
 *.apk
 *.aab
 *.ipa
+gallery-main/
+demo/
 
 # IDE & local tooling configs
 .idea/

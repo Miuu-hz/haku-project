@@ -13,6 +13,7 @@ import '../unified_vector_service.dart';
 import '../user_profile_service.dart';
 import '../wiki_service.dart';
 import '../worker_service.dart';
+import '../workers/fact_worker.dart';
 import 'manager_summary_strategy.dart';
 
 /// 🔌 Charging Trigger - ประมวลผลเมื่อชาร์จ (จบวัน)
@@ -192,6 +193,12 @@ class ChargingTrigger {
         debugPrint('📚 Updating pending Wiki summaries...');
         await WikiService().updatePendingSummaries(batchSize: 10);
       }
+
+      // 4.4 Analyze check-in patterns (background batch)
+      debugPrint('📝 Analyzing check-in patterns...');
+      await FactWorker().analyzeCheckInPatterns(
+        llmService: slmLoaded ? llmService : null,
+      );
 
       // 4.5 Query RAGService for today's relevant diary context
       String? ragContext;

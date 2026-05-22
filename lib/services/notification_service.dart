@@ -123,11 +123,12 @@ class NotificationService {
       playSound: true,
       category: AndroidNotificationCategory.message,
       actions: actions,
-      styleInformation: const BigTextStyleInformation(
-        '',
-        contentTitle: '',
+      styleInformation: BigTextStyleInformation(
+        event.suggestedMessage ?? 'Haku มีอะไรจะบอกคุณ',
+        contentTitle: event.displayTitle,
         summaryText: 'แตะเพื่อตอบกลับ',
       ),
+      visibility: NotificationVisibility.public,
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -143,7 +144,7 @@ class NotificationService {
     );
 
     await _notifications.show(
-      event.timestamp.millisecond, // notification id
+      event.timestamp.millisecondsSinceEpoch % 100000,
       event.displayTitle,
       event.suggestedMessage ?? 'Haku มีอะไรจะบอกคุณ',
       details,
@@ -295,6 +296,57 @@ class NotificationService {
     );
 
     debugPrint('🔔 Showed command confirmation: $command');
+  }
+
+  /// 🎭 แสดง Notification เมื่อ Preset เปลี่ยน
+  Future<void> showPresetNotification({
+    required String oldPresetName,
+    required String newPresetName,
+    required String newPresetIcon,
+    String? greeting,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('⚠️ NotificationService not initialized');
+      return;
+    }
+
+    final body = greeting ?? 'Switched to $newPresetName';
+
+    final androidDetails = AndroidNotificationDetails(
+      'haku_proactive_triggers',
+      'Haku Proactive',
+      channelDescription: 'การแจ้งเตือนจาก Haku AI',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      showWhen: true,
+      enableVibration: false,
+      playSound: false,
+      category: AndroidNotificationCategory.event,
+      styleInformation: BigTextStyleInformation(body),
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: false,
+      presentSound: false,
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    final id = DateTime.now().millisecondsSinceEpoch % 100000;
+
+    await _notifications.show(
+      id,
+      '$newPresetIcon $newPresetName',
+      body,
+      details,
+      payload: 'preset:$newPresetName',
+    );
+
+    debugPrint('🔔 Showed preset notification: $newPresetName');
   }
 
   /// 🧹 ยกเลิกการแจ้งเตือนทั้งหมด

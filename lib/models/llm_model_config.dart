@@ -32,6 +32,10 @@ class LLMModelConfig {
     this.supportsSystemInstruction = false,
   });
 
+  /// Gemma 4 models รองรับ vision (load ด้วย visionBackend=GPU) และ thinking tags
+  bool get supportsVision => modelId.contains('gemma-4') || modelId.contains('gemma4');
+  bool get supportsThinking => modelId.contains('gemma-4') || modelId.contains('gemma4');
+
   /// Gemma 3 1B (small, conservative)
   static const gemma3_1b = LLMModelConfig(
     modelId: 'gemma-3-1b',

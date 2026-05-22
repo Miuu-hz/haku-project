@@ -145,6 +145,13 @@ class GeofenceService {
     }
   }
 
+  /// 🔄 อัพเดทตำแหน่งล่าสุดจากภายนอก (เช่น Check-in)
+  Future<void> updateLastKnownPosition(Position position) async {
+    _lastKnownPosition = position;
+    await _saveLastLocation();
+    debugPrint('📍 Geofence lastKnownPosition updated: ${position.latitude}, ${position.longitude}');
+  }
+
   /// ➕ เพิ่ม geofence zone
   Future<void> addZone({
     required String name,

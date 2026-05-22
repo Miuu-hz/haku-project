@@ -7,7 +7,6 @@ import 'objective_service.dart';
 import 'place_service.dart';
 import 'preset_service.dart';
 import 'scheduler_service.dart';
-import 'web_search_service.dart';
 
 /// 🤖 AI Action Service - ให้ AI สั่งงานแอพได้
 ///
@@ -408,27 +407,10 @@ class AIActionService {
     return true;
   }
 
-  /// 🌐 Execute WEB_SEARCH action
   Future<ActionExecuteResult> _executeWebSearch(AIAction action) async {
-    final query = action.params['query'] ?? '';
-
-    if (query.isEmpty) {
-      return const ActionExecuteResult(
-        success: false,
-        error: 'No search query provided',
-      );
-    }
-
-    final webService = WebSearchService();
-    await webService.initialize();
-
-    final resultText = await webService.searchForAI(query);
-
-    debugPrint('✅ Web search completed: $query');
-
-    return ActionExecuteResult(
-      success: true,
-      data: resultText,
+    return const ActionExecuteResult(
+      success: false,
+      error: 'Web search removed — use MCP server',
     );
   }
 
