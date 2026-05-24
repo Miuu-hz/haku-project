@@ -1962,6 +1962,27 @@ class _ChatBubble extends StatelessWidget {
                   children: [
                     if (!isUser && thinking != null && thinking.isNotEmpty)
                       _ThinkingSection(thinking: thinking),
+                    // รูปภาพที่แนบมากับข้อความ (user bubble เท่านั้น)
+                    if (isUser && message.imagePaths != null && message.imagePaths!.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: message.imagePaths!.map((path) => ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.file(
+                            File(path),
+                            width: 160, height: 160, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 160, height: 160,
+                              color: kGlassFill,
+                              child: const Icon(Icons.broken_image_outlined, color: kFg3),
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                      if (reply.isNotEmpty) const SizedBox(height: 8),
+                    ],
+                    if (reply.isNotEmpty)
                     Text(
                       reply,
                       style: TextStyle(

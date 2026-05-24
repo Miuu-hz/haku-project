@@ -107,25 +107,78 @@ class LiteRTLMBridge(private val context: Context) {
             }
             Log.i(TAG, "🎯 backend: $accelerator")
 
-            val config = EngineConfig(
+            val cacheDir = context.getExternalFilesDir(null)?.absolutePath
+
+            // ลองโหลดพร้อม visionBackend ก่อน (ถ้า supportImage=true)
+            // ถ้าโมเดลไม่รองรับ vision (signature ≠ 1) → retry โดยไม่มี visionBackend
+            val loaded = tryLoadEngine(
                 modelPath = modelPath,
                 backend = backend,
                 visionBackend = if (supportImage) Backend.GPU() else null,
-                maxNumTokens = maxTokens,
-                cacheDir = context.getExternalFilesDir(null)?.absolutePath,
+                maxTokens = maxTokens,
+                cacheDir = cacheDir,
             )
 
-            engine = Engine(config)
-            engine!!.initialize()
+            if (!loaded && supportImage) {
+                Log.w(TAG, "⚠️ Vision backend ล้มเหลว — ลอง fallback โดยไม่มี visionBackend")
+                val fallback = tryLoadEngine(
+                    modelPath = modelPath,
+                    backend = backend,
+                    visionBackend = null,
+                    maxTokens = maxTokens,
+                    cacheDir = cacheDir,
+                )
+                if (!fallback) {
+                    unloadModel()
+                    return@withContext false
+                }
+                _supportImage = false  // vision ใช้ไม่ได้จริง
+                Log.i(TAG, "✅ โหลดสำเร็จ (text-only mode — โมเดลนี้ไม่รองรับ vision)")
+            } else if (!loaded) {
+                unloadModel()
+                return@withContext false
+            }
 
             currentModelPath = modelPath
             _currentAccelerator = accelerator.uppercase()
-            Log.i(TAG, "✅ โหลดโมเดลสำเร็จ — backend=$_currentAccelerator maxTokens=$maxTokens")
+            Log.i(TAG, "✅ โหลดโมเดลสำเร็จ — backend=$_currentAccelerator maxTokens=$maxTokens vision=$_supportImage")
             true
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ โหลดโมเดลล้มเหลว: ${e.message}")
             unloadModel()
+            false
+        }
+    }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /**
+     * ลอง init Engine ครั้งเดียว — คืน true ถ้าสำเร็จ, false ถ้าล้มเหลว
+     * แยกออกมาเพื่อให้ loadModel() เรียก retry ได้โดยไม่ซ้ำโค้ด
+     */
+    private fun tryLoadEngine(
+        modelPath: String,
+        backend: Backend,
+        visionBackend: Backend?,
+        maxTokens: Int,
+        cacheDir: String?,
+    ): Boolean {
+        return try {
+            val config = EngineConfig(
+                modelPath = modelPath,
+                backend = backend,
+                visionBackend = visionBackend,
+                maxNumTokens = maxTokens,
+                cacheDir = cacheDir,
+            )
+            engine = Engine(config)
+            engine!!.initialize()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ tryLoadEngine ล้มเหลว (visionBackend=${visionBackend != null}): ${e.message}")
+            try { engine?.close() } catch (_: Exception) {}
+            engine = null
             false
         }
     }
