@@ -64,12 +64,24 @@ def _client():
 
 def _parse_think(text: str) -> tuple:
     """แยก <think>...</think> ออกจาก response หลัก
+    รองรับทั้ง tag ปิดครบและ tag ที่ถูก truncate (token หมด)
     Returns: (main_content, think_content)
     """
+    # กรณีปกติ: มีทั้ง <think> และ </think>
     match = re.search(r"<think>(.*?)</think>", text, re.DOTALL)
-    think = match.group(1).strip() if match else ""
-    main = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    return main, think
+    if match:
+        think = match.group(1).strip()
+        main = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        return main, think
+
+    # กรณี token หมดก่อน </think> — เอาทุกอย่างหลัง <think> เป็น think
+    if "<think>" in text:
+        parts = text.split("<think>", 1)
+        main = parts[0].strip()
+        think = parts[1].strip()
+        return main, think
+
+    return text.strip(), ""
 
 
 # ─── LLM calls ────────────────────────────────────────────────────────────────
@@ -93,98 +105,110 @@ def _a2a_context(last_n: int = 30) -> str:
     )
 
 
+def _short_persona_info(persona: Persona) -> str:
+    """ดึงเฉพาะ Identity lines จาก .md ไม่เกิน 250 chars"""
+    lines = [
+        l for l in persona.md_content.splitlines()
+        if l.startswith("- ") or "Identity" in l or "อาชีพ" in l
+    ]
+    return "\n".join(lines)[:250]
+
+
 def run_autonomous_discussion(starter: Persona, initial_message: str):
     """
-    Multi-round autonomous A2A discussion:
-    1. Personas คุยกันเองหลาย rounds
-    2. จบแล้ว → สรุป + feedback กลับหาเจ้าของแต่ละ panel
+    Directed turn-taking — คนละคนผลัดกันตอบ เหมือน LINE จริง:
+      บอส → Dev → บอส → Dev → ... (max N turns)
+    แต่ละ turn ส่ง "ได้รับข้อความจาก X: ..." ให้ responder
+    จบด้วย feedback กลับหาเจ้าของทุก panel
     """
     active = st.session_state.active_personas
-    rounds = st.session_state.discussion_rounds
-    total_steps = rounds * len(active)
-    step = 0
+    others = [p for p in active if p.filename != starter.filename]
+    if not others:
+        st.session_state.is_discussing = False
+        return
 
+    max_turns = st.session_state.discussion_rounds * 2  # back-and-forth
     status = st.empty()
     prog = st.progress(0.0)
 
-    for round_num in range(rounds):
-        # round divider
-        st.session_state.a2a_log.append({
-            "from_name": f"Round {round_num + 1} / {rounds}",
-            "from_avatar": "🔄",
-            "content": "",
-            "ts": _now(),
-            "is_divider": True,
-        })
+    last_speaker = starter
+    last_message = initial_message
+    other_idx = 0  # สำหรับ rotate ระหว่าง others หลายคน
 
-        for persona in active:
-            # round 0: starter ส่งแล้ว ข้ามไป
-            if round_num == 0 and persona.filename == starter.filename:
-                step += 1
-                prog.progress(step / total_steps)
-                continue
+    for turn in range(max_turns):
+        # ── เลือก responder ──────────────────────────────────────────────────
+        if last_speaker.filename == starter.filename:
+            # starter พูดล่าสุด → others ตอบ (rotate ถ้ามีหลายคน)
+            responder = others[other_idx % len(others)]
+            other_idx += 1
+        elif len(others) == 1:
+            # มีแค่ 2 คน → starter ตอบกลับ
+            responder = starter
+        else:
+            # others หลายคน → other คนถัดไปตอบ (ยัง ไม่กลับหา starter)
+            responder = others[other_idx % len(others)]
+            other_idx += 1
 
-            status.info(
-                f"🔄 Round {round_num + 1}/{rounds} · "
-                f"{persona.avatar} {persona.name} กำลังคิด..."
-            )
+        status.info(f"💬 {responder.avatar} {responder.name} กำลังตอบ...")
 
-            a2a_ctx = _a2a_context()
-            others_names = ", ".join(
-                p.name for p in active if p.filename != persona.filename
-            )
-            system = (
-                f"{persona.build_system_prompt(a2a_ctx)}\n\n"
-                f"คุณอยู่ใน A2A meeting กับ {others_names}\n"
-                f"ถ้ามีสิ่งที่ต้องพูดหรือถามเพิ่ม ตอบกระชับ 1–2 ประโยค\n"
-                f"ถ้าเห็นด้วยและไม่มีอะไรเพิ่ม ตอบว่า [OK] เท่านั้น"
-            )
-            r = _client().chat(system, "ต่อบทสนทนา A2A", max_tokens=200)
-            raw = r.content if r.ok else f"⚠️ {r.error}"
-            main, think = _parse_think(raw)
+        # ── Prompt สั้น เน้น 1 message ที่ต้องตอบ ────────────────────────────
+        system = (
+            f"คุณคือ {responder.name}\n"
+            f"{_short_persona_info(responder)}\n\n"
+            f"ได้รับข้อความจาก {last_speaker.name}: \"{last_message}\"\n"
+            f"ตอบสั้น 1–2 ประโยค เหมือนส่ง LINE\n"
+            f"ห้ามอธิบายยาว ห้าม bullet ห้ามพูดเรื่องอื่น\n"
+            f"ถ้าบทสนทนาสรุปจบสมบูรณ์แล้ว ขึ้นต้นด้วย [DONE]"
+        )
+        r = _client().chat(
+            system,
+            f"{last_speaker.name}: {last_message}",
+            max_tokens=120,
+        )
+        raw = r.content if r.ok else f"⚠️ {r.error}"
+        main, think = _parse_think(raw)
+        done = main.upper().startswith("[DONE]")
+        reply = main.replace("[DONE]", "").replace("[done]", "").strip()
 
-            # ไม่เพิ่ม [OK] acknowledgment เข้า log
-            if main and "[OK]" not in main:
-                st.session_state.a2a_log.append({
-                    "from_name": persona.name,
-                    "from_avatar": persona.avatar,
-                    "content": main,
-                    "think": think,
-                    "ts": _now(),
-                })
+        if reply:
+            st.session_state.a2a_log.append({
+                "from_name": responder.name,
+                "from_avatar": responder.avatar,
+                "content": reply,
+                "think": think,
+                "ts": _now(),
+            })
 
-            step += 1
-            prog.progress(step / total_steps)
+        last_speaker = responder
+        last_message = reply or last_message
+        prog.progress((turn + 1) / max_turns)
+
+        if done or not reply:
+            break
 
     # ── Auto-summary ──────────────────────────────────────────────────────────
-    status.info("📋 สรุปบทสนทนา...")
-    summary = _generate_summary()
-    st.session_state.a2a_summary = summary
+    status.info("📋 สรุป...")
+    st.session_state.a2a_summary = _generate_summary()
 
-    # ── Feedback กลับหาเจ้าของแต่ละ persona ──────────────────────────────────
-    status.info("📬 ส่ง feedback กลับหาเจ้าของ...")
+    # ── Feedback กลับหาเจ้าของ (ไม่มี think — ไม่ต้องการ reasoning) ──────────
+    status.info("📬 ส่ง feedback...")
     full_log = _a2a_context(last_n=100)
 
     for persona in active:
-        others = [p.name for p in active if p.filename != persona.filename]
         fb_system = (
-            f"คุณคือ Haku ผู้ช่วยส่วนตัวของ {persona.name}\n"
-            f"เพิ่งมีการประชุม A2A กับ {', '.join(others)} เสร็จสิ้น\n\n"
-            f"สรุปให้ {persona.name} เข้าใจ:\n"
-            f"- ผลการประชุม / สิ่งที่ตกลงกัน\n"
-            f"- งานที่ {persona.name} ต้องดำเนินการต่อ\n"
-            f"ตอบภาษาไทย bullet points กระชับ"
+            f"คุณคือ Haku ของ {persona.name}\n"
+            f"สรุป chat ต่อไปนี้ให้ {persona.name} รู้ 3 ข้อ:\n"
+            f"1. ตกลงอะไร  2. {persona.name} ต้องทำอะไร  3. deadline ถ้ามี\n"
+            f"ภาษาไทย สั้น bullet"
         )
-        r = _client().chat(fb_system, f"log การประชุม:\n{full_log}", max_tokens=350)
-        raw_fb = r.content if r.ok else "⚠️ ไม่สามารถสร้าง feedback"
-        fb_main, fb_think = _parse_think(raw_fb)
+        r = _client().chat(fb_system, f"chat:\n{full_log[-600:]}", max_tokens=200)
+        fb_main, _ = _parse_think(r.content if r.ok else "⚠️ ไม่สามารถสร้าง feedback")
 
-        chats = st.session_state.persona_chats.setdefault(persona.filename, [])
-        chats.append({
+        st.session_state.persona_chats.setdefault(persona.filename, []).append({
             "role": "assistant",
-            "content": f"📬 **สรุปจาก A2A Discussion:**\n\n{fb_main}",
-            "think": fb_think,
+            "content": f"📬 **A2A สรุป:**\n\n{fb_main}",
             "ts": _now(),
+            # ไม่มี think — feedback ไม่ควรแสดง reasoning
         })
 
     status.empty()
