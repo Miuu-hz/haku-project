@@ -171,10 +171,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       }
 
       final history = days.entries
-          .where((kv) => kv.value.isNotEmpty)
           .map((kv) => (
                 label: kv.key,
-                mood: kv.value.reduce((a, b) => a + b) / kv.value.length,
+                mood: kv.value.isEmpty
+                    ? 0.0
+                    : kv.value.reduce((a, b) => a + b) / kv.value.length,
               ))
           .toList();
 
@@ -357,7 +358,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ],
 
                         // Mood trend pip bars (full-width)
-                        if (_moodHistory.length >= 2) ...[
+                        if (_moodHistory.isNotEmpty) ...[
                           _Intro(
                             anim: _card3Anim,
                             child: _MoodPipCard(history: _moodHistory),
@@ -1883,32 +1884,43 @@ class _MoodPipCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             SizedBox(
-              height: 52,
+              height: 44,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: history.map((h) {
                   final pct = ((h.mood - 1) / 4).clamp(0.0, 1.0);
+                  final isHigh = pct >= 0.7;
+                  final isMid = pct >= 0.4 && pct < 0.7;
+                  final opacity = isHigh ? 1.0 : isMid ? 0.75 : 0.45;
                   return Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Container(
-                            height: 36 * pct + 4,
-                            decoration: BoxDecoration(
-                              color: kOrbLavender
-                                  .withAlpha((80 + 120 * pct).round()),
-                              borderRadius: BorderRadius.circular(4),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Container(
+                          height: (40 * pct + 4).clamp(4.0, 40.0),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                kOrbLavender.withAlpha((opacity * 255).round()),
+                                kOrbLavender
+                                    .withAlpha(((opacity * 0.7) * 255).round()),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: isHigh
+                                ? [
+                                    BoxShadow(
+                                      color: kOrbLavender.withAlpha(100),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            h.label.split('/').last,
-                            style:
-                                const TextStyle(fontSize: 9, color: kFg3),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   );
