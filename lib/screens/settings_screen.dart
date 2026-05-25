@@ -323,106 +323,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 120),
         children: [
-          // 🔒 ส่วนความปลอดภัย
+          // ── ความปลอดภัย ──
           _buildSectionHeader('🔐 ความปลอดภัย'),
-
-          ListTile(
-            leading: const Icon(Icons.fact_check_outlined, color: _kSLavender),
-            title: const Text(
-              'ประวัติคำสั่ง',
-              style: TextStyle(color: _kSTextMain),
+          _buildSettingGroup([
+            _buildSettingRow(
+              icon: Icons.fact_check_outlined,
+              iconBg: const Color(0x1E9B7CB6),
+              iconColor: _kSLavender,
+              name: 'ประวัติคำสั่ง',
+              desc: 'ดูว่า Haku สั่งอะไรไปบ้าง',
+              right: const Icon(Icons.chevron_right, color: _kSTextHint),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const CommandAuditScreen(),
+                  ),
+                );
+              },
             ),
-            subtitle: const Text(
-              'ดูว่า Haku สั่งอะไรไปบ้าง',
-              style: TextStyle(color: _kSTextSub),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (context) => const CommandAuditScreen(),
-                ),
-              );
-            },
-          ),
-          
-          FutureBuilder<bool>(
-            future: BiometricService.canCheckBiometrics(),
-            builder: (context, snapshot) {
-              final canUseBiometric = snapshot.data ?? false;
-              
-              return SwitchListTile(
-                title: const Text(
-                  'ล็อกด้วยลายนิ้วมือ / ใบหน้า',
-                  style: TextStyle(color: _kSTextMain),
-                ),
-                subtitle: Text(
-                  canUseBiometric
+            FutureBuilder<bool>(
+              future: BiometricService.canCheckBiometrics(),
+              builder: (context, snapshot) {
+                final canUseBiometric = snapshot.data ?? false;
+                return _buildSettingRow(
+                  icon: Icons.fingerprint,
+                  name: 'ล็อกด้วยลายนิ้วมือ / ใบหน้า',
+                  desc: canUseBiometric
                       ? 'เปิดแอพต้องยืนยันตัวตนก่อน'
                       : 'อุปกรณ์นี้ไม่รองรับ Biometric',
-                  style: TextStyle(
-                    color: canUseBiometric
-                        ? _kSTextSub
-                        : Colors.red.withAlpha(150),
-                  ),
-                ),
-                value: _biometricEnabled && canUseBiometric,
-                onChanged: canUseBiometric
-                    ? (value) => _toggleBiometric(value)
-                    : null,
-                activeThumbColor: _kSCrystal,
-              );
-            },
-          ),
-          
-          SwitchListTile(
-            title: const Text(
-              'ล็อกอัตโนมัติ',
-              style: TextStyle(color: _kSTextMain),
-            ),
-            subtitle: Text(
-              'ล็อกหลังไม่ใช้งาน $_autoLockMinutes นาที',
-              style: const TextStyle(color: _kSTextSub),
-            ),
-            value: _autoLockEnabled,
-            onChanged: (value) {
-              setState(() => _autoLockEnabled = value);
-            },
-            activeThumbColor: _kSCrystal,
-          ),
-          
-          if (_autoLockEnabled)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'เวลาล็อกอัตโนมัติ',
-                    style: TextStyle(
-                      color: _kSTextSub,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Slider(
-                    value: _autoLockMinutes.toDouble(),
-                    min: 1,
-                    max: 10,
-                    divisions: 9,
-                    label: '$_autoLockMinutes นาที',
+                  right: Switch(
+                    value: _biometricEnabled && canUseBiometric,
+                    onChanged: canUseBiometric
+                        ? (v) => _toggleBiometric(v)
+                        : null,
                     activeColor: _kSCrystal,
-                    onChanged: (value) {
-                      setState(() => _autoLockMinutes = value.round());
-                    },
                   ),
-                ],
-              ),
+                );
+              },
             ),
-          
-          const Divider(),
+            _buildSettingRow(
+              icon: Icons.lock_clock,
+              name: 'ล็อกอัตโนมัติ',
+              desc: 'ล็อกหลังไม่ใช้งาน $_autoLockMinutes นาที',
+              right: Switch(
+                value: _autoLockEnabled,
+                onChanged: (v) => setState(() => _autoLockEnabled = v),
+                activeColor: _kSCrystal,
+              ),
+              last: !_autoLockEnabled,
+            ),
+            if (_autoLockEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'เวลาล็อกอัตโนมัติ',
+                      style: TextStyle(color: _kSTextHint, fontSize: 12),
+                    ),
+                    Slider(
+                      value: _autoLockMinutes.toDouble(),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: '$_autoLockMinutes นาที',
+                      activeColor: _kSCrystal,
+                      onChanged: (v) =>
+                          setState(() => _autoLockMinutes = v.round()),
+                    ),
+                  ],
+                ),
+              ),
+          ]),
 
           // 🎭 ส่วน AI Personality & Presets
           _buildSectionHeader('🎭 AI Personality & Presets'),
@@ -881,90 +857,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionHeader('🔔 Proactive AI'),
           _buildProactiveSection(),
 
-          const Divider(),
-
-          // 🪪 ส่วนโปรไฟล์ผู้ใช้
+          // ── โปรไฟล์ ──
           _buildSectionHeader('🪪 โปรไฟล์ของฉัน'),
-
-          ListTile(
-            leading: const Icon(Icons.person_outline, color: _kSLavender),
-            title: const Text(
-              'แก้ไขข้อมูลส่วนตัว',
-              style: TextStyle(color: _kSTextMain),
+          _buildSettingGroup([
+            _buildSettingRow(
+              icon: Icons.person_outline,
+              iconBg: const Color(0x1E9B7CB6),
+              iconColor: _kSLavender,
+              name: 'แก้ไขข้อมูลส่วนตัว',
+              desc: 'ชื่อ, นิสัย, ความชอบ — AI จะจำและเรียนรู้',
+              right: const Icon(Icons.chevron_right, color: _kSTextHint),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const ProfileEditorWidget(),
+                  ),
+                );
+              },
+              last: true,
             ),
-            subtitle: const Text(
-              'ชื่อ, นิสัย, ความชอบ - AI จะจำและเรียนรู้',
-              style: TextStyle(color: _kSTextSub),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (context) => const ProfileEditorWidget(),
-                ),
-              );
-            },
-          ),
+          ]),
 
-          const Divider(),
-
-          // 📤 ส่วนข้อมูล
+          // ── ข้อมูล ──
           _buildSectionHeader('📤 ข้อมูลของคุณ'),
-          
-          ListTile(
-            leading: const Icon(Icons.download, color: _kSLavender),
-            title: const Text(
-              'ส่งออกข้อมูล',
-              style: TextStyle(color: _kSTextMain),
+          _buildSettingGroup([
+            _buildSettingRow(
+              icon: Icons.download,
+              iconBg: const Color(0x1E9B7CB6),
+              iconColor: _kSLavender,
+              name: 'ส่งออกข้อมูล',
+              desc: 'JSON, Markdown, CSV',
+              right: const Icon(Icons.chevron_right, color: _kSTextHint),
+              onTap: () => _showExportOptions(),
             ),
-            subtitle: const Text(
-              'JSON, Markdown, CSV',
-              style: TextStyle(color: _kSTextSub),
+            _buildSettingRow(
+              icon: Icons.delete_forever,
+              iconBg: const Color(0x1EFF4040),
+              iconColor: Colors.red,
+              name: 'ลบข้อมูลทั้งหมด',
+              desc: 'ลบบันทึกทั้งหมดถาวร ไม่สามารถย้อนกลับได้',
+              onTap: () => _showDeleteConfirmation(),
+              last: true,
             ),
-            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
-            onTap: () => _showExportOptions(),
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.delete_forever, color: Colors.red),
-            title: const Text(
-              'ลบข้อมูลทั้งหมด',
-              style: TextStyle(color: Colors.red),
-            ),
-            subtitle: Text(
-              'ลบบันทึกทั้งหมดถาวร',
-              style: TextStyle(color: Colors.red.withAlpha(150)),
-            ),
-            onTap: () => _showDeleteConfirmation(),
-          ),
-          
-          const Divider(),
-          
-          // ℹ️ เกี่ยวกับ
+          ]),
+
+          // ── เกี่ยวกับ ──
           _buildSectionHeader('ℹ️ เกี่ยวกับ'),
-          
-          const ListTile(
-            leading: Icon(Icons.info_outline, color: _kSLavender),
-            title: Text(
-              'Haku - AI Life Logger',
-              style: TextStyle(color: _kSTextMain),
+          _buildSettingGroup([
+            _buildSettingRow(
+              icon: Icons.info_outline,
+              iconBg: const Color(0x1E9B7CB6),
+              iconColor: _kSLavender,
+              name: 'Haku · AI Life Logger',
+              desc: 'เวอร์ชัน 0.1.0 (Phase 1)',
             ),
-            subtitle: Text(
-              'เวอร์ชัน 0.1.0 (Phase 1)',
-              style: TextStyle(color: _kSTextSub),
+            _buildSettingRow(
+              icon: Icons.privacy_tip_outlined,
+              name: 'นโยบายความเป็นส่วนตัว',
+              right: const Icon(Icons.chevron_right, color: _kSTextHint),
+              onTap: () => _showPrivacyInfo(),
+              last: true,
             ),
-          ),
-          
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined, color: _kSTextSub),
-            title: const Text(
-              'นโยบายความเป็นส่วนตัว',
-              style: TextStyle(color: _kSTextMain),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: _kSTextHint),
-            onTap: () => _showPrivacyInfo(),
-          ),
+          ]),
           
           // ข้อความด้านล่าง
           const Padding(
@@ -1076,16 +1031,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSectionHeader(String title) => Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 8),
       child: Text(
-        title,
+        title.toUpperCase(),
         style: const TextStyle(
-          fontSize: 13,
+          fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: _kSLavender,
+          color: _kSTextHint,
+          letterSpacing: 0.8,
         ),
       ),
     );
+
+  Widget _buildSettingGroup(List<Widget> rows) => Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x10FFFFFF)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Column(children: rows),
+        ),
+      ),
+    );
+
+  Widget _buildSettingRow({
+    required IconData icon,
+    Color iconBg = const Color(0x1E3CDFFF),
+    Color iconColor = _kSCrystal,
+    required String name,
+    String? desc,
+    Widget? right,
+    VoidCallback? onTap,
+    bool last = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(
+                  bottom: BorderSide(color: Color(0x10FFFFFF)),
+                ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: _kSTextMain,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (desc != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      desc,
+                      style: const TextStyle(
+                        color: _kSTextHint,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (right != null) right,
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _toggleBiometric(bool enable) async {
     if (enable) {
@@ -1713,6 +1752,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: _selectedProvider,
                 isExpanded: true,
                 dropdownColor: _kSField,
+                selectedItemBuilder: (context) => providers.map((p) => Align(
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: [
+                      Text(p.icon, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          p.name,
+                          style: const TextStyle(color: _kSTextMain, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                )).toList(),
                 items: providers.map((p) => DropdownMenuItem(
                   value: p.type,
                   child: Row(
