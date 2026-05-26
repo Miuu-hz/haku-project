@@ -137,4 +137,9 @@ class EncryptionService {
     final key = await _storage.read(key: _dbKeyName);
     return key != null;
   }
+
+  /// 📝 Write a specific database key (used during backup restore)
+  static Future<void> writeDatabaseKey(String key) async {
+    await _safeWrite(_dbKeyName, key);
+  }
 }

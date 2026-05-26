@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'automation_screen.dart';
 import 'command_audit_screen.dart';
 import 'presets_screen.dart';
+import 'restore_screen.dart';
 import '../services/preset_service.dart';
 import '../models/llm_model_config.dart';
 import '../models/preset.dart';
@@ -16,6 +17,7 @@ import '../services/mcp_service.dart';
 import '../utils/haku_design_tokens.dart';
 import '../services/biometric_service.dart';
 import '../services/cloud_llm_provider.dart';
+import '../services/backup_service.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/google_auth_service.dart';
@@ -887,9 +889,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               iconBg: const Color(0x1E9B7CB6),
               iconColor: _kSLavender,
               name: 'ส่งออกข้อมูล',
-              desc: 'JSON, Markdown, CSV',
+              desc: 'JSON, Markdown, CSV, Encrypted Backup',
               right: const Icon(Icons.chevron_right, color: _kSTextHint),
               onTap: () => _showExportOptions(),
+            ),
+            _buildSettingRow(
+              icon: Icons.restore,
+              iconBg: const Color(0x1E3CDFFF),
+              iconColor: _kSCrystal,
+              name: 'นำเข้า Backup',
+              desc: 'กู้คืนจากไฟล์ .hakubak',
+              right: const Icon(Icons.chevron_right, color: _kSTextHint),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const RestoreScreen(),
+                ),
+              ),
             ),
             _buildSettingRow(
               icon: Icons.delete_forever,
@@ -1360,10 +1376,146 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await ExportService.shareFile(path);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.lock, color: _kSLavender),
+              title: const Text('Encrypted Backup (.hakubak)', style: TextStyle(color: _kSTextMain)),
+              subtitle: const Text('ป้องกันด้วย passphrase — กู้คืนได้หลัง reinstall', style: TextStyle(color: _kSTextSub)),
+              onTap: () async {
+                Navigator.pop(context);
+                await _showEncryptedBackupDialog();
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showEncryptedBackupDialog() async {
+    final passCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool obscure = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: _kSField,
+          title: const Text('Encrypted Backup', style: TextStyle(color: _kSTextMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'ตั้ง passphrase สำหรับป้องกัน backup\n'
+                '(จำเป็นต้องใช้ตอนกู้คืน)',
+                style: TextStyle(fontSize: 13, color: _kSTextSub),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passCtrl,
+                obscureText: obscure,
+                style: const TextStyle(color: _kSTextMain),
+                decoration: InputDecoration(
+                  labelText: 'Passphrase',
+                  labelStyle: const TextStyle(color: _kSTextSub),
+                  filled: true,
+                  fillColor: const Color(0xFFE8F0FA),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure ? Icons.visibility_off : Icons.visibility,
+                      color: _kSTextHint,
+                    ),
+                    onPressed: () => setLocal(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: confirmCtrl,
+                obscureText: obscure,
+                style: const TextStyle(color: _kSTextMain),
+                decoration: InputDecoration(
+                  labelText: 'ยืนยัน Passphrase',
+                  labelStyle: const TextStyle(color: _kSTextSub),
+                  filled: true,
+                  fillColor: const Color(0xFFE8F0FA),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (passCtrl.text.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('กรอก passphrase ก่อน')),
+                  );
+                  return;
+                }
+                if (passCtrl.text != confirmCtrl.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Passphrase ไม่ตรงกัน')),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              style: FilledButton.styleFrom(backgroundColor: _kSLavender),
+              child: const Text('สร้าง Backup'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final passphrase = passCtrl.text;
+    passCtrl.dispose();
+    confirmCtrl.dispose();
+
+    if (confirmed != true || !mounted) return;
+
+    // Show loading while PBKDF2 + file copy runs (~1–3 s).
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: _kSField,
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('กำลังสร้าง backup…', style: TextStyle(color: _kSTextMain)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final path = await BackupService.createEncryptedBackup(passphrase);
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      await BackupService.shareBackup(path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('สร้าง backup ล้มเหลว: $e')),
+      );
+    }
   }
 
   void _showDeleteConfirmation() {
